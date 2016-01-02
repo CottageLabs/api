@@ -1,0 +1,8 @@
+{
+  "public": {
+    "loginState": {
+      "domain": ".cottagelabs.com",
+      "cookieName": "clogins"
+    }
+  }
+}

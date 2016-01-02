@@ -1,0 +1,208 @@
+<html>
+  
+<head>
+  <title>Cottage Labs</title>
+
+  <meta name="description" content="">
+  <meta name="author" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <script type="text/javascript" src="http://static.cottagelabs.com/jquery-1.10.2.min.js"></script>
+  
+  <script type="text/javascript" src="http://static.cottagelabs.com/bootstrap-3.0.3/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="http://static.cottagelabs.com/bootstrap-3.0.3/css/bootstrap.min.css">
+
+  <link href="/cl.css" rel="stylesheet">
+
+  <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+  <link href='//fonts.googleapis.com/css?family=Corben' rel='stylesheet' type='text/css'>
+  <link href='//fonts.googleapis.com/css?family=Raleway' rel='stylesheet' type='text/css'>
+        
+</head>
+
+<body>
+  
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <h1 style="letter-spacing:6px;font-size:70px;">COTTAGE LABS API</h1>
+
+        <h2><a target="_blank" href="http://api.cottagelabs.com">http://api.cottagelabs.com</a>
+        <small>TODO will be moving to https only very SOON</small>
+        </h2>
+        
+        <h3>API data structure</h3>
+        <p>
+          This API returns (and in some places accepts) JSON. Unless otherwise specified, the JSON data structure returned will be a JSON 
+          object with a <b>status</b> key describing how the API behaved with respect to the request. Any response 
+          data will be in the <b>data</b> key. Any messages will appear in the <b>message</b> key. API endpoints 
+          below will describe any other information they return, and will specify if they differ from this convention.
+        </p>
+
+        <h3>Authentication</h3>
+        <p>
+          Sign up for a Cottage Labs account at <a target="_blank" href="http://accounts.cottagelabs.com">http://accounts.cottagelabs.com</a>. 
+          Once signed up, view your account details page to see your user ID and your API key. <span id="signedupalready"></span>
+        </p>
+        <p>
+          COMING SOON: have multiple API keys and generate new ones as required.
+        </p>
+        <p>
+          Once you have these credentials, they can be used to authenticate against any API route. Provide them 
+          either as headers in your request, using header names <b>x-id</b> and <b>x-apikey</b> or include them 
+          as URL query string parameters named <b>id</b> and <b>apikey</b>. For convenience, the URL query parameters 
+          can also accept <b>email</b> or <b>username</b> instead of <b>id</b>.
+        </p>
+        <p>
+          Note that whilst this gives you the ability to authenticate, API endpoints will also enfore authorisation 
+          restrictions using roles and groups.
+        </p>
+
+        <h3>Authorisation</h3>
+        <p>
+          After authentication, authorisation to perform certain actions is controlled by membership of roles and groups. 
+          The Cottage Labs accounts API (detailed below) provides routes for controlling membership of roles and groups. 
+          External services that use the Cottage Labs accounts API can customise the roles and groups that are used, but 
+          the conventional usage is as follows:
+        </p>
+        <p>
+          There is a default set of cascading roles - e.g. <b>root</b> is most senior, and is senior 
+          to all those following it. If any of these roles are used, then authorisation checks will take cascading 
+          seniority into account. Therefore, any user account with the <b>owner</b> role will be authorised whenever 
+          the <b>owner</b> role is checked for, but ALSO whenever the <b>auth</b> role is checked for, or any other role 
+          that comes after it.
+        </p>
+        <ul>
+          <li><b>root</b> roles should not generally be used, and should only be created by server administrators</li>
+          <li><b>system</b> roles denote system accounts, useful for where external services make use of the accounts 
+            API and need to manage users for that external services</li>
+          <li><b>super</b> roles should denote administrators with full control of a given system</li>
+          <li><b>owner</b> roles should identify a contactable owner, and preferably be unique but not necessarily</li>
+          <li><b>auth</b> roles have full control as owners, but are not expected to be contactable</li>
+          <li><b>admin</b> roles means admin access to some set of admin features of the system in question, rather 
+            than control of the whole system</li>
+          <li><b>publish</b></li>
+          <li><b>edit</b></li>
+          <li><b>read</b></li>
+          <li><b>info</b></li>
+          <li><b>public</b></li>
+        </ul>
+
+
+
+        <h2>Accounts API</h2>
+
+        <h3>/accounts</h3>
+        <p>
+          GET a list of all user account IDs.
+        </p>
+
+        <h3>/accounts/count</h3>
+        <p>
+          GET a count of all user accounts.
+        </p>
+
+        <h3>/accounts/online</h3>
+        <p>
+          GET a list of user IDs and count of all user accounts that appear to be online.
+        </p>
+
+        <h3>/accounts/online/count</h3>
+        <p>
+          GET just the count of how many user accounts appear to be online.
+        </p>
+
+        <h3>/accounts/:id</h3>
+        <p>
+          GET the user account identified by the :id parameter (can be user ID, email address, or username).
+          To the user of the queried account it returns the profile, roles, username, and emails. To system 
+          accounts it also returns the related system data.
+        </p>
+
+        <h3>/accounts/:id/status</h3>
+        <p>
+          GET the current status of the account - is it online, is it idle.
+        </p>
+        <p>
+          POST to this endpoint provides a way for external systems to indicate that the user is online and not idle. 
+          Keeps the online status of the user up to date when they are using external systems.
+        </p>
+
+        <h3>/accounts/:id/profile</h3>
+        <p>
+          POST updates to the profile of the user. Partially updates the user profile with the data provided, but leaves 
+          other profile data intact. Accessible to the user of the account itself, or anyone delegated control over that 
+          account.
+        </p>
+        <p>
+          PUT works as above but replaces the entire user profile with the provided data, overwriting anything that was 
+          previously in the profile.
+        </p>
+
+        <h3>/accounts/:id/system/:sys</h3>
+        <p>
+          POST and PUT similiarly to the above profile endpoint, but updates the relevant system section of the user account, 
+          and is authorised for the user that has relevant permissions for said system - NOT authorised for the user account owner.
+        </p>
+
+        <h3>/accounts/:id/roles/:group.role</h3>
+
+        <h3>/accounts/:id/auth/:roles</h3>
+        <p>
+          GET with a comma-separated list of grouproles, and returns whether or not the user has the necessary authority.
+          Return data will indicate false if not, or else the name of the first grouprole that the user has permission on.
+        </p>
+
+        <h3>/accounts/:id/request/:role</h3>
+
+
+
+
+        <h2>More APIs to follow - groups, store, scheduler, processors, etc</h2>
+
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+  $( document ).ready(function() {
+
+    LoginState = {};
+
+    LoginState.get = function(cookieName) {
+      var loginState = getCookie(cookieName);
+      if (loginState) {
+        return JSON.parse(decodeURIComponent(loginState));
+      } else {
+        return false;
+      }
+    };
+
+    function getCookie(cname) {
+      var name = cname + "=";
+      var ca = document.cookie.split(';');
+      for (var i=0; i<ca.length; i++) {
+          var c = ca[i];
+          while (c.charAt(0)==' ') c = c.substring(1);
+          if (c.indexOf(name) != -1) return c.substring(name.length,c.length);
+      }
+      return "";
+    }
+
+    var loginState = LoginState.get("clogins");
+    if (loginState) {
+      console.log(loginState);
+      var c = "Actually it looks like you've already signed up and logged in, as ";
+      c += loginState.email;
+      c += ' - so you should be able to view your account details and find your API key, then view your account data via the API like so: <br>';
+      c += '<a target="_blank" href="http://api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE">';
+      c += 'http://api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE</a>.';
+      $('#signedupalready').html(c);
+    }
+  });
+  </script>
+  
+</body>
+</html>

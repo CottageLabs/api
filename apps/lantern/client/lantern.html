@@ -1,0 +1,88 @@
+<template name="lantern">
+    
+    <div id="content">
+        <div id="maincontent">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h1>Lantern</h1>
+                        <p>Get an instant result about one article, identifed by DOI, PMID, PMCID, or title.</p>
+                        <input id="ident" name="ident" type="text" value="" placeholder="DOI, PMID, PMCID, or title" class="form-control">
+                        <button type="submit" class="btn btn-info btn-block" id="lanternsingle">Enlighten me</button>
+
+                        <hr>
+                        
+                        <p>Upload a spreadsheet (csv from excel) with any combination of the DOIs, PMIDs, PMCIDs and titles of the articles you're interested in, and we'll email you once we've checked them all.</p>
+                        
+                        <form method="POST" enctype="multipart/form-data" role="form">
+                            <input  type="file" name="upload" id="upload-csv" class="form-control">
+                            <input class="form-control" id="contact_email" name="contact_email" placeholder="Your email address" type="email" value="">
+                            <button type="submit" class="btn btn-info btn-block" id="lantern-multi">Email me</button>
+                        </form>
+
+                    </div>
+                    <div class="col-md-6">
+                        <div class="well" style="background-color:#c9d2d4;border-color:transparent;">
+                            <h3>Shed some light on your articles!</h3>                        
+                            <p>Provide some article identifiers and Lantern will check what sort of license they have. Information comes from <a href="http://europepmc.org" target="_blank">Europe PubMed Central</a> and <a href="http://howopenisit.org">OpenArticleGauge</a>. See the <a href="/docs">documentation</a> for more details.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>              
+    </div>
+    
+    <script>
+    jQuery(document).ready(function() {
+        // set the background of the opening panel depending on size of screen
+        var os = 0; // just in case an adjustment is required
+        var mcht = $('#maincontent').height() + os;
+        var setbg = function() {
+            var wd = $(window).width();
+            var ht = $(window).height() - os;
+            if ( mcht > ht ) { ht = mcht; }
+            if ( ht > 1200 || 900 >= wd ) {
+                $('#maincontent').css({background: '#c9d2d4'});            
+            } else {
+                $('#maincontent').css({background: 'url(bg.png) no-repeat bottom right'});
+                $('#maincontent').css({height: ht + 'px'});    
+            }        
+        }
+        setbg();
+        $(window).resize(setbg);
+
+        $('#headerurl').html('CL Lantern');
+        
+        var lanternsingle = function() {
+            var ident = $('#ident').val();
+            var tp = 'doi';
+            if ( ident.toLowerCase().indexOf('pmc') === 0 ) {
+                // could actually fail to find PMCIDs that are not prefixed with PMC
+                // no way to identify such from PMIDs, in that case. oh well.
+                tp = 'pmcid';
+            } else if ( ident.replace('/ /g','').length === 8 && ident.indexOf(' ') === -1 ) {
+                // may accidentally identify an 8 letter long title with no spaces
+                tp = 'pmid';
+            } else if ( ident.indexOf(' ') !== 0 ) {
+                // could miss some titles that contain no spaces. would be a weird title though
+                tp = 'title';
+            }
+            ident = ident.toLowerCase().replace('http','').replace('https','').replace('://','').replace('dx.doi.org/','').replace('pmc','').replace('pmid','');
+            var data = {};
+            data[tp] = ident;
+            $.ajax({
+                url: 'https://lantern.cottagelabs.com/direct-demo-form',
+                method: 'POST',
+                data: data,
+                dataType: 'JSONP',
+                success: function(data) {
+                    // get the redirect address
+                    alert(data);
+                }
+            });
+        }
+        $('#lanternsingle').bind('click',lanternsingle);
+    });
+    </script>
+</template>

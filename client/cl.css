@@ -1,0 +1,99 @@
+
+html{
+    font-size:10px;
+    -webkit-tap-highlight-color:rgba(0,0,0,0);
+    margin:0;
+    padding:0;
+}
+
+body {
+    font-family:"Raleway","Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:1.5em;
+    line-height:1.846;
+    color:#555;
+    margin:70px 0 0 0;
+    background-color:#c9d2d4;
+    padding:0;
+}
+
+input,button,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;margin-bottom:2px;}
+a{color:#2196f3;text-decoration:none}
+a:hover, a:focus{color:#0a6ebd;text-decoration:underline}
+a:focus{outline:thin dotted;outline:5px auto -webkit-focus-ring-color;outline-offset:-2px}
+
+.container-fluid{
+    margin:0 auto 0 auto;
+    padding-left:15px;
+    padding-right:15px;
+    max-width:1000px;
+}
+
+.nav-up {
+    top: -50px;
+}
+.navbox {
+    display:none;    
+}
+.dropdown {
+    background:#c9d2d4;
+    border-bottom:2px solid #333;
+    margin-bottom:50px;
+}
+.dropdown a {
+    color:#333;
+}
+
+#maincontent { 
+    padding-top:50px;
+    margin-top:-70px;
+}
+
+
+#menu {
+    width:300px;
+    height:100%;
+    overflow:scroll;
+    font-size:1em;
+}
+#menu a {
+    color: #333;
+}
+
+.dropdown-menu li a {
+    margin:0;
+    padding:0 2px 0 2px;
+    font-size:1.1em;
+}
+
+.anchor {
+    display: block; 
+    position: relative; 
+    top: -50px; 
+    visibility: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family:Corben, serif;
+    color:#444;
+}
+
+.label {
+    font-size:0.9em;
+}
+.label-default {
+    color:#333;
+    background-color:#aaa;
+}
+
+.navbar {
+    background:#c9d2d4;
+    -webkit-box-shadow: 0 1px 1px 0 rgba(51,51,51,1);
+    -moz-box-shadow: 0 1px 1px 0 rgba(51,51,51,1);
+    box-shadow: 0 1px 1px 0 rgba(51,51,51,1);
+}
+.navbar-nav li a{
+    font-size:1.6em;
+    color:#333;
+    padding:13px 10px 13px 10px;
+}
+
