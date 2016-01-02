@@ -156,19 +156,6 @@ CLapi.getuser = function(uid) {
 
 
 
-// elasticsearch API
-// handle authn and authz for es indexes and types (and head plugins, backups, etc, if necessary)
-// NOTE: if an index/type can be public, just make it public and have nginx route to it directly, saving app load.
-
-
-
-// mongo API
-// is it useful to have a Mongo API exposed at all?
-// if so there probably is one - is it more than just collection endpoint defenitions anyway?
-// maybe just endpoints to create and delete collections themselves. That could be all it takes.
-
-
-
 
 // data sources / apis to clone
 // core, crossref, orcid, Sherpa Romeo/Juliet/Fact, opendoar / oarr, journaltocs, wikipedia/wikidata, arxiv, doaj
@@ -183,7 +170,6 @@ CLapi.getuser = function(uid) {
 // G4HE
 // lantern
 // leviathan (Marks prototype tool for managing technosocial reqs, could be developed into something useful for projects, perhaps)
-// job queue (worth having a job queue that things can send jobs to, and other things can assign to themselves?)
 
 
 
