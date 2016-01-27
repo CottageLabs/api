@@ -27,3 +27,8 @@ random
 ejson
 spacebars
 check
+http
+meteorhacks:npm
+
+
+npm-container

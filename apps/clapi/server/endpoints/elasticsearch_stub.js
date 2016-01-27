@@ -7,7 +7,6 @@
 CLapi.addRoute('es', {
   get: {
     action: function() {
-      // return a list of all known groups
       return {status: 'success', data: {info: 'stub - in progress'} };
     }
   }

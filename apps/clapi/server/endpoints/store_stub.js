@@ -6,6 +6,9 @@
 // should this API route just be a map to the store app that runs separately, and is accessed via gateway?
 // so multiple API machines can be running and send requests to the store, and the gateway routes to wherever it actually is
 // which would have to be a local route so that it was not exposed to the wider internet directly
+
+// add logging of which users get, put, post, delete stuff in the store? probably.
+
 CLapi.addRoute('store', {
   get: {
     authRequired: true,
@@ -14,6 +17,7 @@ CLapi.addRoute('store', {
     }
   }
 });
+
 CLapi.addRoute('store/:fh', { // TODO how to pick up arbitrary route depth
   // can part of store put stuff in a public folder? So anything that needs no auth can just be retrieved directly via nginx?
   get: {
@@ -23,12 +27,18 @@ CLapi.addRoute('store/:fh', { // TODO how to pick up arbitrary route depth
       // which users can get certain files, and how can I serve the file directly?
     }
   },
+  put: {
+    authRequired: true,
+    action: function() {
+      // PUT to create directories
+      // which users can create direcrtories?
+      // is there then also implicit permissions on who can submit or access things in certain folders?
+    }
+  },
   post: {
     authRequired: true,
     action: function() {
       // which users can post files, and where can they post them to?
-      // should directory creation be separate, and on PUT? And if so, should it require different permissions to posting files?
-      // if directory creation is separate, is there then also implicit permissions on who can submit or access things in certain folders?
       // could put files in directory structure that mirrors groups and roles, 
       // putting files in the location of the lowest role that should be able to access them
     }
@@ -40,3 +50,31 @@ CLapi.addRoute('store/:fh', { // TODO how to pick up arbitrary route depth
     }
   }
 });
+
+CLapi.addRoute('store/receive', { 
+  get: {
+    action: {
+      // allow if includes a one-time key, check against one-time receipt db
+      // does not work via normal auth, because normal auth accounts can use the standard above
+      // at GET just accepts a URL from which to download
+      // everything received will be put in a uuid folder
+      // will return 200 and link to the store folder - who will have permission to access it? assume public?
+      // when something is received may also have to trigger a notification of some sort, to somewhere
+      // for example notify oabutton that a file has been received?
+    }
+  },
+  post: {
+    action: {
+      // as above, but can post content files too
+    }
+  },
+  put: {
+    authRequired: true,
+    action: {
+      // create a one-time key so that someone can deposit to the store
+      // creating one-time keys can only be done by users in certain groups though...
+    }
+  }
+});
+
+

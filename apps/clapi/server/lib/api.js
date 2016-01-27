@@ -94,6 +94,8 @@ CLapi = new Restivus({
   }
 });
 
+// set a place to store internal methods - add a key whenever a new folder is added into the API endpoints folder
+CLapi.internals = {academic:{}, use:{}, service:{}, convert:{}, scripts:{}};
 
 CLapi.cauth = function(gr, user, cascade) {
   if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
