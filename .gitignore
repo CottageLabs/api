@@ -3,4 +3,4 @@
 *settings.js
 *settings.json
 apps/clapi/server/endpoints/scripts/greenoa/issn*
-apps/clapi/server/endpoints/scripts/results/*
+apps/clapi/server/endpoints/scripts/greenoa/results
