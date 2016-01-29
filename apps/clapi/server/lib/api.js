@@ -61,7 +61,6 @@ CLapi = new Restivus({
   auth: {
     token: 'api.keys.hashedToken',
     user: function () {
-      console.log(this.user);
       var xid = this.request.headers['x-id'];
       if ( !xid ) xid = this.request.query.id;
       if ( !xid ) {
@@ -82,10 +81,17 @@ CLapi = new Restivus({
           xapikey = this.request.query.apikey;
         } catch(err) {}
       }
+      // TODO add a check for the clogins cookie. 
+      // Add in the accounts module a push of a token into the clogins cookie
+      // if we can match that hash, login the user
+      // also have the user provide a device fingerprint using fingerprintjs2 when signing in
+      // so using cookies would only work per-device if authorising to the API
+      // have a global and a per-user setting to allow cookie re-auth or not, and also to allow cooke httponly or not
+      console.log(this.request.headers.cookie);
       if ( xid === undefined ) xid = '';
       if ( xapikey === undefined ) xapikey = '';
       // TODO could add login logging here...
-      console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
+      if (xid) console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
       return {
         userId: xid,
         token: Accounts._hashLoginToken(xapikey)

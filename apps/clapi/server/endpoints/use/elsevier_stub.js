@@ -38,6 +38,9 @@
 
 // also how to search for publication dates and ranges. Again worth bothering or just get from crossref?
 
+// getting and using cookies in node:
+// https://newspaint.wordpress.com/2015/09/06/how-to-get-cookies-from-node-js-http-response/
+// http://blog.nodejitsu.com/sessions-and-cookies-in-node/
 
 
 

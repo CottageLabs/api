@@ -12,7 +12,6 @@ accounts-password
 alanning:roles
 mizzao:user-status
 nimble:restivus
-kadira:login-state
 standard-minifiers
 meteor-base
 mobile-experience
@@ -32,3 +31,4 @@ meteorhacks:npm
 
 
 npm-container
+chuangbo:cookie
