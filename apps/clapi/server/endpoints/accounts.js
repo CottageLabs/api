@@ -1,4 +1,7 @@
 
+Role_requests = new Mongo.Collection("role_request");
+CLapi.addCollection(Role_requests);
+
 CLapi.addRoute('accounts', {
   get: {
     authRequired: true,
@@ -51,7 +54,7 @@ CLapi.addRoute('accounts/:id', {
     action: function() {
       var u = CLapi.getuser(this.urlParams.id);
       var rls = u.roles;
-      if (rls.__global_roles__) delete rls.__global_roles__;
+      if (rls && rls.__global_roles__) delete rls.__global_roles__;
       if ( CLapi.cauth('root', this.user) ) {
         // only root can get full user data
         return {status: 'success', data: u };
@@ -204,13 +207,13 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
       // should group creation be constrained to groups that are separately created first via a groups API?
       var grp, role, ath;
       var grpts = this.urlParams.grouprole.split('.');
-      if ( grpts.length === 1 ) {
+      if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
+      grp = grpts[0];
+      role = grpts[1];
+      if ( grp === 'GLOBAL' ) {
         grp = Roles.GLOBAL_GROUP;
-        role = grpts[0];
         ath = CLapi.cauth('root', this.user);
       } else {
-        grp = grpts[0];
-        role = grpts[1];
         ath = CLapi.cauth(grp + '.auth', this.user);
         // TODO should system users be allowed to manipulate OTHER groups/roles of users in their system
         // I think not - if some system account wants to make additional groups and roles in relation to some 
@@ -223,9 +226,7 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
       // TODO are there groups that users (or their delegates) can assign themselves to?
       // TODO are there groups that anyone can assign anyone to? bit spammy?
       if ( ath ) {
-        var u = CLapi.getuser(this.urlParams.id);
-        Roles.addUsersToRoles(u, role, grp);
-        return {status: 'success'};
+        return CLapi.internals.accounts.addrole(this.urlParams.id,grp,role);
       } else {
         return {
           statusCode: 403,
@@ -239,22 +240,20 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
     action: function() {
       var grp, role, ath;
       var grpts = this.urlParams.grouprole.split('.');
-      if ( grpts.length === 1 ) {
+      if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
+      grp = grpts[0];
+      role = grpts[1];
+      if ( grp === 'GLOBAL' ) {
         grp = Roles.GLOBAL_GROUP;
-        role = grpts[0];
         ath = CLapi.cauth('root', this.user);
       } else {
-        grp = grpts[0];
-        role = grpts[1];
         ath = CLapi.cauth(grp + '.auth', this.user);
         if ( role === 'public' ) ath = true;
         if ( cascading.indexOf(role) !== -1 && cascading.indexOf(role) < cascading.indexOf(ath) ) ath = false;
       }
       // TODO can users remove themselves from groups? If they can, how does that affect system data in their user account?
       if ( ath ) {
-        var u = CLapi.getuser(this.urlParams.id);
-        Roles.removeUsersFromRoles(u, role, grp);
-        return {status: 'success'};
+        return CLapi.internals.accounts.removerole(this.urlParams.id,grp,role);
       } else {
         return {
           statusCode: 403,
@@ -264,11 +263,11 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
     }
   }
 });
-CLapi.addRoute('accounts/:id/auth/:roles', {
+CLapi.addRoute('accounts/:id/auth/:grouproles', {
   get: {
     action: function() {
       var u = CLapi.getuser(this.urlParams.id);
-      var authd = CLapi.rcauth(this.urlParams.roles.split(','), u);
+      var authd = CLapi.rcauth(this.urlParams.grouproles.split(','), u);
       if ( authd ) {
         return {status: 'success', data: {auth: authd} };
       } else {
@@ -277,13 +276,128 @@ CLapi.addRoute('accounts/:id/auth/:roles', {
     }
   }
 });
-CLapi.addRoute('accounts/:id/request/:role', {
+// TODO can the following request,allow,deny allow GLOBAL? or just specified groups?
+CLapi.addRoute('accounts/:id/request/:grouprole', {
   post: {
     authRequired: true,
     action: function() {
       // TODO create a collection called rolerequests and record this user requesting access to this role
       // TODO find the group owner, or first auth user, or first higher auth user, and email them a link to allow the request
-      return {status: 'success', data: {} };
+      // does the role they are requesting exist?
+      // has the user already been denied this role? If so can they re-request or do we continue to deny?
+      // if continue to deny, how can a user indicate they do want access again, when it has been decided they CAN have access?
+      // e.g. if the admin says sure just re-request, it would fail. But we also don't want continuing spam requests for access after denial
+      // maybe there should be a ban list for groups? Then reqeusts can just be denied, but can also be banned if desired?
+      // then an unban would be required too
+      var grp, role;
+      var grpts = this.urlParams.grouprole.split('.');
+      if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
+      grp = grpts[0];
+      role = grpts[1];
+      var r = Role_requests.insert({role:role, group:grp, uid:this.userId});
+      return {status: 'success', data: r };
     }
   }
 });
+CLapi.addRoute('accounts/:id/request/:grouprole/allow', {
+  post: {
+    authRequired: true,
+    action: function() {
+      // does the person doing this have the rights?
+      var grp, role;
+      var grpts = this.urlParams.grouprole.split('.');
+      if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
+      grp = grpts[0];
+      role = grpts[1];
+      var reason = this.queryParams.reason;
+      if (this.data.reason) reason = this.data.reason;
+      return CLapi.internals.accounts.allowrole(this.urlParams.id,grp,role,reason);
+    }
+  }
+});
+CLapi.addRoute('accounts/:id/request/:grouprole/deny', {
+  post: {
+    authRequired: true,
+    action: function() {
+      // does the person doing this have the rights?
+      var grp, role;
+      var grpts = this.urlParams.grouprole.split('.');
+      if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
+      grp = grpts[0];
+      role = grpts[1];
+      var reason = this.queryParams.reason;
+      if (this.data.reason) reason = this.data.reason;
+      return CLapi.internals.accounts.denyrole(this.urlParams.id,grp,role,reason);
+    }
+  }
+});
+
+// may add a route that appears to serve a gif but actually uses the gif name to check against a one-time login collection
+// if the gif name matches, and the fingerprint of the device asking for it matches, serve a 1x1 gif along with the necessary 
+// cookie set for the domain being called from, if that domain is within a set of allowed domains.
+
+
+// no auth control on these actions, cos any code with the ability to call them directly will also have the ability to write directly to the accounts db
+// auth is handled within the API layer above, though
+CLapi.internals.accounts.create = function(data,opts) {
+  if (data.email === undefined) throw new Error('At least email field required');
+  if (data.password === undefined) data.password = Random.hexString(30);
+  var userId = Accounts.createUser({email:data.email,password:data.password});
+  console.log("CREATED userId = " + userId);
+  // create a group for this user, that they own?
+  var apikey = Random.hexString(30);
+  var apihash = Accounts._hashLoginToken(apikey);
+  // need checks for profile data, service data, and other special fields in the incoming data
+  // update with the data that is allowed
+  Meteor.users.update(userId, {$set: {'profile':{},'security':{'fingerprint':fingerprint,'httponly':!Meteor.settings.public.loginState.HTTPONLY_COOKIES}, 'api': {'keys': [{'key':apikey, 'hashedToken': apihash, 'name':'default'}] }, 'emails.0.verified': true}});
+  // give first created user the root global role!
+  if ( Meteor.users.find().count() === 1 ) Roles.addUsersToRoles(userId, 'root', Roles.GLOBAL_GROUP);
+
+}
+CLapi.internals.accounts.retrieve = function(uid) {
+  var u = Meteor.users.findOne(uid);
+  if (!u) u = Accounts.findUserByUsername(uid);
+  if (!u) u = Accounts.findUserByEmail(uid);
+  return u;
+}
+CLapi.internals.accounts.update = function(uid,keys) {
+  Meteor.users.update(uid, {$set: keys});
+}
+CLapi.internals.accounts.delete = function(uid) {
+  // need to remove anything else? groups they own?
+  // does delete actually delete, or just set as disabled?
+  // system accounts should never delete, should just remove system section and groups/roles
+  Meteor.users.remove(uid);
+}
+CLapi.internals.accounts.auth = function() {}
+CLapi.internals.accounts.addrole = function(uid,group,role) {
+  var u = CLapi.getuser(uid);
+  Roles.addUsersToRoles(u, role, group);
+  return {status: 'success'};
+}
+CLapi.internals.accounts.removerole = function(uid,group,role) {
+  var u = CLapi.getuser(uid);
+  Roles.removeUsersFromRoles(u, role, group);
+  return {status: 'success'};
+}
+CLapi.internals.accounts.allowrole = function(uid,group,role,reason) {
+  CLapi.internals.accounts.addrole(uid,group,role);
+  var r = Role_requests.findOne({uid:uid,group:group,role:role});
+  Role_requests.remove(r);
+  // TODO email the user and inform them of group added, with reason if present
+  return {status: 'success'}
+}
+CLapi.internals.accounts.denyrole = function(uid,group,role,reason) {
+  var r = Role_requests.findOne({uid:uid,group:group,role:role});
+  Role_requests.update(r,{$set:{denied:true}}); // TODO should be denied date?
+  // TODO email the user and inform them of group denied, with reason if present
+  return {status: 'success'}  
+}
+
+
+
+
+
+
+
+

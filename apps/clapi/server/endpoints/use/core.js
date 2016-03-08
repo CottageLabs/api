@@ -1,4 +1,5 @@
 
+// NOTE CORE IS STILL NOT PROVIDING RELIABLE RESULTS, A DOI SEARCH ON OUR USUAL OPEN BIBLIO PAPER RETURNS WRONG ANSWERS. PRETTY USELESS
 
 // core docs:
 // http://core.ac.uk/docs/
@@ -70,11 +71,11 @@ CLapi.internals.use.core.articles.search = function(qrystr,from,size) {
   var url = 'http://core.ac.uk/api-v2/articles/search/' + qry + '?urls=true&apiKey=' + apikey;
   if (!size) size = 10;
   if (size !== 10) url += '&pageSize=' + size;
-  if (from) url += '&page=' + Math.floor(from/size);
+  if (from) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
   var res = Meteor.http.call('GET', url);
   if ( res.statusCode === 200 ) {
-    return { status: 'success', data: res.data}    
+    return { status: 'success', total: res.data.totalHits, data: res.data.data}    
   } else {
     return { status: 'error', data: res}
   }

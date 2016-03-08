@@ -32,6 +32,9 @@ var setCookie = function(name, value, options) {
     // secure
     if (options.secure) text += '; secure';
 
+    // httponly
+    if (options.httponly) text += '; HttpOnly';
+
     document.cookie = text;
     return text;
 };
@@ -51,32 +54,48 @@ LoginState.init = function(domain, cookieName, maxage) {
   }
 
   cookieName = cookieName || "meteor-login-state";
-  maxage = maxage || 365;
+  maxage = maxage || 365; // TODO also allow user config of max age so check user.profile.security.cookiemaxage
 
   Tracker.autorun(function() {
-    var user = this.user && this.user();
+    var user = Meteor.user && Meteor.user();
     if(user) {
       var data = {
-        // in here should provide some sort of hash to check the user with
-        // and also httponly or not, depending on app configurations and user account choice
+        email: user.emails && user.emails[0] && user.emails[0].address,
         timestamp: Date.now(),
-        //username: user.username,
         userId: user._id,
-        //email: user.emails && user.emails[0] && user.emails[0].address,
         url: window.location.origin
       };
+      new Fingerprint2().get(function(result, components){
+        console.log(result); //a hash, representing device fingerprint
+        data.fp = result;
+        // allow setting login cookies on multiple domains
+        var domains = Meteor.settings.public.loginState.EXTRA_DOMAINS;
+        domains.push(Meteor.settings.public.loginState.domain);
+        // this and the else code below should actually just check if on one of the allowed domains and set cookie for that domain
+        // setting for other domains does not succeed anyway. But tat this point we could trigger a visit to a pixel img url that would
+        // set across all domains we want (if that user has login rights on that site...)
+        for ( var d in domains ) {
+          setCookie(cookieName, JSON.stringify(data), {
+            path: "/",
+            expires: maxage,
+            domain: domains[d],
+            httponly: Meteor.settings.public.loginState.HTTPONLY_COOKIES && !(user.profile && user.profile.security && !user.profile.security.httponly),
+            secure: Meteor.settings.public.loginState.SECURE_COOKIES
+          });
+        }
+      });
 
-      setCookie(cookieName, JSON.stringify(data), {
-        path: "/",
-        expires: maxage,
-        domain: domain
-      });
     } else {
-      setCookie(cookieName, "", {
-        path: "/",
-        expires: -1,
-        domain: domain
-      });
+      // allow setting login cookies on multiple domains
+      var domains = Meteor.settings.public.loginState.EXTRA_DOMAINS;
+      domains.push(Meteor.settings.public.loginState.domain);
+      for ( var d in domains ) {
+        setCookie(cookieName, "", {
+          path: "/",
+          expires: -1,
+          domain: domains[d]
+        });
+      }
     }
   });
 

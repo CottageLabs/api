@@ -13,9 +13,12 @@ Template.enter_email.events({
         if ( email.length === 0 ) {
             $('#enter-email').focus();
         } else {
+            var loc = window.location.href;
+            loc = loc.split('?')[0];
+            if (loc.substring(loc.length-1) === '/') loc = loc.substring(0,loc.length-1);
             Meteor.call("enter_email",
                 email,
-                -1 != window.location.protocol.toLowerCase().indexOf('https'),
+                loc,
                 function(error,result){
                 if ( error ) {
                     alert("Error with that email address. Please try again.");
@@ -47,14 +50,17 @@ Template.enter_security_code.events({
         if ( code.length === 0 ) {
             $('#enter-security-code').focus();
         } else {
-            Meteor.call("enter_security_code",Session.get("email"),code,function(error,pwd){
-                if ( error ) {
-                    alert("That code is invalid, or has timed out. Sorry. Please try again.");
-                    Meteor.call("cancel_login_code",Session.get("email"));
-                    Session.set("email",null);
-                } else {
-                    Meteor.loginWithPassword({email:Session.get("email").toLowerCase()},pwd);
-                }
+            new Fingerprint2().get(function(result, components){
+                console.log(result); //a hash, representing device fingerprint
+                Meteor.call("enter_security_code",Session.get("email"),code,result,function(error,pwd){
+                    if ( error ) {
+                        alert("That code is invalid, or has timed out. Sorry. Please try again.");
+                        Meteor.call("cancel_login_code",Session.get("email"));
+                        Session.set("email",null);
+                    } else {
+                        Meteor.loginWithPassword({email:Session.get("email").toLowerCase()},pwd);
+                    }
+                });
             });
         }
     }
@@ -75,13 +81,16 @@ function watch_for_login_hashcode(one_time_only) {
         if ( hash !== old_login_hashcode ) {
             old_login_hashcode = hash;
 
-            if ( hash.length === SECURITY_CODE_HASH_LENGTH ) {
-                Meteor.call("login_via_url",hash.toUpperCase(),function(error,loginInfo){
-                    if ( error ) {
-                        // not much we can do with such an error
-                    } else {
-                        Meteor.loginWithPassword({email:loginInfo.email},loginInfo.pwd);
-                    }
+            if ( hash.length === Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH ) {
+                new Fingerprint2().get(function(result, components){
+                    console.log(result); //a hash, representing device fingerprint
+                    Meteor.call("login_via_url",hash.toUpperCase(),result,function(error,loginInfo){
+                        if ( error ) {
+                            // not much we can do with such an error
+                        } else {
+                            Meteor.loginWithPassword({email:loginInfo.email},loginInfo.pwd);
+                        }
+                    });
                 });
             }
         }
@@ -126,6 +135,9 @@ Template.loggedin.rolenames = function() {
 
 Template.loggedin.events({
     'click #logout-btn': function (e, tmpl) {
+        try {
+          e.preventDefault();
+        } catch(err) {}
         Meteor.logout();
         Session.set("email",null);
     }

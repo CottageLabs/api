@@ -1,19 +1,17 @@
 
 // config for nmpje - which also uses mail, which requires process.env.MAIL_URL to be set in server/env.js
-LOGIN_CODE_TIMEOUT_MINUTES = 5;
-LOGIN_CODE_LENGTH = 12;
-SECURITY_CODE_HASH_LENGTH = 40;
-ADMIN_ACCOUNT_ID = "mark@cottagelabs.com";
-MY_DOMAIN = "accounts.cottagelabs.com";
 
 Router.map( function () {
-  this.route('homepage', {
+  this.route('home', {
     path: '/',
     waitOn : function() {
-        return Meteor.subscribe('userData');
+      return Meteor.subscribe('userData');
     },
     action: function() {
-      this.render('accounts');
+      var page;
+      if ( this.request.url.indexOf('accounts.cottagelabs.com') !== -1 ) page = 'accounts';
+      if ( this.request.url.indexOf('opendatabutton.org') !== -1 ) page = 'oabutton';
+      this.render(page); 
     }
   });
 });

@@ -42,6 +42,30 @@
 // https://newspaint.wordpress.com/2015/09/06/how-to-get-cookies-from-node-js-http-response/
 // http://blog.nodejitsu.com/sessions-and-cookies-in-node/
 
+CLapi.addRoute('use/sciencedirect', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.sciencedirect.retrieve(this.queryParams.url);
+    }
+  }
+});
+
+// see the academic resolve code, it now has a way of keeping cookies from the splash page to redirect to
+CLapi.internals.use.sciencedirect = {};
+CLapi.internals.use.sciencedirect.retrieve = function(url) {
+  var res = Meteor.http.call('GET', url);
+  // search res.content for the first URL ending in .pdf
+  var pdfurl = '';
+  console.log(res.headers.cookie);
+  var pdf = Meteor.http.call('GET',pdfurl).content;
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'application/pdf'
+    },
+    body: pdf
+  }
+}
 
 
 

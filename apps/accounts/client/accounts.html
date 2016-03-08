@@ -15,6 +15,9 @@
     {{#if session "email"}}
       {{> enter_security_code}}
     {{else}}
+      <p>We use an authentication login system rather than a password system. Just provide your 
+      email address and you will receive an email with a link and code number. All you have to do is click 
+      the link or copy and paste the code number to authenticate your device and login. No more passwords to remember!</p>
       {{> enter_email}}
     {{/if}}
     </div>
@@ -25,9 +28,6 @@
 <!-- if not logged in, show this  -->
 <template name="enter_email">
     <form id="enter-email-form" role="form">
-        <p>We use an authentication login system rather than a password system. Just provide your 
-        email address and you will receive an email with a link and code number. All you have to do is click 
-        the link or copy and paste the code number to authenticate your device and login. No more passwords to remember!</p>
         <p><input type="email" class="form-control" id="enter-email" placeholder="Enter your email address"></p>
         <p><button type="submit" class="btn btn-primary btn-block">Authenticate</button></p>
     </form>
@@ -37,17 +37,15 @@
 <template name="enter_security_code">
     <form id="enter-security-code-form" class="form-inline" role="form">
         <label>Security code:</label>
-        <input type="text" class="span4 input-small" id="enter-security-code" placeholder="see {{session "email"}}">
-        <button type="submit" class="btn btn-primary">
+        <input type="text" class="form-control" id="enter-security-code" placeholder="see {{session "email"}}">
+        <button type="submit" class="btn btn-primary btn-block">
         {{#if session "known"}}
         Login
         {{else}}
         Register
         {{/if}}
         </button>
-        <button id="reset-email" type="button" class="btn btn-danger pull-right">
-        Reset Email
-        </button>
+        <button id="reset-email" type="button" class="btn btn-danger btn-block">Cancel</button>
     </form>
 </template>
 
@@ -106,7 +104,15 @@
         Eventually provide two-factor signin. Also provide log of user login activity / status data.
         Option to login on only one device or mutliple (controlled by setPassword call on server, whether logout option is true or not).
         Options to logout of "all devices" / "all places". Disable / delete account.
-        Can also do device fingerprinting with https://github.com/Valve/fingerprintjs2
+        Can also do device fingerprinting with https://github.com/Valve/fingerprintjs2.
+        Also have option if settings have API_AUTH_BY_COOKIE_KEY then user can choose if their cookies should be httponly or not
+        If they are not then they can be conveniently picked up to authenticate API requests from the browser 
+        but that also allows XSS. So if they are httponly then the user has more security but can ONLY auth to the API using the ID and API key.
+        Also can have an option to use device fingerprinting, in which case collect a fingerprint from this accounts page and store it. Then 
+        on cookie login or other methods done via web UI, can capture device fingerprint (but of course this only works per device, and can cause 
+        login to become invalid, e.g. if user device / browser / etc is updated or upgraded in certain ways. So provides more security for extra 
+        potential hassle.)
+        A user could also choose how long they want their cookie to last for?
       </p>
       
       <h3>API</h3>

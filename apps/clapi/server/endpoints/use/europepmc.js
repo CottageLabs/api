@@ -36,6 +36,32 @@ CLapi.addRoute('use/europepmc/doi/:doipre/:doipost', {
   }
 });
 
+CLapi.addRoute('use/europepmc/pmid/:qry', {
+  get: {
+    action: function() {
+      var res = CLapi.internals.use.europepmc.pmid(this.urlParams.qry);
+      try {
+        return {status: 'success', data: res.data.resultList.result[0] }
+      } catch(err) {
+        return {status: 'success', data: res.data }        
+      }
+    }
+  }
+});
+
+CLapi.addRoute('use/europepmc/pmc/:qry', {
+  get: {
+    action: function() {
+      var res = CLapi.internals.use.europepmc.pmc(this.urlParams.qry);
+      try {
+        return {status: 'success', data: res.data.resultList.result[0] }
+      } catch(err) {
+        return {status: 'success', data: res.data }        
+      }
+    }
+  }
+});
+
 CLapi.addRoute('use/europepmc/search/:qry', {
   get: {
     action: function() {
@@ -62,18 +88,39 @@ CLapi.addRoute('use/europepmc/published/:startdate/:enddate', {
 
 CLapi.internals.use.europepmc = {};
 CLapi.internals.use.europepmc.doi = function(doi) {
-  var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:' + doi + '&resulttype=core&format=json'
-  console.log(url);
-  var res = Meteor.http.call('GET', url);
-  if ( res.hitCount !== 0 ) {
-    return { status: 'success', data: res.data.resultList.result[0]}    
+  var res = CLapi.internals.use.europepmc.search('DOI:' + doi);
+  if (res.total > 0) {
+    return {status: 'success', data: res.data[0] }
   } else {
-    return { status: 'success', data: res.data}      
+    return {status: 'success', data: res }    
+  }
+}
+
+CLapi.internals.use.europepmc.pmid = function(ident) {
+  var res = CLapi.internals.use.europepmc.search(ident);
+  if (res.total > 0) {
+    return {status: 'success', data: res.data[0] }
+  } else {
+    return {status: 'success', data: res }    
+  }
+}
+
+CLapi.internals.use.europepmc.pmc = function(ident) {
+  var res = CLapi.internals.use.europepmc.search('PMC' + ident.toLowerCase().replace('pmc',''));
+  if (res.total > 0) {
+    return {status: 'success', data: res.data[0] }
+  } else {
+    return {status: 'success', data: res }    
   }
 }
 
 CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
-  
+  var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=' + qrystr + '&resulttype=core&format=json'
+  if (size !== undefined) url += '&pageSize=' + size;
+  if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
+  console.log(url);
+  var res = Meteor.http.call('GET', url);
+  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
 }
 
 

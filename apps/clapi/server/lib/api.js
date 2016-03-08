@@ -61,17 +61,18 @@ CLapi = new Restivus({
   auth: {
     token: 'api.keys.hashedToken',
     user: function () {
+      var u;
       var xid = this.request.headers['x-id'];
       if ( !xid ) xid = this.request.query.id;
       if ( !xid ) {
         try {
-          var u = Accounts.findUserByEmail(this.request.query.email);
+          u = Accounts.findUserByEmail(this.request.query.email);
           xid = u._id;          
         } catch (err) {}
       }
       if ( !xid ) {
         try {
-          var u = Accounts.findUserByUsername(this.request.query.username);
+          u = Accounts.findUserByUsername(this.request.query.username);
           xid = u._id;          
         } catch (err) {}
       }
@@ -81,13 +82,64 @@ CLapi = new Restivus({
           xapikey = this.request.query.apikey;
         } catch(err) {}
       }
-      // TODO add a check for the clogins cookie. 
-      // Add in the accounts module a push of a token into the clogins cookie
-      // if we can match that hash, login the user
-      // also have the user provide a device fingerprint using fingerprintjs2 when signing in
-      // so using cookies would only work per-device if authorising to the API
-      // have a global and a per-user setting to allow cookie re-auth or not, and also to allow cooke httponly or not
-      console.log(this.request.headers.cookie);
+      
+      if ( !xapikey ) { // this is for oabutton mostly, as it passes apikey as api_key in the request body
+        try {
+          xapikey = this.request.query.api_key;
+        } catch(err) {}
+      }
+      if ( !xapikey ) {
+        try {
+          xapikey = this.request.body.api_key;
+        } catch(err) {}
+      }
+      if ( xid === undefined && xapikey ) {
+        // allow user login just by apikey - check then that they are an oabutton user?
+        console.log('User providing apikey only - checking. This ability should be deprecated, only in use by oabutton');
+        try {
+          var acc = Meteor.users.findOne({'api.keys.key':xapikey});
+          xid = acc._id;
+        } catch(err) {}
+      } // end of oabutton oddity
+
+      if (!xid && !Meteor.settings.public.loginState.HTTPONLY_COOKIES && this.request.headers.cookie) { 
+        // and check if user allows non-http cookies 
+        // May not matter because if not allowed they won't get sent anyway = UNLESS someone is being evil, so check anyway
+        var name = Meteor.settings.public.loginState.cookieName + "=";
+        var ca = this.request.headers.cookie.split(';');
+        var cookie;
+        try {
+          cookie = JSON.parse(decodeURIComponent(function() {
+            for(var i=0; i<ca.length; i++) {
+              var c = ca[i];
+              while (c.charAt(0)==' ') c = c.substring(1);
+              if (c.indexOf(name) != -1) return c.substring(name.length,c.length);
+            }
+            return "";
+          }()));
+          u = Meteor.users.findOne(cookie.userId);
+        } catch(err) {
+          u = false;
+        }
+        // TODO some way to check device fingerprint? then confirm against that stored in cookie
+        if (u) {
+          if (true) {//} !(u.profile && u.profile.security && (u.profile.security.httponly === undefined || !u.profile.security.httponly) ) ) {
+            var fp = '';
+            try {
+              fp = u.security.fingerprint;
+            } catch(err) {}
+            if ( cookie.fp === fp) {
+              console.log('User authenticated by cookie - WHICH IS WEAK!');
+              xid = u._id;
+              xapikey = u.api.keys[0].key;              
+            } else {
+              console.log('POTENTIAL COOKIE THEFT!!! ' + cookie.userId);            
+            }
+          } else {
+            console.log('POTENTIAL COOKIE THEFT!!! ' + cookie.userId);
+          }
+        }
+      }
       if ( xid === undefined ) xid = '';
       if ( xapikey === undefined ) xapikey = '';
       // TODO could add login logging here...
@@ -101,7 +153,29 @@ CLapi = new Restivus({
 });
 
 // set a place to store internal methods - add a key whenever a new folder is added into the API endpoints folder
-CLapi.internals = {academic:{}, use:{}, service:{}, convert:{}, scripts:{}};
+CLapi.internals = {accounts:{}, academic:{}, use:{}, service:{}, convert:{}, scripts:{}, contentmine: {}};
+
+// can this become a useful way to show the docs?
+CLapi.addRoute('list', {
+  get: {
+    action: function() {
+      var routes = [];
+      for ( var k in CLapi._routes ) {
+        routes.push(CLapi._routes[k].path);
+        //for ( var kk in CLapi._routes[k] ) console.log(kk);
+      }
+      return routes;
+      /*var replacer = function(key, value){
+        if (typeof value === 'function') {
+          return 'function';
+        } else {
+          return value;        
+        }
+      };
+      return JSON.parse(JSON.stringify(CLapi.internals,replacer));*/
+    }
+  }
+});
 
 CLapi.cauth = function(gr, user, cascade) {
   if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
@@ -129,7 +203,7 @@ CLapi.cauth = function(gr, user, cascade) {
   // or else check for higher authority in cascading roles for group
   // TODO ALLOW CASCADE ON GLOBAL OR NOT?
   // cascading roles, most senior on left, allowing access to all those to the right
-  var cascading = ['root','system','super','owner','auth','admin','publish','edit','read','info','public'];
+  var cascading = ['root','system','super','owner','auth','admin','publish','edit','read','user','info','public'];
   if ( cascade === undefined ) cascade = true;
   if ( cascade ) {
     var ri = cascading.indexOf(role);

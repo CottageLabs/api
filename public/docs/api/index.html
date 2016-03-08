@@ -8,10 +8,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-  <script type="text/javascript" src="http://static.cottagelabs.com/jquery-1.10.2.min.js"></script>
+  <script type="text/javascript" src="//static.cottagelabs.com/jquery-1.10.2.min.js"></script>
   
-  <script type="text/javascript" src="http://static.cottagelabs.com/bootstrap-3.0.3/js/bootstrap.min.js"></script>
-  <link rel="stylesheet" href="http://static.cottagelabs.com/bootstrap-3.0.3/css/bootstrap.min.css">
+  <script type="text/javascript" src="//static.cottagelabs.com/bootstrap-3.0.3/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="//static.cottagelabs.com/bootstrap-3.0.3/css/bootstrap.min.css">
 
   <link href="/cl.css" rel="stylesheet">
 
@@ -28,8 +28,7 @@
       <div class="col-md-12">
         <h1 style="letter-spacing:6px;font-size:70px;">COTTAGE LABS API</h1>
 
-        <h2><a target="_blank" href="http://api.cottagelabs.com">http://api.cottagelabs.com</a>
-        <small>TODO will be moving to https only very SOON</small>
+        <h2><a target="_blank" href="//api.cottagelabs.com">api.cottagelabs.com</a>
         </h2>
         
         <h3>API data structure</h3>
@@ -43,7 +42,7 @@
 
         <h3>Authentication</h3>
         <p>
-          Sign up for a Cottage Labs account at <a target="_blank" href="http://accounts.cottagelabs.com">http://accounts.cottagelabs.com</a>. 
+          Sign up for a Cottage Labs account at <a target="_blank" href="//accounts.cottagelabs.com">accounts.cottagelabs.com</a>. 
           Once signed up, view your account details page to see your user ID and your API key. <span id="signedupalready"></span>
         </p>
         <p>
@@ -86,6 +85,7 @@
           <li><b>publish</b></li>
           <li><b>edit</b></li>
           <li><b>read</b></li>
+          <li><b>user</b></li>
           <li><b>info</b></li>
           <li><b>public</b></li>
         </ul>
@@ -198,8 +198,8 @@
       var c = "Actually it looks like you've already signed up and logged in, as ";
       c += loginState.email;
       c += ' - so you should be able to view your account details and find your API key, then view your account data via the API like so: <br>';
-      c += '<a target="_blank" href="http://api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE">';
-      c += 'http://api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE</a>.';
+      c += '<a target="_blank" href="//api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE">';
+      c += '//api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE</a>.';
       $('#signedupalready').html(c);
     }
   });

@@ -12,28 +12,27 @@ CLapi.addRoute('sendmail', {
     action: function() {
       // TODO: check the groups the user is part of, and know which groups are allowed to send mail
       // TODO: get the json content and send it to sendmail
-      CLapi._sendmail();
+      //CLapi._sendmail();
+      return {}
     }
   }
 });
 
-CLapi.internals.sendmail = function(opts) {
-
+CLapi.internals.sendmail = function(opts,mail_url) {
   if ( !opts.from ) opts.from = ADMIN_ACCOUNT_ID;
-  if ( !opts.to ) opts.to = ADMIN_ACCOUNT_ID;
+  if ( !opts.to ) opts.to = ADMIN_ACCOUNT_ID; // also takes cc, bcc, replyTo, but not required. Can be strings or lists of strings
   if ( !opts.subject ) opts.subject = 'MAIL SENT WITHOUT SUBJECT!';
   if ( !opts.text ) opts.text = "";
   if ( !opts.html ) opts.html = "";
-  if ( !opts.atts ) opts.atts = [];
+  // can also take opts.headers
+  // also takes opts.attachments, but not required. Should be a list of objects as per 
+  // https://github.com/nodemailer/mailcomposer/blob/7c0422b2de2dc61a60ba27cfa3353472f662aeb5/README.md#add-attachments
   
-  // TODO: find out how to send attachments using node Email below
-  // TODO: check if node Email accepts lists for from, to
-  
-  Email.send({
-    from: opts.from,
-    to: opts.to,
-    subject: opts.subject,
-    text: opts.text,
-    html: opts.html
-  });
+  if (mail_url) process.env.MAIL_URL = mail_url;
+  Email.send(opts);
+  if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
 }
+
+
+
+

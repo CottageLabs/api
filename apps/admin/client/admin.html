@@ -1,0 +1,54 @@
+<template name="admin">
+    
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <h1>Admin</h1>
+        <p>
+          What could someone be able to administer?
+        </p>
+        <p>
+          Any group that they are "admin" or above on - and any system account
+        </p>
+        <p>
+          The system data of any user account that is a member of a group they are admin or above on
+        </p>
+        <p>
+          For accounts with global roles, anything, if their global role is admin or above (except their own global role)
+        </p>
+        <p>
+          Also certain users in certain groups may have control over some functionalities - or should they stay within the app code?
+          e.g. edit and publish roles should be able to do certain things within certain system accounts...
+        </p>
+      </div>
+      <div class="col-md-6">
+        <h1>
+          oabutton example
+        </h1>
+        <p>
+          Consider an oabutton user comes to the admin page. If just a user, access denied. But if admin or above, has controls.
+        </p>
+        <p>
+          Show all users in the oabutton group, and allow to extract info about them, and ban them from the group?
+        </p>
+        <p>
+          Add CL users not already in the oabutton group to the group? Arbitrarily, or only if the user asked to join? (group join requests)
+        </p>
+        <p>
+          Show OAB_Blocked, OAB_Wishlist, OAB_DNR, OAB_Request, and allow to edit them and change their values?
+        </p>
+        <p>
+          Allow followup of requests
+        </p>
+        <p>
+          Allow exploration and extraction of OAB data and certain user data
+        </p>
+      </div>
+    </div>
+  </div>
+    
+  <script>
+    jQuery(document).ready(function() {
+    });
+  </script>
+</template>

@@ -1,0 +1,74 @@
+<template name="oabuttonheader">
+  <head>
+    <meta charset="utf-8">
+    <title>Open Access Button | ContentMine</title>
+    <meta name="description" content="">
+    <meta name="author" content="Cottage Labs">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <link href="favicon.ico" rel="icon" type="image/x-icon">
+
+    <style>
+      body {
+        background-color:white;
+      }
+      .container-fluid {
+        max-width:1200px;
+      }
+      .navbar-nav li{
+      }
+      .navbar-nav li a{
+        font-size:1em;
+        color:#212f3f;
+        height:51px;
+      }
+      .navbar-nav li a:hover{
+        color:#212f3f;
+        background-color:#398bc5;;
+      }
+      .navbar-nav li.active{
+        color:#212f3f;
+        background-color:#9dfdfd;
+      }
+      .navbar-nav{
+        height:50px;
+      }
+    </style>
+
+  </head>
+
+  <div class="navbar navbar-fixed-top" style="background-color:white;">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="glyphicon glyphicon-list"></span>
+        </button>
+        <ul class="nav navbar-nav">
+          <li><img class="img" src="//data.openaccessbutton.org/static/ODB_Logo_Transparent_311.png" style="height:52px;padding-top:2px;"></li>
+          <li><a href="https://opendatabutton.org" style="font-size:18px;">Open Data Button</a></li>
+          <li><p style="padding-top:10px;"><small>&lt;beta&gt;</small></p></li>
+        </ul>
+      </div>
+      <div class="navbar-collapse collapse">
+        <ul class="nav navbar-nav pull-right">
+          <li><a href="/action">Take action</a></li>
+          <li><a href="/request">Requests</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a target="_blank" href="http://openaccessbutton.org/blog">Blog</a></li>
+          {{#if currentUser}}
+          <li><a href="/account">Your account</a></li>
+          {{else}}
+          <li><a href="/login">Login</a></li>
+          <li style="background-color:#398bc5;;color:#212f3f;height:55px;z-index:10000;
+          -webkit-border-bottom-right-radius: 5px;-webkit-border-bottom-left-radius: 5px;
+          -moz-border-radius-bottomright: 5px;-moz-border-radius-bottomleft: 5px;border-bottom-right-radius: 5px;border-bottom-left-radius: 5px;">
+          <a href="/login" style="font-size:1.2em;font-weight:bold;">Download</a></li>
+          {{/if}}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</template>

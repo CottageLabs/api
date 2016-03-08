@@ -86,7 +86,7 @@ CLapi.internals.use.crossref.works.search = function(qrystr,from,size,filter) {
   console.log(url);
   var res = Meteor.http.call('GET', url);
   if ( res.statusCode === 200 ) {
-    return { status: 'success', data: res.data.message}    
+    return { status: 'success', total: res.data.message['total-results'], data: res.data.message.items, facets: res.data.message.facets}
   } else {
     return { status: 'error', data: res}
   }
