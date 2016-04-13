@@ -48,13 +48,13 @@ var storeprocs = {
     }
   },
   post: {
-    authRequired: true,
+    //authRequired: true,
     action: function() {
       // which users can post files, and where can they post them to?
       // could put files in directory structure that mirrors groups and roles, 
       // putting files in the location of the lowest role that should be able to access them
       // which users can set the private flag to save private content? - could be a paid feature, cos it will cost money to maintain
-      var content;
+      /*var content;
       if ( this.request.json ) {
         var url = this.request.json.url;
         var res = Meteor.http.call('GET',url);
@@ -63,8 +63,25 @@ var storeprocs = {
         // check for a form post?
       } else {
         content = this.request.body;
-      }
-      return CLapi.internals.store.create(this.urlParams.join('/'),content,this.queryParams.private);
+      }*/
+      var content;
+      var buffers = [];
+      var totalLength = 0;
+      this.request.on('data', function(chunk) {
+        buffers.push(chunk);
+        totalLength += chunk.length;
+      });
+      this.request.on('end', function() {
+        content = Buffer.concat(buffers);
+        console.log('request end');
+        console.log(content);
+      });
+      console.log(this.request.files);
+      console.log(this.bodyParams);
+      console.log('store POST');
+      var p = '';
+      for ( var u in this.urlParams ) p += this.urlParams[u] + '/';
+      return CLapi.internals.store.create(p,content,this.queryParams.private);
     }
   },
   delete: {

@@ -19,8 +19,7 @@ CLapi.addRoute('academic/resolve', {
           Also it actually accepts DOI, PMID, or PMC ID, and will even try with just a URL to see if any of the accepted \
           IDs can be found there to work with. If you want to actually be redirected instead of getting the data, use the "redirect" route \
           instead of this "resolve" route. \
-          Just use the query params on this URL of doi= or pmid= or pmc= or url= \
-          Stub STILL in progress'} };
+          Just use the query params on this URL of doi= or pmid= or pmc= or url='} };
       }
     }
   }
@@ -40,8 +39,7 @@ CLapi.addRoute('academic/redirect', {
         will return a 404 and the JSON object of the URLs that we could actually find. If you want direct access to that JSON object, \
         then use the "resolve" route instead of the "redirect" route and it will be delivered to you as JSON with no redirect or 404. The \
         default preferred format to redirect to is html then pdf then xml, but can be set to "prefer=xml" or "prefer=pdf" as a query parameter \
-        Just use the query params on this URL of doi= or pmid= or pmc= or url= \
-        Stub STILL in progress'} };
+        Just use the query params on this URL of doi= or pmid= or pmc= or url='} };
     }
   }
 });
@@ -223,7 +221,7 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   
   if ( !possibles.url && (possibles.doi || ident.indexOf('10') === 0) ) {
     if (possibles.doi) ident = possibles.doi;
-    var doiresolvesto = CLapi.internals.academic.redirect_chain_resolve(ident);
+    var doiresolvesto = CLapi.internals.academic.doiresolve(ident);
     _addto(['urls'],doiresolvesto);
     rec = CLapi.internals.use.crossref.works.doi(ident);
     if ( rec.data.link ) {
@@ -376,6 +374,20 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   return possibles;
 }
 
+CLapi.internals.academic.doiresolve = function(doi) {
+  doi = doi.replace('http://','').replace('https://','').replace('dx.doi.org/','');
+  var doiresolver = 'http://doi.org/api/handles/' + doi;
+  var resp = Meteor.http.call('GET',doiresolver);
+  var url = false;
+  console.log(resp);
+  if (resp.data) {
+    for ( var r in resp.data.values) {
+      if ( resp.data.values[r].type.toLowerCase() === 'url' ) url = resp.data.values[r].data.value;
+    }
+  }
+  return url;
+}
+
 CLapi.internals.academic.redirect_chain_resolve = function(url) {
   // this does not really need to be done here using external dependencey
   // meteor can use meteor.http.call as shown above, but there is an annoying eventemitter bug in request
@@ -390,7 +402,7 @@ CLapi.internals.academic.redirect_chain_resolve = function(url) {
     request.head(url, function (err, res, body) {
       console.log(err);
       if ( res === undefined ) {
-        //console.log(url);
+        console.log(url);
         callback(null, url);
       } else {
         //console.log(res.request.uri.href);

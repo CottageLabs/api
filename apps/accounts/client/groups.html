@@ -1,0 +1,112 @@
+<template name="groups">
+    
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <p>HI {{userhandle currentUser}}</p>
+        {{> usergroups}}
+      </div>
+    </div>
+  </div>
+    
+  <script>
+    jQuery(document).ready(function() {
+    });
+  </script>
+</template>
+
+<template name="usergroups">
+  <table class="table table-striped table-bordered"><thead></thead><tbody>
+    {{#each usergroups}}
+    <tr>
+      <td>{{group}}</td>
+      <td>{{roles}}</td>
+      <td>
+        {{#if manage}}<a class="btn btn-default" href="/admin/{{group}}">Manage</a>{{/if}}
+        <a class="btn btn-default" href="#">Leave</a>
+      </td>
+    </tr>
+    {{/each}}
+  </tbody></table>
+</template>
+
+<template name="joingroup">
+  <!-- ability to search all groups that exist, and join (or request to join) -->
+  <!-- some groups should not allow this feature - service groups, groups for things where people have to sign up, etc -->
+  <!-- but maybe all should allow a request that goes to the group / service manager, who can then point interested parties to necessary signups? -->
+</template>
+
+<template name="addgroup">
+  <p>Create a new group</p>
+  <!-- select a group name, check it is not already in use as a group or service? -->
+  <!-- user becomes the owner of the group -->
+  <!-- use standard group roles or offer customised listing -->
+  <!-- give rights to other CL accounts users to control group -->
+  <!-- add/invite CL accounts users to group? -->
+</template>
+
+<template name="managegroup">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <h1>
+          Manage {{group._id}}
+        </h1>
+
+        {{#if equals group._id 'cottagelabs' }}
+        {{> manage_cottagelabs}}
+        {{/if}}
+
+        {{#if equals group._id 'openaccessbutton' }}
+        {{> manage_openaccessbutton}}
+        {{/if}}
+
+        <h2>{{userscount}} users</h2>
+        <p>
+          <input class="form-control" id="newuser" style="width:200px;display:inline;margin-top:2px;" placeholder="search users">
+          <!--<a href="#" class="btn btn-default" id="inviteuser">Invite user</a> -->
+          <a href="#" class="btn btn-default" id="adduser">Add user</a>
+        </p>
+        <table class="table table-striped table-bordered"><thead></thead><tbody>
+          {{#each groupusers}}
+          <tr>
+            <td>{{userhandle this}}</td>
+            <td>
+              {{#if isadmin this gid}}
+              <span class="label label-warning">admin</span>
+              {{else}}
+              <a class="btn btn-default" href="#" id="startaddrole">Add admin role</a>
+              {{/if}}
+              <!--<a class="btn btn-default" href="#">View</a>
+              <a class="btn btn-default" href="#">Email</a>
+              <a class="btn btn-default" href="#">Remove</a>
+              <a class="btn btn-default" href="#">Ban</a>-->
+            </td>
+          </tr>
+          {{/each}}
+        </tbody></table>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- add/invite user, accept user request, edit group roles -->
+  <!-- bulk emailing to users of the group, by some filter parameters, using stored email templates -->
+  <!-- download user data for users in group -->
+</template>
+
+
+
+<template name="manage_openaccessbutton">
+  <!-- counts of related data - stories, requests -->
+  <p>{{requestscount}} requests, {{blockedcount}} blocked stories
+  </p>
+</template>
+
+<template name="manage_cottagelabs">
+  <p>Custom CL management goes here...</p>
+</template>
+
+
+
+

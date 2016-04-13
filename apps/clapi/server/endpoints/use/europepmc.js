@@ -5,9 +5,6 @@
 // http://www.ebi.ac.uk/europepmc/webservices/rest/search/
 // https://europepmc.org/Help#fieldsearch
 
-// getpapers eupmc api client:
-// https://github.com/ContentMine/getpapers/blob/master/lib/eupmc.js
-
 // GET http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1007/bf00197367&resulttype=core&format=json
 // default page is 1 and default pageSize is 25
 // resulttype lite is smaller, lacks so much metadata, no mesh, terms, etc
@@ -62,6 +59,26 @@ CLapi.addRoute('use/europepmc/pmc/:qry', {
   }
 });
 
+CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
+  get: {
+    action: function() {
+      var res = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
+      if (res) {
+        return {status: 'success', data: res.data.resultList.result[0] }
+        this.response.writeHead(200, {
+          'Content-type': 'application/xml',
+          'Content-length': res.length
+        });        
+        this.response.write(res);
+        this.done();
+        return {};
+      } else {
+        return {statusCode: 404, body: {status: 'error', data: '404 not found' }}        
+      }
+    }
+  }
+});
+
 CLapi.addRoute('use/europepmc/search/:qry', {
   get: {
     action: function() {
@@ -73,7 +90,7 @@ CLapi.addRoute('use/europepmc/search/:qry', {
 CLapi.addRoute('use/europepmc/published/:startdate', {
   get: {
     action: function() {
-      return {};
+      return CLapi.internals.use.europepmc.published(this.urlParams.startdate, undefined, this.queryParams.from, this.queryParams.size);
     }
   }
 });
@@ -81,7 +98,7 @@ CLapi.addRoute('use/europepmc/published/:startdate', {
 CLapi.addRoute('use/europepmc/published/:startdate/:enddate', {
   get: {
     action: function() {
-      return {};
+      return CLapi.internals.use.europepmc.published(this.urlParams.startdate, this.urlParams.enddate, this.queryParams.from, this.queryParams.size);
     }
   }
 });
@@ -123,6 +140,101 @@ CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
   return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
 }
 
+// http://dev.api.cottagelabs.com/use/europepmc/search/has_doi:n%20AND%20FIRST_PDATE:[2016-03-22%20TO%202016-03-22]
+CLapi.internals.use.europepmc.published = function(startdate,enddate,from,size,qrystr) {
+  if ( qrystr === undefined ) {
+    qrystr = '';
+  } else {
+    qrystr = ' AND ';
+  }
+  if (enddate) {
+    qrystr += 'FIRST_PDATE:[' + startdate + ' TO ' + enddate + ']';
+  } else {
+    qrystr += 'FIRST_PDATE:' + startdate;
+  }
+  var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=' + qrystr + '&resulttype=core&format=json'
+  if (size !== undefined) url += '&pageSize=' + size;
+  if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
+  console.log(url);
+  var res = Meteor.http.call('GET', url);
+  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+}
 
+CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qrystr) {
+  if ( qrystr === undefined ) {
+    qrystr = '';
+  } else {
+    qrystr = ' AND ';
+  }
+  if (enddate) {
+    qrystr += 'CREATION_DATE:[' + startdate + ' TO ' + enddate + ']';
+  } else {
+    qrystr += 'CREATION_DATE:' + startdate;
+  }
+  var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=' + qrystr + '&resulttype=core&format=json'
+  if (size !== undefined) url += '&pageSize=' + size;
+  if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
+  console.log(url);
+  var res = Meteor.http.call('GET', url);
+  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+}
 
+CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
+  var res;
+  if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
+  if (res && res.total > 0 || rec || fulltext) {
+    if (!rec) rec = res.data[0];
+    if (!pmcid && rec) pmcid = rec.pmcid;
+    if (rec.epmcAuthMan === 'Y') {
+      // why isn't this good enough? http://europepmc.org/docs/EBI_Europe_PMC_Web_Service_Reference.pdf
+      // eupmc API does not actually fully check if author manuscript or not. We still have to check the xml and splash page
+      return true;
+    } else if (fulltext && fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+      return true;
+    } else if ( pmcid ) {
+      var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+      if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+        return true;
+      } else {
+        var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
+        try {
+          var pg = Meteor.http.call('GET',url);
+          if (pg.statusCode === 200) {
+            var page = pg.content;
+            var s1 = 'Author Manuscript; Accepted for publication in peer reviewed journal';
+            var s2 = 'Author manuscript; available in PMC';
+            if (page.indexOf(s1) !== -1 || page.indexOf(s2) !== -1) {
+              return true;
+            } else {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        } catch(err) {
+          return false;
+        }
+      }
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
+  var res;
+  if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
+  if (res && res.total > 0) rec = res.data[0];
+  if (!pmcid) pmcid = rec.pmcid;
+  if (pmcid) pmcid = pmcid.toLowerCase().replace('pmc','');
+  var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/PMC' + pmcid + '/fullTextXML';
+  var fulltext = false;
+  try {
+    var r = Meteor.http.call('GET',url);
+    if (r.statusCode === 200) fulltext = r.content;
+  } catch(err) {}// meteor http call get will throw error on 404
+  return fulltext;
+}
 

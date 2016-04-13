@@ -1,59 +1,34 @@
 <template name="lantern">
     
-    <div id="content">
-        <div id="maincontent">
-            <div class="container">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h1>Lantern</h1>
-                        <p>Get an instant result about one article, identifed by DOI, PMID, PMCID, or title.</p>
-                        <input id="ident" name="ident" type="text" value="" placeholder="DOI, PMID, PMCID, or title" class="form-control">
-                        <button type="submit" class="btn btn-info btn-block" id="lanternsingle">Enlighten me</button>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <h1>Lantern</h1>
+                <p>Get an instant result about one article, identifed by DOI, PMID, PMCID, or title.</p>
+                <input id="ident" name="ident" type="text" value="" placeholder="DOI, PMID, PMCID, or title" class="form-control">
+                <input type="submit" name="submit" class="btn btn-info btn-block" id="lanternsingle" value="Enlighten me">
 
-                        <hr>
-                        
-                        <p>Upload a spreadsheet (csv from excel) with any combination of the DOIs, PMIDs, PMCIDs and titles of the articles you're interested in, and we'll email you once we've checked them all.</p>
-                        
-                        <form method="POST" enctype="multipart/form-data" role="form">
-                            <input  type="file" name="upload" id="upload-csv" class="form-control">
-                            <input class="form-control" id="contact_email" name="contact_email" placeholder="Your email address" type="email" value="">
-                            <button type="submit" class="btn btn-info btn-block" id="lantern-multi">Email me</button>
-                        </form>
+                <hr>
 
-                    </div>
-                    <div class="col-md-6">
-                        <div class="well" style="background-color:#c9d2d4;border-color:transparent;">
-                            <h3>Shed some light on your articles!</h3>                        
-                            <p>Provide some article identifiers and Lantern will check what sort of license they have. Information comes from <a href="http://europepmc.org" target="_blank">Europe PubMed Central</a> and <a href="http://howopenisit.org">OpenArticleGauge</a>. See the <a href="/docs">documentation</a> for more details.</p>
-                        </div>
-                    </div>
-                </div>
+                <p>Upload a spreadsheet (csv from excel) with any combination of the DOIs, PMIDs, PMCIDs and titles of the articles you're interested in, and we'll email you once we've checked them all.</p>
 
+                <form action="http://dev.api.cottagelabs.com/service/lantern" method="POST" enctype="multipart/form-data" role="form">
+                    <input  type="file" name="upload" id="upload" class="form-control">
+                    <input class="form-control" id="email" name="email" placeholder="Your email address" type="email" value="">
+                    <input type="submit" name="submit" class="btn btn-info btn-block" id="lanternmulti" value="Email me">
+                </form>
             </div>
-        </div>              
+            <div class="col-md-6">
+                <div class="well" style="background-color:#c9d2d4;border-color:transparent;">
+                    <h3>Shed some light on your articles!</h3>                        
+                    <p>Provide some article identifiers and Lantern will check what sort of license they have. Information comes from <a href="http://europepmc.org" target="_blank">Europe PubMed Central</a> and <a href="http://howopenisit.org">OpenArticleGauge</a>. See the <a href="/docs">documentation</a> for more details.</p>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script>
-    jQuery(document).ready(function() {
-        // set the background of the opening panel depending on size of screen
-        var os = 0; // just in case an adjustment is required
-        var mcht = $('#maincontent').height() + os;
-        var setbg = function() {
-            var wd = $(window).width();
-            var ht = $(window).height() - os;
-            if ( mcht > ht ) { ht = mcht; }
-            if ( ht > 1200 || 900 >= wd ) {
-                $('#maincontent').css({background: '#c9d2d4'});            
-            } else {
-                $('#maincontent').css({background: 'url(bg.png) no-repeat bottom right'});
-                $('#maincontent').css({height: ht + 'px'});    
-            }        
-        }
-        setbg();
-        $(window).resize(setbg);
-
-        $('#headerurl').html('CL Lantern');
-        
+    jQuery(document).ready(function() {        
         var lanternsingle = function() {
             var ident = $('#ident').val();
             var tp = 'doi';
@@ -72,7 +47,7 @@
             var data = {};
             data[tp] = ident;
             $.ajax({
-                url: 'https://lantern.cottagelabs.com/direct-demo-form',
+                url: 'http://dev.api.cottagelabs.com/service/lantern',
                 method: 'POST',
                 data: data,
                 dataType: 'JSONP',
@@ -83,6 +58,75 @@
             });
         }
         $('#lanternsingle').bind('click',lanternsingle);
+
+        // http://abandon.ie/notebook/simple-file-uploads-using-jquery-ajax
+        var files;
+        var prep = function(e) {
+          files = e.target.files;
+        }
+        $('input[type=file]').on('change', prep);
+
+        var submit = function(e,data) {
+            $form = $(e.target);
+            var formData = $form.serialize();
+            // should clean these filenames
+            $.each(data.files, function(key, value) {
+                formData = formData + '&filenames[]=' + value;
+            });
+
+            $.ajax({
+                url: 'http://dev.api.cottagelabs.com/service/lantern',
+                type: 'POST',
+                data: formData,
+                cache: false,
+                dataType: 'json',
+                success: function(data, textStatus, jqXHR) {
+                    if (typeof data.error === 'undefined') {
+                        console.log('SUCCESS: ' + data.success);
+                    } else {
+                        console.log('ERRORS: ' + data.error);
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.log('ERRORS: ' + textStatus);
+                },
+                complete: function() {
+                    // hide loading icon
+                }
+            });
+        }
+        var upload = function(e) {
+            e.preventDefault();
+            // could show a loading icon now...
+
+            var data = new FormData();
+            $.each(files, function(key, value) {
+                data.append(key, value);
+            });
+
+            $.ajax({
+                url: 'http://dev.api.cottagelabs.com/service/lantern?files=true',
+                type: 'POST',
+                data: data,
+                cache: false,
+                dataType: 'json',
+                processData: false,
+                contentType: false,
+                success: function(data, textStatus, jqXHR) {
+                    if (typeof data.error === 'undefined') {
+                        submit(e, data);
+                    } else {
+                        console.log('ERRORS: ' + data.error);
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.log('ERRORS: ' + textStatus);
+                    // hide loading icon
+                }
+            });
+        }
+        $('form').on('submit', upload);
+
     });
     </script>
 </template>

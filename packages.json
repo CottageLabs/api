@@ -4,5 +4,6 @@
 	"request": "2.61.0",
 	"html-to-text": "1.6.0",
 	"textract": "1.2.1",
-	"json2csv": "3.2.0"
+	"json2csv": "3.2.0",
+	"gramophone": "0.0.3"
 }

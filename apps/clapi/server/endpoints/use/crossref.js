@@ -51,8 +51,20 @@ CLapi.addRoute('use/crossref/works/search/:qry', {
   }
 });
 
-// TODO: add crossref published date listings
-// using ?filter=from-pub-date:2004-04-04,until-pub-date:2004-04-04 (the dates are inclusive)
+CLapi.addRoute('use/crossref/works/published/:startdate', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.crossref.works.published(this.urlParams.startdate, undefined, this.queryParams.from, this.queryParams.size, this.queryParams.filter);
+    }
+  }
+});
+CLapi.addRoute('use/crossref/works/published/:startdate/:enddate', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.crossref.works.published(this.urlParams.startdate, this.urlParams.enddate, this.queryParams.from, this.queryParams.size, this.queryParams.filter);
+    }
+  }
+});
 
 CLapi.internals.use.crossref = {works:{}};
 
@@ -91,3 +103,21 @@ CLapi.internals.use.crossref.works.search = function(qrystr,from,size,filter) {
     return { status: 'error', data: res}
   }
 }
+
+CLapi.internals.use.crossref.works.published = function(startdate,enddate,from,size,filter) {
+  // using ?filter=from-pub-date:2004-04-04,until-pub-date:2004-04-04 (the dates are inclusive)
+  filter !== undefined ? filter += ',' : filter = '';
+  filter += 'from-pub-date:' + startdate;
+  if (enddate) filter += ',until-pub-date:' + enddate;
+  return CLapi.internals.use.crossref.works.search(undefined,from,size,filter);
+}
+
+CLapi.internals.use.crossref.works.indexed = function(startdate,enddate,from,size,filter) {
+  filter !== undefined ? filter += ',' : filter = '';
+  filter += 'from-index-date:' + startdate;
+  if (enddate) filter += ',until-index-date:' + enddate;
+  return CLapi.internals.use.crossref.works.search(undefined,from,size,filter);
+}
+
+
+

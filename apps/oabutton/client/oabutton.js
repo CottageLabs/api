@@ -5,7 +5,7 @@ Session.setDefault('resultsLimit', RESULTS_INCREMENT);
 Deps.autorun(function() {
   // restrict this to admin users for users access. Turn off for now by returning none
   //userssub = Meteor.subscribe('users', Session.get('resultsLimit'));
-  userssub = Meteor.subscribe('users', 0);
+  //userssub = Meteor.subscribe('users', 0);
   blockedsub = Meteor.subscribe('userblocked', Meteor.userId(), Session.get('resultsLimit'));
 });
 
@@ -41,18 +41,18 @@ Template.oabuttonrequests.blockedcount = function() {
   return OAB_Blocked.find().count();
 }
 
-Template.oabuttonusers.users = function() {
+/*Template.oabuttonadmin.users = function() {
   return Meteor.users.find();
 }
-Template.oabuttonusers.userscount = function() {
+Template.oabuttonadmin.userscount = function() {
   return Meteor.users.find().count();
 }
-Template.oabuttonusers.moreResults = function() {
+Template.oabuttonadmin.moreResults = function() {
   return !(Meteor.users.find().count() < Session.get("resultsLimit"));
 }
-Template.oabuttonusers.rendered = function() {
+Template.oabuttonadmin.rendered = function() {
   if ( userssub && userssub.ready() ) showMoreVisible();
-}
+}*/
 
 
 Template.oabuttonstory.story = function() {

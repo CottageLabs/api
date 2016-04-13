@@ -4,15 +4,19 @@
 CLapi.addRoute('convert', {
   get: {
     action: function() {
-      return {status: 'success', data: {info: 'Accepts URLs of content files and converts them to what you need'} };
+      if ( this.queryParams.url) {
+        return CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to);        
+      } else {
+        return {status: 'success', data: {info: 'Accepts URLs of content files and converts them to what you need'} };
+      }
     }
   },
   post: {
     action: function() {
-      if ( this.request.json ) {
+      if ( this.request.json && this.request.json.url) {
         return CLapi.internals.convert.run(this.request.json.url,this.request.json.from,this.request.json.to);
       } else {
-        return CLapi.internals.convert.run(undefined,this.request.json.from,this.request.json.to,this.request.body);        
+        return CLapi.internals.convert.run(undefined,this.queryParams.from,this.queryParams.to,this.request.body);        
       }
     }
   }
@@ -111,13 +115,15 @@ CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
   });
 });
 
-CLapi.internals.convert.json2csv = Async.wrap(function(url, content, callback) {
+CLapi.internals.convert.json2csv = Async.wrap(function(url, content, opts, callback) {
   if ( content === undefined ) {
     var res = Meteor.http.call('GET', url);
     content = res.content;
   }
+  if (opts === undefined) opts = {};
+  opts.data = content;
   var json2csv = Meteor.npmRequire('json2csv');
-  json2csv(content, function(err, result) {
+  json2csv(opts, function(err, result) {
     return callback(null,result);
   });
 });

@@ -29,6 +29,8 @@ CLapi.addRoute('use/base/:qry', {
 
 CLapi.internals.use.base = {};
 CLapi.internals.use.base.search = function(qry,from,size) { 
+	// base requires IP registration - my machine IP has been registered, but change if machine changes
+	// limited to non-commercial and 1 query per second, contact them for more options
 	// how does BASE do from and size - it uses offset and hits (default 10)
 	// it accepts solr query syntax
 	// https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi?func=PerformSearch&format=json&query=

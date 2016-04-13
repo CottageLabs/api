@@ -12,7 +12,6 @@ accounts-password
 alanning:roles
 mizzao:user-status
 nimble:restivus
-standard-minifiers
 meteor-base
 mobile-experience
 mongo
@@ -33,3 +32,7 @@ meteorhacks:npm
 npm-container
 chuangbo:cookie
 matb33:collection-hooks
+percolate:synced-cron
+standard-minifier-css
+standard-minifier-js
+mizzao:autocomplete

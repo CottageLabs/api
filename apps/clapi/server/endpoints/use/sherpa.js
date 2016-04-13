@@ -76,7 +76,7 @@ CLapi.internals.use.sherpa.romeo.search = function(qryparams) {
 	for ( var q in qryparams ) url += q + '=' + qryparams[q] + '&';
   console.log(url);
   var res = Meteor.http.call('GET', url);
-	var result = CLapi.internals.convert.xml2json(res.content);
+	var result = CLapi.internals.convert.xml2json(undefined,res.content);
 	if ( res.statusCode === 200 ) {
 		return { status: 'success', data: {journals: result.romeoapi.journals, publishers: result.romeoapi.publishers}}
 	} else {

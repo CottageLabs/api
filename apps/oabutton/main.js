@@ -45,9 +45,9 @@ Router.map( function () {
       }
     }
   });
-  this.route('oabuttonusers', {
+  this.route('oabuttonadmin', {
     // restrict this to admin users
-    path: '/users'
+    path: '/odbadmin'
   });
   this.route('oabuttonaccountadmin', {
     path: '/account/:aid',

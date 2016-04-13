@@ -12,11 +12,11 @@ Meteor.publish("requestrelatedtoblock", function (bid) {
   var b = OAB_Blocked.findOne(bid);
   return OAB_Request.find({url:b.url});
 });
-Meteor.publish("users", function (limit) {
+/*Meteor.publish("users", function (limit) {
   // check if there is a current user, and if that user has oabutton admin
   // if not, return nothing. If yes, return all oabutton users
   return Meteor.users.find({}, { limit: limit});
-});
+});*/
 Meteor.publish("request", function (rid) {
   return OAB_Request.find(rid);
 });

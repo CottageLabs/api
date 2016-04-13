@@ -199,7 +199,7 @@
       c += loginState.email;
       c += ' - so you should be able to view your account details and find your API key, then view your account data via the API like so: <br>';
       c += '<a target="_blank" href="//api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE">';
-      c += '//api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE</a>.';
+      c += 'api.cottagelabs.com/accounts/' + loginState.userId + '?id=' + loginState.userId + '&apikey=YOURAPIKEYHERE</a>.';
       $('#signedupalready').html(c);
     }
   });
