@@ -349,7 +349,7 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
           if (turl.indexOf('xml') !== -1) _addto(['xml'],turl);
           if (turl.indexOf('pdf') !== -1) _addto(['pdf'],turl);
         } else {
-          _addto(['urls'],turl);
+          _addto(['urls','source'],turl);
         }
       }
       

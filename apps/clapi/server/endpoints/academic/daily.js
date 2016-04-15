@@ -34,6 +34,19 @@ CLapi.addRoute('academic/daily/:date', {
 CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
   // TODO if resolve, do what? the academic/resolve function actually uses europepmc and crossref, which are already getting called
   // so what data do we have to do the resolving with already? or should the calls just be repeated?
+  var dated = function( delim, less ) {
+      if ( delim === undefined ) delim = '-';
+      if ( less === undefined ) less = 1;
+      var date = new Date();
+      if ( less ) date.setDate(date.getDate() - less);
+      var dd = date.getDate();
+      var mm = date.getMonth()+1;
+      var yyyy = date.getFullYear();
+      if ( dd<10 ) dd = '0'+dd;
+      if ( mm<10 ) mm = '0'+mm;
+      return yyyy + delim + mm + delim + dd;
+  };
+  if (date === undefined) date = dated();
   if (sources === undefined) sources = ['crossref','europepmc'];
   var exists = academic_daily.findOne(date);
   if (exists && !refresh) {
@@ -67,6 +80,8 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
               subject:res.subject,
               source:'crossref'
             };
+            //var rs = CLapi.internals.academic.resolve(result.doi);
+            //result.resolved = {url:rs.url,source:rs.source,cookie:rs.cookie};
             results.push(result);
           }
         }
@@ -103,6 +118,16 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
             if (res.pmid) result.pmid = res.pmid;
             if (res.pmcid) result.pmc = res.pmcid.toLowerCase().replace('pmc','');
             if (res.journalInfo.journal.issn) res.journal.issn = [res.journalInfo.journal.issn];
+            /*var w;
+            if (res.pmcid) {
+              w = 'pmc'+res.pmcid;
+            } else if (res.pmid) {
+              w = 'pmid'+res.pmid;
+            }
+            if (w) {
+              var reus = CLapi.internals.academic.resolve(w);
+              result.resolved = {url:reus.url,source:reus.source,cookie:reus.cookie};
+            }*/
             results.push(result);
           }
         }
@@ -116,10 +141,18 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
       if (refresh && exists) {
         academic_daily.update(exists._id, {$set:{records:results,total:results.length,sources:sources}});
       } else {
-        //academic_daily.insert({_id:date,records:results,total:results.length,sources:sources});
+        academic_daily.insert({_id:date,records:results,total:results.length,sources:sources});
       }
     }
     return {status: 'success', data: results, total:results.length}
   }
+}
+
+if ( Meteor.settings.cron.academicdaily ) {
+  SyncedCron.add({
+    name: 'academicdaily',
+    schedule: function(parser) { return parser.text('at 1:00 am'); },
+    job: CLapi.internals.academic.daily
+  });
 }
 

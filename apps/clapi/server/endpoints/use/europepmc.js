@@ -103,6 +103,22 @@ CLapi.addRoute('use/europepmc/published/:startdate/:enddate', {
   }
 });
 
+CLapi.addRoute('use/europepmc/indexed/:startdate', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.europepmc.published(this.urlParams.startdate, undefined, this.queryParams.from, this.queryParams.size);
+    }
+  }
+});
+
+CLapi.addRoute('use/europepmc/indexed/:startdate/:enddate', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.europepmc.published(this.urlParams.startdate, this.urlParams.enddate, this.queryParams.from, this.queryParams.size);
+    }
+  }
+});
+
 CLapi.internals.use.europepmc = {};
 CLapi.internals.use.europepmc.doi = function(doi) {
   var res = CLapi.internals.use.europepmc.search('DOI:' + doi);
