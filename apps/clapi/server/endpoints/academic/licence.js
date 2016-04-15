@@ -25,7 +25,7 @@ CLapi.addRoute('academic/licence', {
   }
 });
 
-CLapi.internals.academic.licence = function(url) {  
+CLapi.internals.academic.licence = function(url,resolve) {  
   // internal function to get licences list, depending on when last locally stored
   var getlicences = function() {
     // licences originally derived from http://licenses.opendefinition.org/licenses/groups/all.json
@@ -49,9 +49,14 @@ CLapi.internals.academic.licence = function(url) {
     }
     return licences;
   }
-  
-  var resolved = CLapi.internals.academic.resolve(url).url;
-  console.log('Resolved ' + url + ' to ' + resolved + ' to calculate licence from content');
+
+  if (resolve === undefined) resolve = false; // which way? assume no resolve needed?
+  var resolved;
+  if (resolve) {
+    var tr = CLapi.internals.academic.resolve(url);
+    tr.url ? resolved = tr.url : resolved = tr.source;
+    console.log('Resolved ' + url + ' to ' + resolved + ' to calculate licence from content');
+  }
   if (!resolved) resolved = url;
   var exists = academic_licence.findOne({$or:[{url:url,resolved:resolved}]});
   if (exists) {
@@ -59,9 +64,9 @@ CLapi.internals.academic.licence = function(url) {
   } else {
     // work out the licence and save something about it in academic_licence - including a failed attempt
     var licence = {
-      url:url,
-      resolved:resolved
+      url:url
     }
+    if (resolved) licence.resolved = resolved;
     var info = Async.wrap(function(resolved, callback) {
       // yes, there is a meteor call that is sync, but it is not returning here properly for some reason
       Meteor.http.call('GET',resolved, function(err,res) { // this shuold perhaps become a phantomjs render

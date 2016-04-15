@@ -295,8 +295,8 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     is_aam: false, // set to true if is an eupmc author manuscript
     is_oa: false, // set to true if eupmc or other source says is oa
     has_fulltext_xml: false, // set to true if oa and in epmc and can retrieve fulltext xml from eupmc rest API url
-    licence: '', // what sort of licence this has - should be a string like "cc by"
-    licence_source: '', // where the licence info came from
+    licence: 'unknown', // what sort of licence this has - should be a string like "cc by"
+    licence_source: 'unknown', // where the licence info came from
     romeo_colour: undefined, // the sherpa romeo colour
     embargo: undefined, // embargo data from romeo
     author: [], // eupmc author list if available (could look on other sources too?)
@@ -495,14 +495,23 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
   
   // if license could not be found yet, call academic/licence to get info from the splash page
   if (!result.licence) {
-    var url = ''; // resolve the url from one of the available IDs? preferably DOI? or if pmcid do we want the europepmc page?
-    var lic = CLapi.internals.academic.licence(url);
-    if (lic.licence && lic.licence !== 'unknown') {
-      result.licence = lic.licence;
-      result.licence_source = lic.resolved;
-      result.provenance.push('Added licence data via article splash page lookup (used to be OAG)');
-    } else {
-      result.provenance.push('Unable to retrieve licence data via article splash page lookup (used to be OAG)');    
+    var url;
+    if (result.doi) {
+      url = CLapi.internals.academic.doiresolve(result.doi);
+    } else if ( result.pmcid ) {
+      url = 'http://europepmc.org/articles/PMC' + result.pmcid; // TODO CHECK - is epmc page what we want, or should we resolve this to journal splash?
+    } else if ( result.pmid ) {
+      url = CLapi.internals.academic.resolve('pmid' + result.pmid).url; // PMIDs may not be open, so really need to check full urls list
+    }
+    if (url && url.length > 1) {
+      var lic = CLapi.internals.academic.licence(url,false);
+      if (lic.licence && lic.licence !== 'unknown') {
+        result.licence = lic.licence;
+        result.licence_source = lic.resolved;
+        result.provenance.push('Added licence data via article splash page lookup (used to be OAG)');
+      } else {
+        result.provenance.push('Unable to retrieve licence data via article splash page lookup (used to be OAG)');    
+      }
     }
   }
   
@@ -638,9 +647,6 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     result: false,
     '_id': false // these listed to false just get removed from output
   }
-  if (result.in_epmc === false) result.in_epmc = '';
-  if (result.is_aam === false) result.is_aam = '';
-  if (result.has_fulltext_xml === false) result.has_fulltext_xml = '';  
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
   var lic = result.licence.toLowerCase().replace(/ /g,'');
@@ -672,12 +678,10 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     result['Journal title'] = result.journal.title;
     result.ISSN = result.journal.issn;
     if (result.journal.eissn) result.ISSN += ', ' + result.journal.eissn;
-    if ( result.journal.in_doaj ) {
-      if ( result.journal.in_doaj === true ) {
-        result['Journal Type'] = 'open'; // what should this value actually be?
-      } else {
-        result['Journal Type'] = 'hybrid';
-      }
+    if ( result.journal.in_doaj === true ) {
+      result['Journal Type'] = 'open';
+    } else {
+      result['Journal Type'] = 'hybrid';
     }
     delete result.journal;
   }
@@ -719,8 +723,8 @@ CLapi.internals.service.lantern.format = function(result,uid) {
   for ( var key in result ) {
     if ( result[key] === true ) result[key] = 'TRUE';
     if ( result[key] === false ) result[key] = 'FALSE';
-    if ( result[key] === undefined ) result[key] = '';
-    if ( result[key] === null ) result[key] = '';
+    if ( result[key] === undefined ) result[key] = 'unknown';
+    if ( result[key] === null ) result[key] = 'unknown';
     if ( s[key] !== undefined ) {
       if (s[key] !== false) result[s[key]] = result[key];
       delete result[key];

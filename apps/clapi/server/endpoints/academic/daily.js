@@ -64,6 +64,7 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
                 volume: res.volume,
                 issue: res.issue            
               },
+              subject:res.subject,
               source:'crossref'
             };
             results.push(result);
@@ -109,12 +110,13 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
       }
     }
 
-    // TODO: add more sources eg eupmc to check for other articles not in crossref, and update the below sources list to show where we checked
+    // TODO: add more sources to check in, and update the sources list to show where we checked
+    
     if (results.length > 0) {
       if (refresh && exists) {
         academic_daily.update(exists._id, {$set:{records:results,total:results.length,sources:sources}});
       } else {
-        academic_daily.insert({_id:date,records:results,total:results.length,sources:sources});
+        //academic_daily.insert({_id:date,records:results,total:results.length,sources:sources});
       }
     }
     return {status: 'success', data: results, total:results.length}

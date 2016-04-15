@@ -1,8 +1,8 @@
 
 // resolve an ID to an open URL, and redirect to it if desired
 
-Resolvers = new Mongo.Collection("resolvers");
-CLapi.addCollection(Resolvers); // temp useful to view all the created links
+academic_resolved = new Mongo.Collection("academic_resolved");
+CLapi.addCollection(academic_resolved); // temp useful to view all the created links
 
 CLapi.addRoute('academic/resolve', {
   get: {
@@ -53,9 +53,9 @@ CLapi.addRoute('academic/resolved/:rid', {
   },
   delete: function() {
     action: {
-      var res = Resolvers.findOne(this.urlParams.rid);
+      var res = academic_resolved.findOne(this.urlParams.rid);
       if (res) {
-        Resolvers.remove(this.urlParams.rid);
+        academic_resolved.remove(this.urlParams.rid);
         return {status: 'success'}
       } else {
         return {
@@ -132,16 +132,17 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   // if we don't already know all the stuff about to be worked out below, we should save it (to catalogue or to resolvers db?)
   // if we already know it should there be some sort of "force-reload" option where we refresh what we know? Maybe...
   var exists;
-  var lookup = ident;
-  if (ident.indexOf('pm') === 0) {
-    lookup = ident.replace('pmid','').replace('pmc','');
-    exists = Resolvers.findOne({identifiers:ident});
-  } else if ( ident.indexOf('10') === 0 ) {
-    exists = Resolvers.findOne({identifiers:ident});
-  } else {
-    exists = Resolvers.findOne({urls:ident});
+  if (!refresh) {
+    if (ident.indexOf('pm') === 0) {
+      var lookup = ident.replace('pmid','').replace('pmc','');
+      exists = academic_resolved.findOne({identifiers:lookup});
+    } else if ( ident.indexOf('10') === 0 ) {
+      exists = academic_resolved.findOne({identifiers:ident});
+    } else {
+      exists = academic_resolved.findOne({urls:ident});
+    }
   }
-  if (exists && !refresh) {
+  if (exists) {
     console.log('resolvers record found and refresh not requested, returning stored data');
     return exists;
   }
@@ -154,6 +155,7 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
       html: false, // open url to html
       pdf: false, // open url to pdf
       splash: false, // url to splash page if known and different (DOIs always go to splash page for example)
+      source: false, // whichever url seems to be the main one for the content, whether open or not
       doi: false,
       pmid: false,
       pmc: false,
@@ -191,6 +193,8 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
           if (erl.documentStyle.toLowerCase() === 'html') _addto(['html','url','splash'],erl.url);
           if (erl.documentStyle.toLowerCase() === 'pdf') _addto(['pdf'],erl.url);
           if (erl.documentStyle.toLowerCase() === 'xml') _addto(['xml'],erl.url);
+        } else {
+          if (erl.documentStyle.toLowerCase() === 'html') _addto(['source'],erl.url);          
         }
       }
     }    
@@ -222,11 +226,12 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   if ( !possibles.url && (possibles.doi || ident.indexOf('10') === 0) ) {
     if (possibles.doi) ident = possibles.doi;
     var doiresolvesto = CLapi.internals.academic.doiresolve(ident);
-    _addto(['urls'],doiresolvesto);
+    _addto(['urls','source'],doiresolvesto);
     rec = CLapi.internals.use.crossref.works.doi(ident);
     if ( rec.data.link ) {
       for ( var i in rec.data.link ) {
         _addto(['urls'],rec.data.link[i].URL);
+        if (!possibles.source) _addto(['source'],rec.data.link[i].URL);
         // can any of these be html, xml, or pdf URLs that are likely to be open?
         // does crossref have any other useful links, like tdm license links etc?
         // is there any way to easily tell what is at these links or find URLS to fulltexts from them?
@@ -364,10 +369,10 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   // if exists (and we got to here then we are rerunning)
   if (exists) {
     console.log('updating resolvers data');
-    Resolvers.update(exists._id,{$set: possibles}); // does this work?
-  } else {
+    academic_resolved.update(exists._id,{$set: possibles}); // does this work?
+  } else if ( possibles.url || possibles.source ) {
     console.log('saving new resolvers data object');
-    Resolvers.insert(possibles);
+    academic_resolved.insert(possibles);
   }
   
   console.log('done trying to resolve');
@@ -379,7 +384,6 @@ CLapi.internals.academic.doiresolve = function(doi) {
   var doiresolver = 'http://doi.org/api/handles/' + doi;
   var resp = Meteor.http.call('GET',doiresolver);
   var url = false;
-  console.log(resp);
   if (resp.data) {
     for ( var r in resp.data.values) {
       if ( resp.data.values[r].type.toLowerCase() === 'url' ) url = resp.data.values[r].data.value;
