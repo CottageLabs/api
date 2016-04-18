@@ -204,13 +204,13 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
     if (rec.epmcAuthMan === 'Y') {
       // why isn't this good enough? http://europepmc.org/docs/EBI_Europe_PMC_Web_Service_Reference.pdf
       // eupmc API does not actually fully check if author manuscript or not. We still have to check the xml and splash page
-      return true;
+      return 'Y_IN_EPMC_API';
     } else if (fulltext && fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
-      return true;
+      return 'Y_IN_EPMC_FULLTEXT';
     } else if ( pmcid ) {
       var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
-        return true;
+        return 'Y_IN_EPMC_FULLTEXT';
       } else {
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
@@ -220,7 +220,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
             var s1 = 'Author Manuscript; Accepted for publication in peer reviewed journal';
             var s2 = 'Author manuscript; available in PMC';
             if (page.indexOf(s1) !== -1 || page.indexOf(s2) !== -1) {
-              return true;
+              return 'Y_IN_EPMC_SPLASHPAGE';
             } else {
               return false;
             }

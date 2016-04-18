@@ -447,8 +447,13 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       result.author = eupmc.authorList.author; // auhtor list for oacwellcome issue 92 - full list in order, one entire list per cell
       result.provenance.push('Added author list from EUPMC');
     }
-    result.is_aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
-    result.provenance.push('Checked author manuscript status in EUPMC');
+    var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
+    if (aam !== false) {
+      result.is_aam = true;
+      result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
+    } else {
+      result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');      
+    }
   }
 
   if (result.doi) {
