@@ -29,6 +29,8 @@ CLapi.addRoute('use/grist/grant_id/:qry', {
     }
 });
 
+CLapi.internals.use.grist = {};
+
 CLapi.internals.use.grist.grant_id = function(grant_id) {
     var res = CLapi.internals.use.grist.search('gid:' + grant_id);
     if (res.total > 0) {
