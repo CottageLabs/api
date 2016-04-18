@@ -98,6 +98,21 @@ CLapi.addRoute('service/lantern/:job/progress', {
   }
 });
 
+CLapi.addRoute('service/lantern/:job/todo', {
+  get: {
+    action: function() {
+      // return the parts of the job still to do, does not check for results found since last progress check
+      var job = lantern_jobs.findOne(this.urlParams.job);
+      if (job) {
+        var todo = CLapi.internals.service.lantern.todo(this.urlParams.job);
+        return {status: 'success', data: todo}
+      } else {
+        return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
+      }
+    }
+  }
+});
+
 CLapi.addRoute('service/lantern/:job/results', {
   // can anyone retrieve results of a job or just the submitter or some other set?
   get: {
@@ -105,14 +120,27 @@ CLapi.addRoute('service/lantern/:job/results', {
       // return the results for this job as JSON
       var res = CLapi.internals.service.lantern.results(this.urlParams.job,this.userId);
       if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
-        var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:[
+        var grantcount = 0;
+        for ( var k in res ) {
+          var rk = res[k];
+          var igc = 0;
+          for ( var key in rk ) {
+            if (key.indexOf('Grant ') !== 1) igc += 1;
+          }
+          if (igc > grantcount) grantcount = igc;
+        }
+        var fields = [
           'PMCID','PMID','DOI','Publisher','Journal title','ISSN','Article title','Author(s)','Publication Date','Electronic Publication Date',
           'Fulltext in EPMC?','XML Fulltext?','AAM?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
-          'Standard Compliance?','Deluxe Compliance?',
-          'Grant 1','Agency 1','Grant 2','Agency 2','Grant 3','Agency 3','Grant 4','Agency 4','Grant 5','Agency 5',
-          'Grant 6','Agency 6','Grant 7','Agency 7','Grant 8','Agency 8','Grant 9','Agency 9','Grant 10','Agency 10',
-          'Compliance Processing Output'
-        ]}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
+          'Standard Compliance?','Deluxe Compliance?'
+        ];
+        for ( var gi; gi < grantcount; gi++) {
+          var gic = gi+1;
+          fields.push('Grant '+gic);
+          fields.push('Agency '+gic);
+        }
+        fields.push('Compliance Processing Output');
+        var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:fields}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
         this.response.writeHead(200, {
           'Content-disposition': "attachment; filename=results.csv",
           'Content-type': 'text/csv',
@@ -575,6 +603,24 @@ CLapi.internals.service.lantern.progress = function(jobid) {
   }
 }
 
+CLapi.internals.service.lantern.todo = function(jobid) {
+  // given a job ID, return the parts still to do
+  var job = lantern_jobs.findOne(jobid);
+  if (job) {
+    if (job.done) {
+      return [];
+    } else {
+      var todos = [];
+      for ( var i in job.list ) {
+        if ( job.list[i].result === undefined ) todos.push(job.list[i]);
+      }
+      return todos;
+    }
+  } else {
+    return false;
+  }
+}
+
 CLapi.internals.service.lantern.results = function(jobid,uid) {
   // for a job, get all the results for it and return them as an object
   var job = lantern_jobs.findOne(jobid);
@@ -711,8 +757,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
         grants.push(g);
       }
     }
-    for ( var gr = 1; gr < 11; gr++ ) {
-      // TODO could capture all, if formatting into spreadsheet allows more than 10
+    for ( var gr in grants ) {
       if (grants[gr] !== undefined) {
         result['Grant ' + gr] = grants[gr].grantId;
         result['Agency ' + gr] = grants[gr].agency;

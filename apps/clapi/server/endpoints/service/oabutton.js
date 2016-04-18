@@ -379,11 +379,15 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
   if (data.location !== undefined) event.location = data.location; // location shuold be {geo: {lat: VAL, lon: VAL}}  
   if (data.plugin !== undefined) {
     event.plugin = data.plugin; // should be chrome,firefox...
-    if (event.plugin.indexOf('odb') === 0) {
-      // this is a data request
-      event.type = 'data';
+    if (data.type === undefined) {
+      if (event.plugin.indexOf('odb') === 0) {
+        // this is a data request
+        event.type = 'data';
+      } else {
+        event.type = 'article';
+      }
     } else {
-      event.type = 'article';
+      event.type = data.type;
     }
   }
   var status = CLapi.internals.service.oabutton.status(event.url,event.type);

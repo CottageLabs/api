@@ -71,11 +71,15 @@ CLapi.internals.use.crossref = {works:{}};
 CLapi.internals.use.crossref.works.doi = function(doi) {
   var url = 'http://api.crossref.org/works/' + doi;
   console.log(url);
-  var res = Meteor.http.call('GET', url);
-  if ( res.statusCode === 200 ) {
-    return { status: 'success', data: res.data.message}
-  } else {
-    return { status: 'error', data: res}
+  try {
+    var res = Meteor.http.call('GET', url);
+    if ( res.statusCode === 200 ) {
+      return { status: 'success', data: res.data.message}
+    } else {
+      return { status: 'error', data: res}
+    }
+  } catch(err) {
+    return { status: 'error', data: '404 not found'}    
   }
 }
 
