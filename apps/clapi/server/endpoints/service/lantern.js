@@ -125,7 +125,7 @@ CLapi.addRoute('service/lantern/:job/results', {
           var rk = res[k];
           var igc = 0;
           for ( var key in rk ) {
-            if (key.indexOf('Grant ') !== 1) igc += 1;
+            if (key.indexOf('Grant ') === 0) igc += 1;
           }
           if (igc > grantcount) grantcount = igc;
         }
@@ -134,10 +134,9 @@ CLapi.addRoute('service/lantern/:job/results', {
           'Fulltext in EPMC?','XML Fulltext?','AAM?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
           'Standard Compliance?','Deluxe Compliance?'
         ];
-        for ( var gi; gi < grantcount; gi++) {
-          var gic = gi+1;
-          fields.push('Grant '+gic);
-          fields.push('Agency '+gic);
+        for ( var gi=0; gi < grantcount; gi++) {
+          fields.push('Grant ' + (parseInt(gi)+1));
+          fields.push('Agency ' + (parseInt(gi)+1));
         }
         fields.push('Compliance Processing Output');
         var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:fields}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
@@ -770,8 +769,8 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     }
     for ( var gr in grants ) {
       if (grants[gr] !== undefined) {
-        result['Grant ' + gr] = grants[gr].grantId;
-        result['Agency ' + gr] = grants[gr].agency;
+        result['Grant ' + (parseInt(gr)+1)] = grants[gr].grantId;
+        result['Agency ' + (parseInt(gr)+1)] = grants[gr].agency;
       }
     }
     delete result.grants;
