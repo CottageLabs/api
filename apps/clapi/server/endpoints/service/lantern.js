@@ -410,7 +410,7 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
         result.provenance.push('Added journal title from EUPMC');
       }
       if ( eupmc.journalInfo.journal.essn) {
-        result.journal.issn = eupmc.journalInfo.journal.essn; // could save to eissn if we want to distinguish
+        result.journal.eissn = eupmc.journalInfo.journal.essn;
         result.provenance.push('Added eissn from EUPMC');
       }
       if ( eupmc.journalInfo.journal.issn ) {
@@ -692,7 +692,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     licence: 'Licence',
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
-    is_aam: 'AAM?',
+    is_aam: 'Author Manuscript?',
     is_oa: 'Open Access?',
     confidence: 'Correct Article Confidence',
     licence_source: 'Licence source',
@@ -752,7 +752,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
       }
       var ar = result.author[r];
       if ( ar.fullName ) result['Author(s)'] += ar.fullName;
-      if ( ar.affiliation) result['Author(s)'] += ' - ' + ar.affiliation;
+      //if ( ar.affiliation) result['Author(s)'] += ' - ' + ar.affiliation; disabled by request of Cecy
       // TODO add some more IFs here depending on author structure, unless altered above to match eupmc structure
     }
     delete result.author;
