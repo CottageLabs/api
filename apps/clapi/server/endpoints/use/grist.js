@@ -44,6 +44,7 @@ CLapi.internals.use.grist.search = function(qrystr,from,page) {
     const GRIST_API_PAGE_SIZE = 25;  // it's hardcoded to 25 according to the docs
     // note in Grist API one of the params is resultType, in EPMC REST API the same param is resulttype .
     var url = 'http://www.ebi.ac.uk/europepmc/GristAPI/rest/get/query=' + qrystr + '&resultType=core&format=json';
+    console.log("Grist API HTTP Get to " + url);
     if (from !== undefined) url += '&page=' + (Math.floor(from/GRIST_API_PAGE_SIZE)+1);
     var res = Meteor.http.call('GET', url);
     return { status: 'success', total: res.data.HitCount, data: res.data.RecordList.Record};  // RecordList is an object?!
