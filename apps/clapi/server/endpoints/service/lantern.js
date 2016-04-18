@@ -141,8 +141,11 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         fields.push('Compliance Processing Output');
         var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:fields}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
+        var job = lantern_jobs.findOne(this.urlParams.job);
+        var name = 'results';
+        if (job.name) name = job.name.split('.')[0] + '_results';
         this.response.writeHead(200, {
-          'Content-disposition': "attachment; filename=results.csv",
+          'Content-disposition': "attachment; filename="+name+".csv",
           'Content-type': 'text/csv',
           'Content-length': ret.length
         });
@@ -239,12 +242,20 @@ CLapi.internals.service.lantern.reset = function() {
 
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
-CLapi.internals.service.lantern.job = function(list,user) {
+CLapi.internals.service.lantern.job = function(input,user) {
   // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
   // create a job that knows all the IDs to be looked for in the job
   // put all the jobs on the queue to process each of them
   // can user be anonymous?
-  var job = {user:user,list:list};
+  var job = {user:user};
+  var list;
+  if (input.list) { // list could be obj with metadata and list, or could just be list
+    list = input.list;
+    if (input.name) job.name = input.name;
+  } else {
+    list = input;
+  }
+  job.list = list;
   for ( var i in list ) {
     var j = list[i];
     if ( j.DOI ) {
