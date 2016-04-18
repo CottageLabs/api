@@ -21,7 +21,7 @@ CLapi.addRoute('use/grist/grant_id/:qry', {
         action: function() {
             var res = CLapi.internals.use.grist.grant_id(this.urlParams.qry);
             try {
-                return {status: 'success', data: res.data.resultList.result[0] }
+                return {status: 'success', data: res.data }
             } catch(err) {
                 return {status: 'success', data: res.data }
             }
