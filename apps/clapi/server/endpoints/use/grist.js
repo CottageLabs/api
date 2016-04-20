@@ -20,7 +20,6 @@ CLapi.addRoute('use/grist/grant_id/:qry', {
     get: {
         action: function() {
             var res = CLapi.internals.use.grist.grant_id(this.urlParams.qry);
-            console.log(res);
             try {
                 return {status: 'success', data: res.data , total: res.total}
             } catch(err) {
@@ -33,8 +32,7 @@ CLapi.addRoute('use/grist/grant_id/:qry', {
 CLapi.internals.use.grist = {};
 
 CLapi.internals.use.grist.grant_id = function(grant_id) {
-    var res = CLapi.internals.use.grist.search('gid:' + grant_id);
-    return res;
+    return CLapi.internals.use.grist.search('gid:' + grant_id);
 };
 
 CLapi.internals.use.grist.search = function(qrystr,from,page) {
@@ -44,6 +42,5 @@ CLapi.internals.use.grist.search = function(qrystr,from,page) {
     console.log("Grist API HTTP Get to " + url);
     if (from !== undefined) url += '&page=' + (Math.floor(from/GRIST_API_PAGE_SIZE)+1);
     var res = Meteor.http.call('GET', url);
-    console.log(res.data.RecordList.Record);
     return { status: 'success', total: res.data.HitCount, data: res.data.RecordList.Record};  // RecordList is an object?!
 };
