@@ -10,6 +10,12 @@ Template.managegroup.groupusers = function() {
 Template.managegroup.userscount = function() {
   return Meteor.users.find().count();
 }
+Template.managegroup.rolenames = function(uacc) {
+  var keys = [];
+  for ( var k in uacc.roles ) keys.push(k + ': ' + uacc.roles[k]);
+  return keys;
+};
+
 
 Template.managegroup.events({
   "click #adduser": function(event) {
@@ -17,6 +23,9 @@ Template.managegroup.events({
   },
   "click #inviteuser": function(event) {
     Meteor.call('inviteusertogroup',$('#newuser').val(),Session.get("gid"));
+  },
+  "click #makeadmin": function(event) {
+    Meteor.call('addusertogroup',event.target.attr('user'),Session.get("gid"),'admin');
   },
   "change .addrole": function(event) {
     Meteor.call('addusertogroup',event.target.attr('user'),Session.get("gid"),event.target.val());

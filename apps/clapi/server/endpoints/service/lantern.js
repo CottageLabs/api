@@ -131,12 +131,13 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         var fields = [
           'PMCID','PMID','DOI','Publisher','Journal title','ISSN','Article title','Author(s)','Publication Date','Electronic Publication Date',
-          'Fulltext in EPMC?','XML Fulltext?','AAM?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
+          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
           'Standard Compliance?','Deluxe Compliance?'
         ];
         for ( var gi=0; gi < grantcount; gi++) {
           fields.push('Grant ' + (parseInt(gi)+1));
           fields.push('Agency ' + (parseInt(gi)+1));
+          fields.push('PI ' + (parseInt(gi)+1));
         }
         fields.push('Compliance Processing Output');
         var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:fields}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
@@ -497,6 +498,27 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     }*/
   }
 
+  // use grist API from EUPMC to look up PI name of any grants present
+  if ( result.grants.length > 0 ) {
+    for ( var g in result.grants ) {
+      var gr = result.grants[g];
+      var grid = gr.grantId.split('/')[0];
+      var gres = CLapi.internals.use.grist.grant_id(grid);
+      if (gres.total > 0 && gres.data.Person) {
+        var ps = gres.data.Person;
+        var pid = '';
+        if (ps.Title) pid += ps.Title + ' ';
+        if (ps.GivenName) pid += ps.GivenName + ' ';
+        if (!ps.GivenName && ps.Initials) pid += ps.Initials + ' ';
+        if (ps.FamilyName) pid += ps.FamilyName;
+        result.grants[g].PI = pid;
+        result.provenance.push('Found Grant PI for ' + grid + 'via Grist API');
+      } else {
+        result.provenance.push('Tried but failed to find Grant PI for ' + grid + 'via Grist API');
+      }
+    }
+  }
+  
   if ( result.journal.issn ) {
     // is it in doaj
     var doaj = CLapi.internals.use.doaj.journals.issn(result.journal.issn);
@@ -776,6 +798,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
       if (grants[gr] !== undefined) {
         result['Grant ' + (parseInt(gr)+1)] = grants[gr].grantId;
         result['Agency ' + (parseInt(gr)+1)] = grants[gr].agency;
+        result['PI ' + (parseInt(gr)+1)] = grants[gr].PI ? grants[gr].PI : 'unknown';
       }
     }
     delete result.grants;

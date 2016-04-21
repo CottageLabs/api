@@ -210,7 +210,7 @@ CLapi.cauth = function(gr, user, cascade) {
     if ( ri !== -1 ) {
       for ( var r in cascading.splice(0,ri)) {
         var rl = cascading[r];
-        if ( user.roles[grp].indexOf(rl) !== -1 ) {
+        if ( user.roles[grp] && user.roles[grp].indexOf(rl) !== -1 ) {
           console.log('user ' + user._id + ' has cascaded role ' + grp + '.' + rl + ' overriding ' + gr);
           return rl;
         }

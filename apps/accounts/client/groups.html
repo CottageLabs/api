@@ -71,11 +71,12 @@
           {{#each groupusers}}
           <tr>
             <td>{{userhandle this}}</td>
+            <td>{{rolenames this}}</td>
             <td>
               {{#if isadmin this gid}}
               <span class="label label-warning">admin</span>
               {{else}}
-              <a class="btn btn-default" href="#" id="startaddrole">Add admin role</a>
+              <a class="btn btn-default" href="#" id="makeadmin" user="{{userhandle this}}">Add admin role</a>
               {{/if}}
               <!--<a class="btn btn-default" href="#">View</a>
               <a class="btn btn-default" href="#">Email</a>

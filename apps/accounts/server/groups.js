@@ -14,8 +14,8 @@ Meteor.methods({
     return CLapi.cauth(gr,user,cascade);
   },
   addusertogroup: function(u,group,role) {
-    console.log('attempt to add user');
     if (role === undefined) role = 'user';
+    console.log('attempt to add user ' + u + ' to group ' + group + ' in role ' + role);
     var user = Meteor.users.findOne(u);
     if (!user) user = Meteor.users.findOne({username:u});
     if (!user) user = Meteor.users.findOne({'profile.username':u});
