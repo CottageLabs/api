@@ -131,7 +131,7 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         var fields = [
           'PMCID','PMID','DOI','Publisher','Journal title','ISSN','Article title','Author(s)','Publication Date','Electronic Publication Date',
-          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
+          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
           'Standard Compliance?','Deluxe Compliance?'
         ];
         for ( var gi=0; gi < grantcount; gi++) {
@@ -333,6 +333,7 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     in_epmc: false, // set to true if found
     is_aam: false, // set to true if is an eupmc author manuscript
     is_oa: false, // set to true if eupmc or other source says is oa
+    aheadofprint: undefined, // if pubmed returns a date for this, it will be a date
     has_fulltext_xml: false, // set to true if oa and in epmc and can retrieve fulltext xml from eupmc rest API url
     licence: 'unknown', // what sort of licence this has - should be a string like "cc by"
     licence_source: 'unknown', // where the licence info came from
@@ -502,21 +503,28 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
   if ( result.grants.length > 0 ) {
     for ( var g in result.grants ) {
       var gr = result.grants[g];
-      var grid = gr.grantId.split('/')[0];
-      var gres = CLapi.internals.use.grist.grant_id(grid);
-      if (gres.total > 0 && gres.data.Person) {
-        var ps = gres.data.Person;
-        var pid = '';
-        if (ps.Title) pid += ps.Title + ' ';
-        if (ps.GivenName) pid += ps.GivenName + ' ';
-        if (!ps.GivenName && ps.Initials) pid += ps.Initials + ' ';
-        if (ps.FamilyName) pid += ps.FamilyName;
-        result.grants[g].PI = pid;
-        result.provenance.push('Found Grant PI for ' + grid + 'via Grist API');
+      if (gr.grantId) {
+        var grid = gr.grantId.split('/')[0];
+        var gres = CLapi.internals.use.grist.grant_id(grid);
+        if (gres.total > 0 && gres.data.Person) {
+          var ps = gres.data.Person;
+          var pid = '';
+          if (ps.Title) pid += ps.Title + ' ';
+          if (ps.GivenName) pid += ps.GivenName + ' ';
+          if (!ps.GivenName && ps.Initials) pid += ps.Initials + ' ';
+          if (ps.FamilyName) pid += ps.FamilyName;
+          result.grants[g].PI = pid;
+          result.provenance.push('Found Grant PI for ' + grid + 'via Grist API');
+        }
       } else {
         result.provenance.push('Tried but failed to find Grant PI for ' + grid + 'via Grist API');
       }
     }
+  }
+  
+  if (result.pmid) {
+    result.aheadofprint = CLapi.internals.use.pubmed.aheadofprint(result.pmid);
+    result.provenance.push('Retrieved ahead of print data from pubmed');
   }
   
   if ( result.journal.issn ) {
@@ -720,6 +728,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
     is_aam: 'Author Manuscript?',
+    aheadofprint: 'Ahead of Print?',
     is_oa: 'Open Access?',
     confidence: 'Correct Article Confidence',
     licence_source: 'Licence source',
