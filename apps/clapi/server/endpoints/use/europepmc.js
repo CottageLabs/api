@@ -153,7 +153,7 @@ CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
   var res = Meteor.http.call('GET', url);
-  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+  return { status: 'success', total: res.data.hitCount, data: res.data && res.data.resultList ? res.data.resultList.result : []}
 }
 
 // http://dev.api.cottagelabs.com/use/europepmc/search/has_doi:n%20AND%20FIRST_PDATE:[2016-03-22%20TO%202016-03-22]
@@ -193,6 +193,46 @@ CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qry
   console.log(url);
   var res = Meteor.http.call('GET', url);
   return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+}
+
+CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
+  var res;
+  if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
+  if (res && res.total > 0 || rec || fulltext) {
+    if (!rec) rec = res.data[0];
+    if (!pmcid && rec) pmcid = rec.pmcid;
+    if (rec.licence) {
+      return {licence:rec.licence,source:'epmc_rest_api'}
+    } else {
+      if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+      if (fulltext) {
+        var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
+        if (licinperms.licence && licinperms.licence !== 'unknown') {
+          return {licence:licinperms.licence,source:'epmc_xml_permissions'}
+        } else if ( fulltext.indexOf('<permissions>') !== -1 ) {
+          return {licence:'non-standard-licence',source:'epmc_xml_permissions'} // TODO check with ET if this should get overwritten by subsequent finds
+        } else {
+          var licanywhere = CLapi.internals.academic.licence(undefined,undefined,fulltext);
+          if (licanywhere.licence && licanywhere.licence !== 'unknown') {
+            return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions'}
+          } else {
+            if (pmcid) {
+              var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/PMC' + pmcid,false);
+              if (licsplash.licence && licsplash.licence !== 'unknown') {
+                return {licence:licsplash.licence,source:'epmc_html'}
+              } else {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          }
+        }
+      } else {
+        return false;
+      }
+    }
+  }
 }
 
 CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {

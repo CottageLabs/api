@@ -12,23 +12,42 @@ Template.managegroup.userscount = function() {
 }
 Template.managegroup.rolenames = function(uacc) {
   var keys = [];
-  for ( var k in uacc.roles ) keys.push(k + ': ' + uacc.roles[k]);
+  var group = Session.get("gid");
+  if (group === undefined) {
+    for ( var k in uacc.roles ) {
+      keys.push(k + ': ' + uacc.roles[k]);
+    }
+  } else if (uacc.roles[group]) {
+    keys = uacc.roles[group];
+  }
   return keys;
 };
-
 
 Template.managegroup.events({
   "click #adduser": function(event) {
     Meteor.call('addusertogroup',$('#newuser').val(),Session.get("gid"));
   },
+  "click #removeuser": function(event) {
+    Meteor.call('removeuserfromgroup',$('#newuser').val(),Session.get("gid"));
+  },
   "click #inviteuser": function(event) {
     Meteor.call('inviteusertogroup',$('#newuser').val(),Session.get("gid"));
   },
   "click #makeadmin": function(event) {
-    Meteor.call('addusertogroup',event.target.attr('user'),Session.get("gid"),'admin');
+    Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),'admin');
+  },
+  "click #removeadmin": function(event) {
+    Meteor.call('removeuserfromgroup',event.target.getAttribute('user'),Session.get("gid"),'admin');
   },
   "change .addrole": function(event) {
-    Meteor.call('addusertogroup',event.target.attr('user'),Session.get("gid"),event.target.val());
+    Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),event.target.val());
+  }
+});
+
+Template.joingroup.events({
+  "change #joingroup": function(event) {
+    var g = $('#joingroup').val();
+    if (g.length) Meteor.call('addusertogroup',$('#joingroup').attr('user'),g);
   }
 });
 
@@ -48,8 +67,9 @@ UI.registerHelper('usergroups', function(uacc,filter) {
   return u;
 });
 
-UI.registerHelper('isadmin', function(uacc,group) {
-  return Meteor.call('cauth',group+'.admin',uacc);
+UI.registerHelper('isadmin', function(uacc) {
+  var group = Session.get("gid");
+  return (uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
 });
 
 UI.registerHelper('userhandle', function(uacc) {
@@ -66,6 +86,18 @@ UI.registerHelper('equals', function(x,y) {
 });
 
 
+Template.manage_openaccessbutton.onRendered(function() {
+  if ( _.isEmpty(Session.get('usersblocked')) ) {
+    Meteor.call('usersblocked', function(err, result) {
+      Session.set('usersblocked', result);
+    });
+  }
+  if ( _.isEmpty(Session.get('usersrequested')) ) {
+    Meteor.call('usersrequested', function(err, result) {
+      Session.set('usersrequested', result);
+    });
+  }
+});
 
 Template.manage_openaccessbutton.requestscount = function() {
   return OAB_Request.find().count();
@@ -75,6 +107,18 @@ Template.manage_openaccessbutton.requestssuccesscount = function() {
 }
 Template.manage_openaccessbutton.blockedcount = function() {
   return OAB_Blocked.find().count();
+}
+Template.manage_openaccessbutton.usersblocked = function() {
+  return Session.get('usersblocked');
+}
+Template.manage_openaccessbutton.usersrequested = function() {
+  return Session.get('usersrequested');
+}
+Template.manage_openaccessbutton.userblocked = function(uid) {
+  return OAB_Blocked.find({user:uid}).count();
+}
+Template.manage_openaccessbutton.userrequested = function(uid) {
+  return OAB_Request.find({user:uid}).count();
 }
 
 

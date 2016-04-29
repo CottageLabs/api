@@ -1,4 +1,37 @@
 
+var templates = {
+  author: {
+    subject: 'A request to share the data behind your article',
+    text: "Dear colleague,\n\n \
+We are writing from the Open Data Button, a tool helping connect people with the data behind research papers they're interested in.\n\n \
+{{blocks}} of our users are interested in the data behind one of your papers:\n\n \
+{{article}}\n\n \
+and have publicly requested that you share it.\n\n \
+Our users are just some of many who would benefit if you shared the data supporting this paper, and you can read about why our users \
+would like access to the data on the public request page at:\n\n \
+https://opendatabutton.org/request/{{rid}}\n\n \
+Sharing data could lead to increased citations for your paper, people citing your dataset, and the acceleration of research in your area.\n\n \
+You can make easily make your data publicly available by simply uploading your data and notes in your preferred format, \
+or if it is already publicly available by just providing a URL where we can find it. Just go to our upload page by following the link below:\n\n \
+https://opendatabutton.org/respond/{{rid}}\n\n \
+We'll use the Open Science Framework to host, preserve, and identify your data. We'll use the paper title and abstract to provide \
+initial metadata and licence the data CC0 (the recommended licence for sharing data).\n\n \
+We know preparing to share your data can take some time, and you're probably extremely busy, so you can put this request on hold if necessary. \
+You can tell us how long you need by just visiting the corresponding link below:\n\n \
+https://opendatabutton.org/respond/{{rid}}?hold=7days\n \
+https://opendatabutton.org/respond/{{rid}}?hold=14days\n \
+https://opendatabutton.org/respond/{{rid}}?hold=28days\n \
+https://opendatabutton.org/respond/{{rid}}?hold=refuse\n\n \
+Once you've uploaded or provided a link, our community will confirm it and then you'll receive an open data badge to recognise your efforts.\n\n \
+If you have any other issues, email us at data@openaccessbutton.org.\n\n \
+Kind Regards,\n\n\n \
+The Open Data Button Robot\n\n \
+P.S The Open Data Button just launched, we'd love your feedback - just email us at data@openaccessbutton.org.\n\n \
+You're receiving this email because an Open Data Button user requested access to data supporting a paper you're an author of. \
+If you'd like to stop receiving emails from Open Data Button, you can let us know by visiting this link: https://opendatabutton.org/dnr/{{email}}."
+  }
+}
+
 var RESULTS_INCREMENT = 20;
 Session.setDefault('resultsLimit', RESULTS_INCREMENT);
 
@@ -95,8 +128,37 @@ Template.oabuttonrequest.requeststatus = function() {
     return 'has been received';
   }
 }
+Template.oabuttonrequest.userisadmin = function(user) {
+  return user && user.roles && user.roles.openaccessbutton && user.roles.openaccessbutton.indexOf('admin') !== -1;
+}
 
 Template.oabuttonrequest.events({
+  'change #status': function() {
+    var s = $('#status').val();
+    if (s === 'moderate') {
+      var r = OAB_Request.findOne(Session.get("requestid"))
+      var email = r.email;
+      if (email.constructor === Array) email = email[0];
+      if (email.indexOf(',') !== -1) email = email.split(',')[0];
+      var blocks = OAB_Blocked.find({url:Session.get('url')}).count();
+      var text = templates.author.text;
+      text = text.replace(/\{\{rid\}\}/g,r.receiver);
+      text = text.replace(/\{\{email\}\}/g,email);
+      var article = r.url;
+      if (r.title) article = r.title + 'published at this URL:\n\n' + article;
+      text = text.replace(/\{\{article\}\}/g,article);
+      $('#text').val(text).show();
+    }
+  },
+  'click #setstatus': function(e) {
+    var reqid = Session.get("requestid");
+    var status = $('#status').val();
+    var msg = {
+      text: $('#text').val(),
+      subject: templates.author.subject
+    }
+    Meteor.call('setstatus',status,reqid,msg);
+  },
   'click #addsupport': function() {
     var reqid = Session.get("requestid");
     console.log('Creating oabutton request support block for ' + reqid);

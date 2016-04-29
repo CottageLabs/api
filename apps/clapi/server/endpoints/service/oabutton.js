@@ -412,7 +412,7 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
 /*
 {
   createdAt: "date request was created",
-  status: "progress OR hold OR refused OR received",
+  status: "moderate OR progress OR hold OR refused OR received",
   url: "url of item request is about",
   email: "email address of person to contact to request",
   receiver: "unique ID that the receive endpoint will use to accept one-time submission of content",
@@ -501,10 +501,9 @@ CLapi.internals.service.oabutton.request = function(type,url,email,requestee,met
         request.holds.push(request.hold);
         delete request.hold;
       }
-      request.status = 'progress';
+      request.status = 'moderate'; // if moderation not required this could go straight to progress (but then would have to trigger email too)
       OAB_Request.update(request._id,{$set:{email:request.email,hold:undefined,holds:request.holds,status:request.status}});
     }
-    // CLapi.internals.sendmail(); // email the author with what? - for now, don't. Emails should only be triggered by admins after checking
     console.log('New oabutton request created');
     return {status: 'success', data: request}
   } else {

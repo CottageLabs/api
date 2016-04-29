@@ -216,7 +216,7 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
   if ( ident.indexOf('pm') === 0 ) {
     if ( ident.indexOf('pmc') === 0) {
       _addto(['pmc'],ident);
-      _geteupmc('pmc',possibles.pmc); 
+      _geteupmc('pmc',possibles.pmc);
     } else {
       _addto(['pmid'],ident);
       _geteupmc('pmid',possibles.pmid);
@@ -382,13 +382,16 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
 CLapi.internals.academic.doiresolve = function(doi) {
   doi = doi.replace('http://','').replace('https://','').replace('dx.doi.org/','');
   var doiresolver = 'http://doi.org/api/handles/' + doi;
-  var resp = Meteor.http.call('GET',doiresolver);
   var url = false;
-  if (resp.data) {
-    for ( var r in resp.data.values) {
-      if ( resp.data.values[r].type.toLowerCase() === 'url' ) url = resp.data.values[r].data.value;
+  try {
+    console.log('Academic resolve doing DOI resolve for ' + doiresolver);
+    var resp = Meteor.http.call('GET',doiresolver);
+    if (resp.data) {
+      for ( var r in resp.data.values) {
+        if ( resp.data.values[r].type.toLowerCase() === 'url' ) url = resp.data.values[r].data.value;
+      }
     }
-  }
+  } catch(err) {}
   return url;
 }
 

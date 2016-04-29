@@ -452,6 +452,28 @@
 <template name="oabuttonrequest">
   
   {{> oabuttonheader}}
+
+  {{# if userisadmin currentUser}}
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <p>You have administrative control, hence you are able to alter the status of this request.</p>
+        <select id="status" class="form-control">
+          <option></option>
+          <option value="moderate">moderate</option>
+          <option value="progress">progress</option>
+          <option value="hold">hold</option>
+          <option value="refused">refused</option>
+          <option value="received">received</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <textarea id="text" class="form-control" style="min-height:400px;display:none;" placeholder="Put email content here"></textarea>
+        <a class="btn btn-info btn-block" href="#" id="setstatus">Change status</a>
+      </div>
+    </div>
+  </div>
+  {{/if}}
   
   <div class="container-fluid" style="margin-top:100px;">
     <div class="row">

@@ -31,6 +31,19 @@ Meteor.methods({
   addblocked: function(event) {
     OAB_Blocked.insert(event);
   },
+  setstatus: function(status,rid,text) {
+    // only admin user should be able to do this
+    OAB_Request.update(rid, {$set:{status:status}});
+    var r = OAB_Request.findOne(rid);
+    if (status === 'progress' && text !== undefined && text.length > 0) {
+      // when moving status to progress, email the author
+      var email = r.email;
+      if (email.constructor === Array) email = email[0];
+      if (email.indexOf(',') !== -1) email = email.split(',')[0];
+      var opts = {from:'',to:email,text:text};
+      CLapi.internals.sendmail(opts); // TODO should use own oab mail url ,Meteor.settings.openaccessbutton.mail_url);
+    }
+  },
   setprofession: function(uid,profession) {
     Meteor.users.update(uid,{$set:{'service.openaccessbutton.profession':profession}});  
   },

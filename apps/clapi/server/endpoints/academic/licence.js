@@ -25,7 +25,7 @@ CLapi.addRoute('academic/licence', {
   }
 });
 
-CLapi.internals.academic.licence = function(url,resolve) {  
+CLapi.internals.academic.licence = function(url,resolve,content,start,end) {
   // internal function to get licences list, depending on when last locally stored
   var getlicences = function() {
     // licences originally derived from http://licenses.opendefinition.org/licenses/groups/all.json
@@ -35,70 +35,88 @@ CLapi.internals.academic.licence = function(url,resolve) {
     // but remove the free-to-read type
     var fs = Meteor.npmRequire('fs');
     var licences = [];
-    var localcopy = '/home/cloo/licences.json'; // TODO put this in settings config
-    var stale = 60 * 60 * 1000; // number of ms (in this case one hour) after which licence list should be considered stale (should prob go in settings config)
-    if ( fs.existsSync(localcopy) && ((new Date()) - fs.statSync(localcopy).mtime) < stale) {
+    var localcopy = Meteor.settings.academic.licence.licencesfile;
+    var stale = Meteor.settings.academic.licence.stale;
+    if ( fs.existsSync(localcopy) && ( ( (new Date()) - fs.statSync(localcopy).mtime) < stale || !Meteor.settings.academic.licence.remote) ) {
       licences = JSON.parse(fs.readFileSync(localcopy));
-    } else {
+    } else if ( Meteor.settings.academic.licence.remote ) {
       console.log('Getting licences data from google spreadsheet for academic licence calculator')
-      var sid = '1yJOpE_YMdDxCKaK0DqWoCJDdq8Ep1b-_J1xYVKGsiYI';
-      var surl = "https://spreadsheets.google.com/feeds/list/" + sid + "/od6/public/values?alt=json";
+      var surl = Meteor.settings.academic.licence.remote;
       var g = Meteor.http.call('GET',surl);
       licences = g.data.feed.entry;
       fs.writeFileSync(localcopy, JSON.stringify(licences));
     }
     return licences;
   }
+  
+  // internal function to find licences in content string
+  var findlicences = function(content,source) {
+    console.log('Academic licence doing find licences on content of length ' + content.length);
+    var lic = {licence:'unknown',retrievable:true};
+    var licences = getlicences();
+    console.log(licences.length + ' strings available for licence checking');
+    if (start !== undefined) {
+      var parts = content.split(start);
+      parts[1] !== undefined ? content = parts[1] : content = parts[0];
+    }
+    if (end !== undefined) content = content.split(end)[0];
+    console.log('Academic licence reduced content length to ' + content.length);
+    var text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');
+    for ( var i in licences ) {
+      var l = licences[i].gsx$licencetype ? licences[i].gsx$licencetype.$t : undefined;
+      var d = licences[i].gsx$matchesondomains ? licences[i].gsx$matchesondomains.$t : undefined;
+      var m = licences[i].gsx$matchtext ? licences[i].gsx$matchtext.$t : undefined;
+      if ( l !== undefined && d !== undefined && m !== undefined && ( d === '*' || source && source.indexOf(d) !== -1 || source === undefined ) ) {
+        // example match, line 39 of spreadsheet, cc by 2.0 statement
+        // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/licenses/by/2.0), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly credited.
+        // should match http://europepmc.org/articles/PMC3206455
+        // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (<a href="http://creativecommons.org/licenses/by/2.0" ref="reftype=extlink&amp;article-id=2210051&amp;issue-id=73721&amp;journal-id=906&amp;FROM=Article%7CFront%20Matter&amp;TO=External%7CLink%7CURI&amp;rendering-type=normal" target="pmc_ext">http://creativecommons.org/licenses/by/2.0</a>), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
+        var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
+        var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
+        if ( urlmatch && content.indexOf(urlmatch) !== -1 ) {
+          lic.licence = l;
+          lic.matched = urlmatch;
+          lic.matcher = m;
+        } else if ( text.indexOf(match) !== -1 ) {
+          lic.licence = l;
+          lic.matched = match;
+          lic.matcher = m;
+        }
+      }
+    }
+    return lic;
+  }
 
+  // somehow some URLs seemed to come in with whitespace at the start of them. So remove it
+  if (url) url = url.replace(/(^\s*)|(\s*$)/g,'');
   if (resolve === undefined) resolve = false; // which way? assume no resolve needed?
   var resolved;
-  if (resolve) {
+  if (resolve && url) {
     var tr = CLapi.internals.academic.resolve(url);
     tr.url ? resolved = tr.url : resolved = tr.source;
     console.log('Resolved ' + url + ' to ' + resolved + ' to calculate licence from content');
   }
   if (!resolved) resolved = url;
+
   var exists = academic_licence.findOne({$or:[{url:url,resolved:resolved}]});
   if (exists) {
     return exists;
+  } else if (content) {
+    return findlicences(content,resolved); // never saves, just processes
   } else {
     // work out the licence and save something about it in academic_licence - including a failed attempt
     var licence = {
       url:url
     }
-    if (resolved) licence.resolved = resolved;
+    licence.resolved = resolved;    
+    console.log('Getting ' + url + ' which resolved to ' + resolved + ' for licence check');
     var info = Async.wrap(function(resolved, callback) {
       // yes, there is a meteor call that is sync, but it is not returning here properly for some reason
       Meteor.http.call('GET',resolved, function(err,res) { // this shuold perhaps become a phantomjs render
         if (err) {
           return callback(null,{retrievable:false});
         } else {
-          var lic = {licence:'unknown',retrievable:true};
-          var licences = getlicences();
-          console.log(licences.length + ' strings available for licence checking');
-          var text = CLapi.internals.convert.xml2txt(undefined,res.content).toLowerCase().replace(/[^a-z0-9]/g,'');
-          for ( var i in licences ) {
-            var l = licences[i].gsx$licencetype ? licences[i].gsx$licencetype.$t : undefined;
-            var d = licences[i].gsx$matchesondomains ? licences[i].gsx$matchesondomains.$t : undefined;
-            var m = licences[i].gsx$matchtext ? licences[i].gsx$matchtext.$t : undefined;
-            if ( l !== undefined && d !== undefined && m !== undefined && ( d === '*' || resolved.indexOf(d) !== -1 ) ) {
-              // example match, line 39 of spreadsheet, cc by 2.0 statement
-              // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/licenses/by/2.0), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly credited.
-              // should match http://europepmc.org/articles/PMC3206455
-              // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (<a href="http://creativecommons.org/licenses/by/2.0" ref="reftype=extlink&amp;article-id=2210051&amp;issue-id=73721&amp;journal-id=906&amp;FROM=Article%7CFront%20Matter&amp;TO=External%7CLink%7CURI&amp;rendering-type=normal" target="pmc_ext">http://creativecommons.org/licenses/by/2.0</a>), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
-              var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
-              var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
-              if ( urlmatch && res.content.indexOf(urlmatch) !== -1 ) {
-                lic.licence = l;
-                lic.matched = urlmatch;
-                lic.matcher = m;
-              } else if ( text.indexOf(match) !== -1 ) {
-                lic.licence = l;
-                lic.matched = match;
-                lic.matcher = m;
-              }
-            }
-          }
+          var lic = findlicences(res.content,resolved);
           return callback(null,lic);
         }
       });

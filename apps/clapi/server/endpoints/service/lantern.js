@@ -1,13 +1,4 @@
 
-// sprint 2
-// https://github.com/CottageLabs/oacwellcome/issues/91
-// add these dates from EPMC - they are in the xml, are they in the API?:
-// <dateofPublication>
-// <electronicPublicationDate>
-// AND https://github.com/CottageLabs/oacwellcome/issues/94
-// Add Funder/grant number from EPMC data
-
-
 // The Lantern API
 lantern_jobs = new Mongo.Collection("lantern_jobs"); // batches of submitted jobs from users
 lantern_processes = new Mongo.Collection("lantern_processes"); // individual processes of ident object sets {doi:"blah",pmid:"same"}
@@ -140,7 +131,7 @@ CLapi.addRoute('service/lantern/:job/results', {
           fields.push('PI ' + (parseInt(gi)+1));
         }
         fields.push('Compliance Processing Output');
-        var ret = CLapi.internals.convert.json2csv(undefined,res,{fields:fields}).replace(/\\r\\n/g,'\r\n'); // handles an oddity where internally to json2csv these just become text, somehow
+        var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
         var job = lantern_jobs.findOne(this.urlParams.job);
         var name = 'results';
         if (job.name) name = job.name.split('.')[0] + '_results';
@@ -155,6 +146,43 @@ CLapi.addRoute('service/lantern/:job/results', {
       } else {
         return {status: 'success', data: res}
       }
+    }
+  }
+});
+
+CLapi.addRoute('service/lantern/:job/original', {
+  get: {
+    action: function() {
+      // wellcome found it useful to be able to download the original file, 
+      // so this route should just find the job and return the file without any results
+      var job = lantern_jobs.findOne(this.urlParams.job);
+      var fl = [];
+      for ( var j in job.list ) {
+        var jb = job.list[j];
+        if (jb.process) delete jb.process;
+        if (jb.result) delete jb.result;
+        if (jb.doi !== undefined) jb.DOI = jb.doi;
+        delete jb.doi;
+        if (jb.pmcid !== undefined) jb.PMCID = jb.pmcid;
+        delete jb.pmcid;
+        if (jb.pmid !== undefined) jb.PMID = jb.pmid;
+        delete jb.pmid;
+        if (jb.title !== undefined) jb['Article title'] = jb.title;
+        delete jb.title;
+        fl.push(jb);
+      }
+      //return fl;
+      var ret = CLapi.internals.convert.json2csv(undefined,undefined,fl);
+      var name = 'original';
+      if (job.name) name = job.name.split('.')[0];
+      this.response.writeHead(200, {
+        'Content-disposition': "attachment; filename="+name+"_original.csv",
+        'Content-type': 'text/csv',
+        'Content-length': ret.length
+      });
+      this.response.write(ret);
+      this.done();
+      return {}
     }
   }
 });
@@ -209,24 +237,6 @@ CLapi.addRoute('service/lantern/process/:proc', {
   }
 });
 
-// convenience to remove jobs, processes, results. should have admin auth or be removed
-CLapi.addRoute('service/lantern/remove/:which', {
-  delete: {
-    action: function() {
-      console.log(this.urlParams.which);
-      if ( this.urlParams.which === 'jobs') {
-        lantern_jobs.remove({});
-      } else if ( this.urlParams.which === 'processes') {
-        lantern_processes.remove({});
-      } else if ( this.urlParams.which === 'results') {
-        lantern_results.remove({});
-      }
-      return {status: 'success' }
-    }
-  }
-});
-
-
 CLapi.internals.service.lantern = {};
 
 CLapi.internals.service.lantern.reset = function() {
@@ -242,12 +252,18 @@ CLapi.internals.service.lantern.reset = function() {
 
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
-CLapi.internals.service.lantern.job = function(input,user) {
+CLapi.internals.service.lantern.job = function(input,uid) {
   // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
   // create a job that knows all the IDs to be looked for in the job
   // put all the jobs on the queue to process each of them
   // can user be anonymous?
-  var job = {user:user};
+  var job = {user:uid};
+  if (input.email) {
+    job.email = input.email;
+  } else if (uid) {
+    var user = Meteor.users.findOne(uid);
+    job.email = user.emails[0].address;
+  }
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
     list = input.list;
@@ -268,11 +284,15 @@ CLapi.internals.service.lantern.job = function(input,user) {
     }
     if ( j.PMCID ) {
       list[i].pmcid = j.PMCID;
-      delete list[i].PMDIC;
+      delete list[i].PMCID;
     }
     if ( j.TITLE ) {
       list[i].title = j.TITLE;
       delete list[i].TITLE;
+    }
+    if ( j['Article title'] ) {
+      list[i].title = j['Article title'];
+      delete list[i]['Article title'];
     }
     if (j.pmcid) j.pmcid = j.pmcid.toLowerCase().replace('pmc','');
     var proc = {
@@ -289,7 +309,23 @@ CLapi.internals.service.lantern.job = function(input,user) {
       process ? job.list[i].process = process._id : job.list[i].process = lantern_processes.insert(proc);
     }
   }
-  return lantern_jobs.insert(job); // this returns the ID of the new job - should it return the whole job?
+  var jid = lantern_jobs.insert(job);
+  if (job.email) {
+    var jor = job.name ? job.name : jid;
+    var text = 'Hi ' + job.email + '\n\nThanks very much for submitting your processing job ' + jor + '.\n\n';
+    text += 'You can track the progress of your job at ';
+    // TODO this bit should depend on user group permissions somehow
+    // for now we assume if a signed in user then lantern, else wellcome
+    uid ? text += 'https://lantern.cottagelabs.com#' : text += 'http://wellcome.test.cottagelabs.com#' + jid;
+    text += '\n\nThe Cottage Labs team\n\n';
+    text += 'P.S This is an automated email, please do not reply to it - responses are NOT monitored.'
+    CLapi.internals.sendmail({
+      to:job.email,
+      subject:'Job ' + jor + ' submitted successfully',
+      text:text
+    });
+  }
+  return jid;
 }
 
 CLapi.internals.service.lantern.process = function(processid,identifier,type) {
@@ -440,13 +476,14 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
     }
-    if (eupmc.license) {
-      result.licence = eupmc.license; // only the OA ones appear to have this, it says something like "cc by"
-      result.licence_source = 'eupmc';
-      result.provenance.push('Added licence from EUPMC');
+    var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc);
+    if (lic !== false) {
+      result.licence = lic.licence;
+      result.licence_source = lic.source;
+      result.provenance.push('Added licence from ' + lic.source);
     }
-    if (eupmc.authorList.author) {
-      result.author = eupmc.authorList.author; // auhtor list for oacwellcome issue 92 - full list in order, one entire list per cell
+    if (eupmc.authorList && eupmc.authorList.author) {
+      result.author = eupmc.authorList.author;
       result.provenance.push('Added author list from EUPMC');
     }
     var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
@@ -505,8 +542,9 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       var gr = result.grants[g];
       if (gr.grantId) {
         var grid = gr.grantId.split('/')[0];
+        console.log('Lantern simplified ' + gr.grantId + ' to ' + grid + ' for Grist API call');
         var gres = CLapi.internals.use.grist.grant_id(grid);
-        if (gres.total > 0 && gres.data.Person) {
+        if (gres.total && gres.total > 0 && gres.data.Person) {
           var ps = gres.data.Person;
           var pid = '';
           if (ps.Title) pid += ps.Title + ' ';
@@ -514,17 +552,21 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
           if (!ps.GivenName && ps.Initials) pid += ps.Initials + ' ';
           if (ps.FamilyName) pid += ps.FamilyName;
           result.grants[g].PI = pid;
-          result.provenance.push('Found Grant PI for ' + grid + 'via Grist API');
+          result.provenance.push('Found Grant PI for ' + grid + ' via Grist API');
         }
       } else {
-        result.provenance.push('Tried but failed to find Grant PI for ' + grid + 'via Grist API');
+        result.provenance.push('Tried but failed to find Grant PI via Grist API');
       }
     }
   }
   
-  if (result.pmid) {
+  if (result.pmid && !result.in_epmc) {
     result.aheadofprint = CLapi.internals.use.pubmed.aheadofprint(result.pmid);
-    result.provenance.push('Retrieved ahead of print data from pubmed');
+    if (result.aheadofprint !== false) {
+      result.provenance.push('Checked ahead of print status on pubmed, date found ' + result.aheadofprint);      
+    } else {
+      result.provenance.push('Checked ahead of print status on pubmed, no date found');
+    }
   }
   
   if ( result.journal.issn ) {
@@ -572,16 +614,20 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     if (result.doi) {
       url = CLapi.internals.academic.doiresolve(result.doi);
     } else if ( result.pmcid ) {
-      url = 'http://europepmc.org/articles/PMC' + result.pmcid; // TODO CHECK - is epmc page what we want, or should we resolve this to journal splash?
+      // TODO eupmc splash page would already be checked if necessary for anything with a pmcid
+      // so this should only return a URL if we can resolve one to a non-eupmc page
+      //url = 'http://europepmc.org/articles/PMC' + result.pmcid; 
     } else if ( result.pmid ) {
-      url = CLapi.internals.academic.resolve('pmid' + result.pmid).url; // PMIDs may not be open, so really need to check full urls list
+      // TODO need to check where resolve would resolve this to - need publisher page, NOT epmc page and probably not pubmed page either
+      // PMIDs may not be open, so really need to check full urls list
+      url = CLapi.internals.academic.resolve('pmid' + result.pmid).url;
     }
     if (url && url.length > 1) {
       var lic = CLapi.internals.academic.licence(url,false);
       if (lic.licence && lic.licence !== 'unknown') {
         result.licence = lic.licence;
-        result.licence_source = lic.resolved;
-        result.provenance.push('Added licence data via article splash page lookup (used to be OAG)');
+        result.licence_source = 'publisher_splash_page';
+        result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG)');
       } else {
         result.provenance.push('Unable to retrieve licence data via article splash page lookup (used to be OAG)');    
       }
@@ -728,7 +774,6 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
     is_aam: 'Author Manuscript?',
-    aheadofprint: 'Ahead of Print?',
     is_oa: 'Open Access?',
     confidence: 'Correct Article Confidence',
     licence_source: 'Licence source',
@@ -739,12 +784,23 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     result: false,
     '_id': false // these listed to false just get removed from output
   }
+  if (result.aheadofprint === false) {
+    result['Ahead of Print?'] = 'FALSE';
+  } else if (result.aheadofprint) {
+    result['Ahead of Print?'] = 'TRUE';
+  } else if ( !result.in_epmc && !result.pmid) {
+    result['Ahead of Print?'] = 'unknown';
+  } else {
+    result['Ahead of Print?'] = 'not applicable';
+  }
+  delete result.aheadofprint;
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
-  var lic = result.licence.toLowerCase().replace(/ /g,'');
-  if (result.in_epmc === true && (result.is_aam || lic === 'ccby')) result['Standard Compliance?'] = 'TRUE';
+  var lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'').replace(/-/g,'') : '';
+  var lics = lic.indexOf('ccby') !== -1 || lic.indexOf('cc0') !== -1 ? true : false;
+  if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
-  if (result.in_epmc && result.licence_source === 'eupmc' && lic === 'ccby' && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
+  if (result.in_epmc && result.licence_source.indexOf('epmc') === 0 && lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
   if ( result.provenance ) {
     result['Compliance Processing Output'] = '';
     var fst = true;
@@ -769,7 +825,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     if (result.journal.dateOfPublication !== undefined) result['Publication Date'] = result.journal.dateOfPublication;
     result['Journal title'] = result.journal.title;
     result.ISSN = result.journal.issn;
-    if (result.journal.eissn) result.ISSN += ', ' + result.journal.eissn;
+    if (result.journal.eissn && ( !result.ISSN || result.ISSN.indexOf(result.journal.eissn) === -1 ) ) result.ISSN += ', ' + result.journal.eissn;
     if ( result.journal.in_doaj === true ) {
       result['Journal Type'] = 'open';
     } else {
@@ -826,6 +882,42 @@ CLapi.internals.service.lantern.format = function(result,uid) {
   
 }
 
+CLapi.internals.service.lantern.alertdone = function() {
+  // search for processes not already processing, sorted by descending created data
+  // add any sort of priority queue checking?
+  var j = lantern_jobs.find({done:{$not:{$eq:true}}});
+  var ret = 0;
+  j.forEach(function(job) {
+    var progress = CLapi.internals.service.lantern.progress(job._id);
+    if (progress === 100) {
+      if (job.email) {
+        var jor = job.name ? job.name : job._id;
+        var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
+        text += 'You can now download the results of your job at ';
+        // TODO this bit should depend on user group permissions somehow
+        // for now we assume if a signed in user then lantern, else wellcome
+        job.user ? text += 'https://lantern.cottagelabs.com#' : text += 'http://wellcome.test.cottagelabs.com#' + job._id;
+        text += '\n\nThe Cottage Labs team\n\n';
+        text += 'P.S This is an automated email, please do not reply to it - responses are NOT monitored.'
+        CLapi.internals.sendmail({
+          to:job.email,
+          subject:'Job ' + jor + ' completed successfully',
+          text:text
+        });
+      }
+      ret += 1;
+    }
+  });
+  return ret;
+}
+
+if ( Meteor.settings.cron.lantern_alertdone ) {
+  SyncedCron.add({
+    name: 'lantern_alertdone',
+    schedule: function(parser) { return parser.recur().every(30).minute(); },
+    job: CLapi.internals.service.lantern.alertdone
+  });
+}
 if ( Meteor.settings.cron.lantern ) {
   SyncedCron.add({
     name: 'lantern',

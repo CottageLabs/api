@@ -115,7 +115,7 @@ CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
   });
 });
 
-CLapi.internals.convert.json2csv = Async.wrap(function(url, content, opts, callback) {
+CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callback) {
   if ( content === undefined ) {
     var res = Meteor.http.call('GET', url);
     content = res.content;
@@ -124,6 +124,7 @@ CLapi.internals.convert.json2csv = Async.wrap(function(url, content, opts, callb
   opts.data = content;
   var json2csv = Meteor.npmRequire('json2csv');
   json2csv(opts, function(err, result) {
+    if (result) result = result.replace(/\\r\\n/g,'\r\n');
     return callback(null,result);
   });
 });

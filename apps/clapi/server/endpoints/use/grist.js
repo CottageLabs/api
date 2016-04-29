@@ -41,7 +41,11 @@ CLapi.internals.use.grist.search = function(qrystr,from,page) {
   var url = 'http://www.ebi.ac.uk/europepmc/GristAPI/rest/get/query=' + qrystr + '&resultType=core&format=json';
   console.log("Grist API HTTP Get to " + url);
   if (from !== undefined) url += '&page=' + (Math.floor(from/GRIST_API_PAGE_SIZE)+1);
-  var res = Meteor.http.call('GET', url);
-  var data = res.data.RecordList && res.data.RecordList.Record ? res.data.RecordList.Record : {}
-  return { status: 'success', total: res.data.HitCount, data: data};  // RecordList is an object?!
+  try {
+    var res = Meteor.http.call('GET', url);
+    var data = res.data.RecordList && res.data.RecordList.Record ? res.data.RecordList.Record : {}
+    return { status: 'success', total: res.data.HitCount, data: data};  // RecordList is an object?!
+  } catch(err) {
+    return { status: 'error', data: 'Grist API GET failed' }
+  }
 };
