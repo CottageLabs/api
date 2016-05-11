@@ -32,8 +32,6 @@ CLapi.addRoute('academic/daily/:date', {
 });
 
 CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
-  // TODO if resolve, do what? the academic/resolve function actually uses europepmc and crossref, which are already getting called
-  // so what data do we have to do the resolving with already? or should the calls just be repeated?
   var dated = function( delim, less ) {
       if ( delim === undefined ) delim = '-';
       if ( less === undefined ) less = 1;
@@ -47,6 +45,7 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
       return yyyy + delim + mm + delim + dd;
   };
   if (date === undefined) date = dated();
+  if (resolve === undefined) resolve = true;
   if (sources === undefined) sources = ['crossref','europepmc'];
   var exists = academic_daily.findOne(date);
   if (exists && !refresh) {
@@ -80,8 +79,10 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
               subject:res.subject,
               source:'crossref'
             };
-            //var rs = CLapi.internals.academic.resolve(result.doi);
-            //result.resolved = {url:rs.url,source:rs.source,cookie:rs.cookie};
+            if (resolve) {
+              var rs = CLapi.internals.academic.resolve(result.doi);
+              result.resolved = {url:rs.url,source:rs.source,cookie:rs.cookie};
+            }
             results.push(result);
           }
         }
@@ -118,16 +119,16 @@ CLapi.internals.academic.daily = function(date,refresh,resolve,sources) {
             if (res.pmid) result.pmid = res.pmid;
             if (res.pmcid) result.pmc = res.pmcid.toLowerCase().replace('pmc','');
             if (res.journalInfo.journal.issn) res.journal.issn = [res.journalInfo.journal.issn];
-            /*var w;
+            var w;
             if (res.pmcid) {
               w = 'pmc'+res.pmcid;
             } else if (res.pmid) {
               w = 'pmid'+res.pmid;
             }
-            if (w) {
+            if (w && resolve) {
               var reus = CLapi.internals.academic.resolve(w);
               result.resolved = {url:reus.url,source:reus.source,cookie:reus.cookie};
-            }*/
+            }
             results.push(result);
           }
         }

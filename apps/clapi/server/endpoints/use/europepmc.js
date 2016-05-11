@@ -201,8 +201,8 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (rec.licence) {
-      return {licence:rec.licence,source:'epmc_rest_api'}
+    if (rec.license) {
+      return {licence:rec.license,source:'epmc_rest_api'}
     } else {
       if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
       if (fulltext) {
@@ -217,7 +217,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
             return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions'}
           } else {
             if (pmcid) {
-              var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/PMC' + pmcid,false);
+              var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/PMC' + pmcid,false,undefined,undefined,undefined,true);
               if (licsplash.licence && licsplash.licence !== 'unknown') {
                 return {licence:licsplash.licence,source:'epmc_html'}
               } else {

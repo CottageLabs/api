@@ -27,7 +27,6 @@ OAB_Request.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oabutton/request/' + doc._id, doc);
 });
 
-
 Router.map( function () {
   this.route('oabuttonsupportrequests', {
     path: '/support-requests'

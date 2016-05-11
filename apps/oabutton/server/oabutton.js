@@ -42,7 +42,16 @@ Meteor.methods({
       if (email.indexOf(',') !== -1) email = email.split(',')[0];
       var opts = {from:'',to:email,text:text};
       CLapi.internals.sendmail(opts); // TODO should use own oab mail url ,Meteor.settings.openaccessbutton.mail_url);
+      // should also mail the user that created the request to let them know it is in progress (or every user supporting it?)
     }
+  },
+  deleterequest: function(rid) {
+    // only admin user should be able to do this
+    OAB_Request.remove(rid);
+  },
+  deleteblock: function(bid) {
+    // only admin user should be able to do this
+    OAB_Blocked.remove(bid);
   },
   setprofession: function(uid,profession) {
     Meteor.users.update(uid,{$set:{'service.openaccessbutton.profession':profession}});  

@@ -23,7 +23,12 @@ Router.map( function () {
   this.route('managegroup', {
     path: '/admin/:gid',
     waitOn : function() {
-      return Meteor.subscribe('groupusers',this.params.gid);
+      var subs = [Meteor.subscribe('groupusers',this.params.gid)];
+      if ( this.params.gid === 'openaccessbutton' ) {
+        subs.push(Meteor.subscribe('requests'));
+        subs.push(Meteor.subscribe('blocks'));
+      }
+      return subs;
     },
     action: function() {
       if ( Meteor.user() ) {

@@ -9,17 +9,32 @@
   {{#if currentUser}}
     {{> loggedin}}
   {{else}}
-  <div class="row">
-    <div class="col-md-12">
-      <h1>Cottage Labs Accounts</h1>
-    {{#if session "email"}}
-      {{> enter_security_code}}
-    {{else}}
-      <p>We use an authentication login system rather than a password system. Just provide your 
-      email address and you will receive an email with a link and code number. All you have to do is click 
-      the link or copy and paste the code number to authenticate your device and login. No more passwords to remember!</p>
-      {{> enter_email}}
-    {{/if}}
+  <div id="loginspace" class="well" style="background-color:transparent;border-color:transparent;">
+    <div class="row">
+      <div class="col-md-6">
+        <h1 id="signinheader"><span style="font-size:1.6em;line-height:1.4em;">COTTAGE LABS<br>ACCOUNTS</span></h1>
+      </div>
+      <div class="col-md-6">
+        <div class="well">
+          <p>Do you already have an account? Sign in now!</p>
+          <p>No account yet? Sign up now! Provide your email address:</p>
+          {{#if session "email"}}
+          {{> enter_security_code}}
+          {{else}}
+          {{> enter_email}}
+          {{/if}}
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-6" style="text-align:justify;">
+        <p>We use a password-less login system, just provide your account email address and you will receive an email to confirm you 
+        are who you say you are. If you don't yet have an account, one will be created for you. You will receive an email with a 
+        validation link URL; just visit that URL and you will be logged in.</p>
+        <p style="font-size:0.9em;color:#999;">( Your e-mail address will be used as your account username until you choose a username of your own, but otherwise it will NOT be publicised or shared with third parties. )</p>
+      </div>
+      <div class="col-md-6" id="extralogininfo">
+      </div>
     </div>
   </div>
   {{/if}}
@@ -35,6 +50,8 @@
 
 <!-- if we have the email address, but not yet the security code -->
 <template name="enter_security_code">
+    <p>Now check your email. Follow the link in the email to authenticate your account. If you don't get an email within a couple 
+    of minutes, check your spam folder. If still no email, contact us@cottagelabs.com.</p>
     <form id="enter-security-code-form" class="form-inline" role="form">
         <label>Security code:</label>
         <input type="text" class="form-control" id="enter-security-code" placeholder="see {{session "email"}}">

@@ -1,8 +1,24 @@
 
+// TODO for lantern
+// re-point the lantern.cottagelabs.com to the new lantern UI
+// enable login (also needed for monitor, plus decision on how to create new accounts for monitor use)
+// lantern user monthly row count - max 25 rows per 30 days - and throw an error when over rate
+// lantern output format
+
+// web-hook - could add to the API the ability to add a URL as a web-hook, so when a job is submitted with that URL, 
+// we ping a GET to the URL provided
+
+/*
+All outgoing calls COULD be cached - europepmc, crossref, core, sherpa, doaj, pubmed - but currently are not
+Grist is currently not, but perhaps SHOULD be
+academic/resolve currently only caches full lookup - change it to cache DOI lookups too
+*/
+
 // The Lantern API
 lantern_jobs = new Mongo.Collection("lantern_jobs"); // batches of submitted jobs from users
 lantern_processes = new Mongo.Collection("lantern_processes"); // individual processes of ident object sets {doi:"blah",pmid:"same"}
 lantern_results = new Mongo.Collection("lantern_results"); // results for particular identifiers
+// There can be more than one result for an identified paper, because they are re-run if outwith acceptable time limit
 
 CLapi.addCollection(lantern_jobs);
 CLapi.addCollection(lantern_processes);
@@ -29,14 +45,21 @@ lantern_processes.findByIdentifier = function(idents) {
   }
   return lantern_processes.findOne({$or: [m]});
 }
-lantern_results.findByIdentifier = function(idents) {
+lantern_results.findByIdentifier = function(idents,refresh) {
   var m = {
     pmcid: idents.pmcid,
     pmid: idents.pmid,
     doi: idents.doi,
     title: idents.title
   }
-  return lantern_results.findOne({$or: [m]});
+  var s = {};
+  if (refresh) {
+    var t = Date.now() - refresh;
+    s.$and = [{$or:[m]},{createdAt:{$gte:t}}];
+  } else {
+    s.$or = [m];
+  }
+  return lantern_results.findOne(s,{limit:1,sort:{createdAt:-1}});
 }
 
 CLapi.addRoute('service/lantern', {
@@ -53,7 +76,7 @@ CLapi.addRoute('service/lantern', {
   },
   post: function() {
     // cannot receive files to meteor restivus! Another ridiculous thing!!!
-    var j = CLapi.internals.service.lantern.job(this.request.body,this.userId);
+    var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh);
     //console.log(this.request.body);
     return {status: 'success', data: {job:j}};
   }
@@ -109,8 +132,16 @@ CLapi.addRoute('service/lantern/:job/results', {
   get: {
     action: function() {
       // return the results for this job as JSON
-      var res = CLapi.internals.service.lantern.results(this.urlParams.job,this.userId);
+      var job = lantern_jobs.findOne(this.urlParams.job);
+      // TODO may add restriction on how long old jobs can be returned for 
+      // could be implemented by deleting them, or by checking here for how long the user can 
+      // retrieve jobs (to be saved in a user config)
+      if (!job) return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
+      
+      var res;
       if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
+        var format = 'wellcome'; // format should be derived by the user that is calling this
+        res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
         var grantcount = 0;
         for ( var k in res ) {
           var rk = res[k];
@@ -121,10 +152,26 @@ CLapi.addRoute('service/lantern/:job/results', {
           if (igc > grantcount) grantcount = igc;
         }
         var fields = [
-          'PMCID','PMID','DOI','Publisher','Journal title','ISSN','Article title','Author(s)','Publication Date','Electronic Publication Date',
-          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?','Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
-          'Standard Compliance?','Deluxe Compliance?'
+          'PMCID','PMID','DOI','Publisher','Journal title','ISSN',
+          'Article title','Publication Date','Electronic Publication Date'
         ];
+        if (job.list && job.list.length > 0) {
+          if (job.list[0].University !== undefined) fields.unshift('University');
+          var ffields = [
+            'Title of paper (shortened)','Author(s)',
+            'Grant References','Total cost of Article Processing Charge (APC), in £',
+            'Amount of APC charged to Wellcome OA grant, in £ (see comment)','VAT charged',
+            'COST (£)','Wellcome grant','licence info','Notes'
+          ];
+          for ( var fld in ffields) {
+            if (job.list[0][ffields[fld]] !== undefined) fields.push(ffields[fld]);
+          }
+        }
+        fields = fields.concat([
+          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?',
+          'Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
+          'Standard Compliance?','Deluxe Compliance?'
+        ]);
         for ( var gi=0; gi < grantcount; gi++) {
           fields.push('Grant ' + (parseInt(gi)+1));
           fields.push('Agency ' + (parseInt(gi)+1));
@@ -132,7 +179,6 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         fields.push('Compliance Processing Output');
         var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
-        var job = lantern_jobs.findOne(this.urlParams.job);
         var name = 'results';
         if (job.name) name = job.name.split('.')[0] + '_results';
         this.response.writeHead(200, {
@@ -144,6 +190,7 @@ CLapi.addRoute('service/lantern/:job/results', {
         this.done();
         return {}  
       } else {
+        res = CLapi.internals.service.lantern.results(this.urlParams.job);
         return {status: 'success', data: res}
       }
     }
@@ -191,15 +238,6 @@ CLapi.addRoute('service/lantern/result/:res', {
   get: {
     action: function() {
       // find and return the result - could just expose the collection?
-    }
-  },
-  delete: {
-    authRequired: true,
-    action: function() {
-      // which group allows deletion of a particular result?
-      // remove a result for the provided ident paramg
-      // ident could be one of the allowed types doi,pmid,pmcid,title
-      // deletion is useful in case a result is stale. Should there be a stale checker?
     }
   }
 });
@@ -252,12 +290,13 @@ CLapi.internals.service.lantern.reset = function() {
 
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
-CLapi.internals.service.lantern.job = function(input,uid) {
+CLapi.internals.service.lantern.job = function(input,uid,refresh) {
   // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
-  // create a job that knows all the IDs to be looked for in the job
-  // put all the jobs on the queue to process each of them
-  // can user be anonymous?
   var job = {user:uid};
+  // for now if no uid assume a wellcome user in which case refresh needs to be set to 7
+  // should really be a check on the user setting, and/or the refresh number already passed in from the request
+  if (!uid) refresh = 7;
+  if (refresh !== undefined) job.refresh = refresh;
   if (input.email) {
     job.email = input.email;
   } else if (uid) {
@@ -301,7 +340,8 @@ CLapi.internals.service.lantern.job = function(input,uid) {
       doi: j.doi,
       title: j.title
     };
-    var result = lantern_results.findByIdentifier(proc);
+    if (refresh !== undefined) proc.refresh = refresh;
+    var result = lantern_results.findByIdentifier(proc,refresh);
     if (result) {
       job.list[i].result = result._id;
     } else {
@@ -328,22 +368,16 @@ CLapi.internals.service.lantern.job = function(input,uid) {
   return jid;
 }
 
-CLapi.internals.service.lantern.process = function(processid,identifier,type) {
-  // process a job from the lantern_processes job list, or do a job directly if given an identifier?
+CLapi.internals.service.lantern.process = function(processid) {
+  // process a job from the lantern_processes job list
   var proc;
   if ( processid !== undefined ) {
     proc = lantern_processes.findOne(processid);
-  } else if (identifier) {
-    var m = {};
-    m[type] = identifier;
-    proc = lantern_processes.findOne(m);
-    if (!proc) proc = lantern_processes.insert(m) // how to get identifier type? and does this return proc id or proc?
+  } else {
+    return false;
   }
-  if (!proc) return false;
-    
   var result = lantern_results.findByIdentifier(proc);
   if (result) {
-    // this short circuits the process by using already-found results. Should perhaps have staleness / refreshness features
     lantern_processes.remove(proc._id);
     return result;
   } else {
@@ -376,7 +410,8 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     romeo_colour: undefined, // the sherpa romeo colour
     embargo: undefined, // embargo data from romeo
     author: [], // eupmc author list if available (could look on other sources too?)
-    //repositories: [], // where CORE says it is
+    in_core: 'unknown',
+    repositories: [], // where CORE says it is
     grants:[], // a list of grants, probably from eupmc for now
     provenance: [] // list of things that were done
   };
@@ -390,10 +425,14 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       var st = identtypes[i];
       if ( proc[st] ) {
         var stt = st;
-        if (stt === 'title') stt = 'search';
+        var prst = proc[st];
+        if (stt === 'title') {
+          stt = 'search';
+          prst = 'TITLE:' + prst.replace(/[A-Za-z0-9]/g,' ');
+        }
         if (stt === 'pmcid') stt = 'pmc';
         // TODO need to simplify the title to keywords?
-        var res = CLapi.internals.use.europepmc[stt](proc[st]);
+        var res = CLapi.internals.use.europepmc[stt](prst);
         if (res.data) {
           if (res.data.id) {
             // we retrieved one result
@@ -401,15 +440,27 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
             result.confidence = 1;
           } else if (stt === 'search' && res.total) {
             // we may have matched a result by title search
-            eupmc = res.data[0];
+            // sometimes even exact title match comes way down the eupmc results list. See:
+            // http://dev.api.cottagelabs.com/use/europepmc/search/TITLE:The%20therapeutic%20potential%20of%20allosteric%20ligands%20for%20free%20fatty%20acid%20sensitive%20GPCRs
+            // so have to loop the results, but better limit it to some degree
             if (res.total === 1) {
+              eupmc = res.data[0];
               result.confidence = 0.9;
-            } else if ( res.total < 5 ) {
-              result.confidence = 0.8;
-            } else if (res.total < 10) {
-              result.confidence = 0.7;
             } else {
-              result.confidence = 0.5;
+              for ( var e; e < res.total < 50 ? res.total : 50; e++) {
+                var diff = CLapi.internals.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
+                if ( diff === 0 ) {
+                  eupmc = res.data[e];
+                  result.confidence = 0.9;
+                } else if (diff < 3) {
+                  eupmc = res.data[e];
+                  result.confidence = (9-diff)/10;                  
+                }
+              }
+              if (eupmc === undefined) {
+                eupmc = res.data[0];
+                result.confidence = 0.5;
+              }
             }
           }
         }
@@ -418,15 +469,15 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
   }
   
   if (eupmc !== undefined) {
-    if (eupmc.pmcid && !result.pmcid) {
+    if (eupmc.pmcid && result.pmcid !== eupmc.pmcid) {
       result.pmcid = eupmc.pmcid;
       result.provenance.push('Added PMCID from EUPMC');
     }
-    if (eupmc.pmid && !result.pmid) {
+    if (eupmc.pmid && result.pmid !== eupmc.pmid) {
       result.pmid = eupmc.pmid;
       result.provenance.push('Added PMID from EUPMC');
     }
-    if (eupmc.doi && !result.doi) {
+    if (eupmc.doi && result.doi !== eupmc.doi) {
       result.doi = eupmc.doi;
       result.provenance.push('Added DOI from EUPMC');
     }
@@ -520,20 +571,34 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       }
     }
     
-    // look up core to see if it is in there (in fulltext or not?) - only going to do for those with a DOI?
-    // Which repositories, according to CORE, is the article in (or can we use BASE / dissemin instead?)
-    /*var core = CLapi.internals.use.core.articles.doi(result.doi);
-    if (core.data && core.data.id) {
-      var cc = core.data;
-      if (!result.author && cc.authors) result.author = cc.author; // format like eupmc author list?      
-      if (cc.repositories && cc.repositories.length > 0) {
-        for ( var ci in cc.repositories ) result.repositories.push(cc.repositories[ci].name);
+    // look up core to see if it is in there (in fulltext or not?)
+    // should we use BASE / dissemin as well / instead?)
+    if (result.doi) {
+      var core = CLapi.internals.use.core.articles.doi(result.doi);
+      if (core.data && core.data.id) {
+        result.in_core = true;
+        result.provenance.push('Found DOI in CORE');
+        var cc = core.data;
+        if (!result.author && cc.authors) {
+          result.author = cc.author; // format like eupmc author list?      
+          result.provenance.push('Added authors from CORE');
+        }
+        if (cc.repositories && cc.repositories.length > 0) {
+          for ( var ci in cc.repositories ) result.repositories.push(cc.repositories[ci].name); // add URL here - does not seem to be in CORE data
+          result.provenance.push('Added repositories that CORE claims article is available from');
+        }
+        if (!result.title && cc.title) {
+          result.title = cc.title;
+          result.provenance.push('Added title from CORE');
+        }
+        // anything useful from fulltextUrls key?
+        // can is_oa be inferred from being in CORE? probably not reliably... 
+        // maybe if has any fulltextUrls it is, but some don't have such URLs even if they clearly should exist
+      } else {
+        result.in_core = false;
+        result.provenance.push('Could not find DOI in CORE');
       }
-      if (!result.title && cc.title) result.title = cc.title;
-      // anything useful from fulltextUrls key?
-      // can is_oa be inferred from being in CORE? probably not reliably... 
-      // maybe if has any fulltextUrls it is, but some don't have such URLs even if they clearly should exist
-    }*/
+    }
   }
 
   // use grist API from EUPMC to look up PI name of any grants present
@@ -541,8 +606,11 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
     for ( var g in result.grants ) {
       var gr = result.grants[g];
       if (gr.grantId) {
-        var grid = gr.grantId.split('/')[0];
-        console.log('Lantern simplified ' + gr.grantId + ' to ' + grid + ' for Grist API call');
+        var grid = gr.grantId;
+        if (gr.agency.toLowerCase().indexOf('wellcome') !== -1 ) {
+          grid = grid.split('/')[0];
+          console.log('Lantern simplified ' + gr.grantId + ' to ' + grid + ' for Grist API call');
+        }
         var gres = CLapi.internals.use.grist.grant_id(grid);
         if (gres.total && gres.total > 0 && gres.data.Person) {
           var ps = gres.data.Person;
@@ -602,8 +670,24 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
         result.provenance.push('Added publisher from Sherpa Romeo');
       }
       if (publisher) result.romeo_colour = publisher.romeocolour[0];
-      result.embargo = ''; // which parts do we want from embargo data?
-      result.provenance.push('Added embargo data from Sherpa Romeo');
+      result.embargo = {preprint:false,postprint:false,pdf:false};
+      result.archiving = {preprint:false,postprint:false,pdf:false};
+      for ( var k in result.embargo ) {
+        var main = k.indexOf('pdf') !== -1 ? k + 's' : 'pdfversion';
+        var stub = k.replace('print','');
+        if ( publisher && publisher[main]) {
+          if (publisher[main][0][stub+'restrictions']) {
+            for ( var p in publisher[main][0][stub+'restrictions'] ) {
+              if (publisher[main][0][stub+'restrictions'][p][stub+'restriction']) {
+                result.embargo[k] === false ? result.embargo[k] = '' : result.embargo[k] += ',';
+                result.embargo[k] += publisher[main][0][stub+'restrictions'][p][stub+'restriction'][0].replace(/<.*?>/g,'');
+              }
+            }
+          }
+          if (publisher[main][0][stub+'archiving']) result.archiving[k] = publisher[k+'s'][0][stub+'archiving'][0];
+        }
+      }
+      result.provenance.push('Added embargo and archiving data from Sherpa Romeo');
       // can we infer licence or is_oa from sherpa data?
     }
   }
@@ -623,7 +707,7 @@ CLapi.internals.service.lantern.process = function(processid,identifier,type) {
       url = CLapi.internals.academic.resolve('pmid' + result.pmid).url;
     }
     if (url && url.length > 1) {
-      var lic = CLapi.internals.academic.licence(url,false);
+      var lic = CLapi.internals.academic.licence(url,false,undefined,undefined,undefined,true);
       if (lic.licence && lic.licence !== 'unknown') {
         result.licence = lic.licence;
         result.licence_source = 'publisher_splash_page';
@@ -670,6 +754,9 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         } else {
           var found = lantern_results.findOne(pi.process);
           if (!found) {
+            // this is OK even with caching, because any results in here could not have existed
+            // when job was submitted, otherwise the result would already have been directly added 
+            // to the job when it was saved. So any results found here must be newer than the job.
             found = lantern_results.findByIdentifier(pi);
           }
           if ( found ) {
@@ -712,7 +799,7 @@ CLapi.internals.service.lantern.todo = function(jobid) {
   }
 }
 
-CLapi.internals.service.lantern.results = function(jobid,uid) {
+CLapi.internals.service.lantern.results = function(jobid,format) {
   // for a job, get all the results for it and return them as an object
   var job = lantern_jobs.findOne(jobid);
   if (job) {
@@ -734,7 +821,8 @@ CLapi.internals.service.lantern.results = function(jobid,uid) {
         for ( var lf in ji) {
           if (!found[lf]) found[lf] = ji[lf];
         }
-        results.push(CLapi.internals.service.lantern.format(found,uid));
+        if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
+        results.push(found);
       }
     }
     if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
@@ -754,16 +842,14 @@ CLapi.internals.service.lantern.result = function(resultid,identifier,type) {
     found = lantern_results.findOne(m);
   }
   if ( found ) {
-    // some users will only get certain parts of results, depending on their permissions
+    // should some users only get certain parts of results, depending on their permissions?
     return found;
   } else {
     return false;
   }
 }
 
-CLapi.internals.service.lantern.format = function(result,uid) {
-  // formatting of results should depend on the user and their group affiliations
-  // but for now... just make it all wellcome  
+CLapi.internals.service.lantern.format = function(result,format) {
   var s = {
     doi:'DOI',
     pmcid:'PMCID',
@@ -827,7 +913,7 @@ CLapi.internals.service.lantern.format = function(result,uid) {
     result.ISSN = result.journal.issn;
     if (result.journal.eissn && ( !result.ISSN || result.ISSN.indexOf(result.journal.eissn) === -1 ) ) result.ISSN += ', ' + result.journal.eissn;
     if ( result.journal.in_doaj === true ) {
-      result['Journal Type'] = 'open';
+      result['Journal Type'] = 'oa';
     } else {
       result['Journal Type'] = 'hybrid';
     }
@@ -871,13 +957,13 @@ CLapi.internals.service.lantern.format = function(result,uid) {
   for ( var key in result ) {
     if ( result[key] === true ) result[key] = 'TRUE';
     if ( result[key] === false ) result[key] = 'FALSE';
-    if ( result[key] === undefined ) result[key] = 'unknown';
-    if ( result[key] === null ) result[key] = 'unknown';
+    if ( result[key] === undefined || result[key] === null ) result[key] = 'unknown';
     if ( s[key] !== undefined ) {
       if (s[key] !== false) result[s[key]] = result[key];
       delete result[key];
     }
   }
+  if (result.pmcid && result.pmcid.toLowerCase().indexOf('pmc') !== 0) result.pmcid = 'PMC' + result.pmcid; // wellcome expect it to start with PMC
   return result;
   
 }
@@ -911,10 +997,48 @@ CLapi.internals.service.lantern.alertdone = function() {
   return ret;
 }
 
+CLapi.internals.service.lantern.dropoldresults = function() {
+  // search for results over 180 days old and delete them
+  var d = Meteor.settings.cron.lantern_dropoldresults;
+  var r = lantern_results.find({done:{$not:{$eq:true}}});
+  var ret = 0;
+  r.forEach(function(res) {
+    lantern_results.remove(res._id);
+    ret += 1;
+  });
+  return ret;
+}
+
+CLapi.internals.service.lantern.dropoldjobs = function() {
+  // search for results over d days old and delete them
+  var d = Meteor.settings.cron.lantern_dropoldjobs;
+  var j = lantern_jobs.find({done:{$not:{$eq:true}}});
+  var ret = 0;
+  j.forEach(function(job) {
+    lantern_jobs.remove(job._id);
+    ret += 1;
+  });
+  return ret;
+}
+
+if ( Meteor.settings.cron.lantern_dropoldjobs ) {
+  SyncedCron.add({
+    name: 'lantern_dropoldjobs',
+    schedule: function(parser) { return parser.recur().every(24).hour(); },
+    job: CLapi.internals.service.lantern.dropoldjobs
+  });
+}
+if ( Meteor.settings.cron.lantern_dropoldresults ) {
+  SyncedCron.add({
+    name: 'lantern_dropoldresults',
+    schedule: function(parser) { return parser.recur().every(24).hour(); },
+    job: CLapi.internals.service.lantern.dropoldresults
+  });
+}
 if ( Meteor.settings.cron.lantern_alertdone ) {
   SyncedCron.add({
     name: 'lantern_alertdone',
-    schedule: function(parser) { return parser.recur().every(30).minute(); },
+    schedule: function(parser) { return parser.recur().every(10).minute(); },
     job: CLapi.internals.service.lantern.alertdone
   });
 }

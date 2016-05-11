@@ -72,6 +72,11 @@ UI.registerHelper('isadmin', function(uacc) {
   return (uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
 });
 
+UI.registerHelper('isroot', function(uacc) {
+  var group = '__global_roles__';
+  return (uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('root') !== -1);
+});
+
 UI.registerHelper('userhandle', function(uacc) {
   if (uacc.username) {
     return uacc.username;
@@ -99,8 +104,10 @@ Template.manage_openaccessbutton.onRendered(function() {
   }
 });
 
-Template.manage_openaccessbutton.requestscount = function() {
-  return OAB_Request.find().count();
+Template.manage_openaccessbutton.requestscount = function(status) {
+  var filter = {};
+  if (status) filter.status = status;
+  return OAB_Request.find(filter).count();
 }
 Template.manage_openaccessbutton.requestssuccesscount = function() {
   return OAB_Request.find({success:true}).count();

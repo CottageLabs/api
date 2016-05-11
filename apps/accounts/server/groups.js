@@ -11,6 +11,13 @@ Meteor.publish('groups', function() {
   return GROUPS.find();
 });
 
+Meteor.publish('requests', function() {
+  return OAB_Request.find();
+});
+Meteor.publish('blocks', function() {
+  return OAB_Blocked.find();
+});
+
 Meteor.methods({
   cauth: function(gr,user,cascade) {
     var a = CLapi.cauth(gr,user,cascade);

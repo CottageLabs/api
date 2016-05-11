@@ -44,18 +44,6 @@ function login_or_register_user_with_new_password(callbackObj,email,fingerprint,
 }
 
 
-
-var _customlogininfo = {
-  'https://opendatabutton.org/login': {
-    'from': 'contact@openaccessbutton.org',
-    'service': 'openaccessbutton',
-    'name': 'Open Data Button',
-    'subject': 'Please Activate your Account (+ some other details)',
-    'timeout': 5,
-    'text': "Hi there!\r\n\r\nThanks for signing up to get an Open Data Button!\r\n\r\nPlease go to the link below to activate your account:\r\n\r\n{{URL}}\r\n\r\nIn future you can find your account details, ongoing requests, and instrutions at:\r\n\r\nhttps://opendatabutton.org/account\r\n\r\nWe look forwards to helping you find data,\r\n\r\nJoe\r\n\r\np.s We are still testing and building the Open Data Button. If you have feedback at any point, let us know:\r\n\r\nhttps://opendatabutton.org/general-feedback\r\n\r\n Note: this single-use login link is only valid for {{TIMEOUT}} minutes.",
-    'html': '<html><body><p>Hi there!</p><p>Thanks for signing up to get an Open Data Button!</p><p>Please go to the link below to activate your account:<p style="margin-left:2em;"><font size="-1"><a href="{{URL}}">{{URL}}</a></font></p><p><font size="-1">Note: this single-use login link is only valid for {{TIMEOUT}} minutes.</font></p><p>In future you can find your account details, ongoing requests, and instrutions at:</p><p><a href="https://opendatabutton.org/account">https://opendatabutton.org/account</a></p><p>We look forwards to helping you find data,</p><p>Joe</p><p>p.s We are still testing and building the Open Data Button. If you have feedback at any point, let us know:</p><p><a href="https://opendatabutton.org/general-feedback">https://opendatabutton.org/general-feedback</a></p></body></html>'
-  }
-}
 Meteor.methods({
 
     enter_email: function (email,loc) {
@@ -103,10 +91,13 @@ Meteor.methods({
             }
             random_hash += chr;
         }
-        var login_link_url = loc + "/#" + random_hash;
+      
+        var login_link_url = loc;
+        if ( login_services[loc] !== undefined && login_services[loc].hashurl ) login_link_url = login_services[loc].hashurl;
+        login_link_url += "/#" + random_hash;
 
         var service = 'cottagelabs';
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].service ) service = _customlogininfo[loc].service; 
+        if ( login_services[loc] !== undefined && login_services[loc].service ) service = login_services[loc].service; 
 
         // add new record to timeout in LOGIN_CODE_TIMEOUT_MINUTES
         var timeout = (new Date()).valueOf() + (Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES * 60 * 1000);
@@ -114,15 +105,15 @@ Meteor.methods({
         var codeType = user ? "login" : "registration";
 
         var name = 'Cottage Labs';
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].name ) name = _customlogininfo[loc].name;
+        if ( login_services[loc] !== undefined && login_services[loc].name ) name = login_services[loc].name;
         var tmot = Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES;
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].timeout ) tmot = _customlogininfo[loc].timeout; 
+        if ( login_services[loc] !== undefined && login_services[loc].timeout ) tmot = login_services[loc].timeout; 
         var fr = Meteor.settings.ADMIN_ACCOUNT_ID;
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].from ) fr = _customlogininfo[loc].from; 
+        if ( login_services[loc] !== undefined && login_services[loc].from ) fr = login_services[loc].from; 
         var txt = "Your Cottage Labs " + codeType + " security code is:\r\n\r\n      " + random_code + "\r\n\r\n" +
                     "or use this link:\r\n\r\n      " + login_link_url + "\r\n\r\n" +
                     "note: this single-use code is only valid for " + tmot + " minutes.";
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].text ) txt = _customlogininfo[loc].text; 
+        if ( login_services[loc] !== undefined && login_services[loc].text ) txt = login_services[loc].text; 
         var htm = "<html><body>" +
                     '<p>Your <b><i>Cottage Labs</i></b> ' + codeType + ' security code is:</p>' +
                     '<p style="margin-left:2em;"><font size="+1"><b>' + random_code + '</b></font></p>' +
@@ -130,7 +121,7 @@ Meteor.methods({
                     '<p style="margin-left:2em;"><font size="-1"><a href="' + login_link_url + '">' + login_link_url + '</a></font></p>' +
                     '<p><font size="-1">note: this single-use code is only valid for ' + Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES + ' minutes.</font></p>' +
                     '</body></html>';
-        if ( _customlogininfo[loc] !== undefined && _customlogininfo[loc].html ) htm = _customlogininfo[loc].html; 
+        if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html; 
         txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmot);
         htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmot);
 

@@ -385,6 +385,7 @@ CLapi.internals.academic.doiresolve = function(doi) {
   var url = false;
   try {
     console.log('Academic resolve doing DOI resolve for ' + doiresolver);
+    // TODO NOTE that the URL given by crossref doi resolver may NOT be the final resolved URL. The publisher may still redirect to a different one
     var resp = Meteor.http.call('GET',doiresolver);
     if (resp.data) {
       for ( var r in resp.data.values) {

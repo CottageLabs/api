@@ -603,6 +603,18 @@ CLapi.internals.service.oabutton.status = function(url,type) {
 }
 
 
-
+CLapi.internals.service.oabutton.followups = function() {
+  // look for any request in progress and see how far past progress date it is
+  // so need to be able to check when it was set to in progress!
+  // send a chase email to the author in question - if not already refused or put on hold or author joined dnr list
+  // so call the followup function for each relevant request
+}
+if ( Meteor.settings.cron.oabutton ) {
+  SyncedCron.add({
+    name: 'oabutton',
+    schedule: function(parser) { return parser.recur().every(1).second(); }, // what should schedule of this be?
+    job: CLapi.internals.service.oabutton.followups
+  });
+}
 
 

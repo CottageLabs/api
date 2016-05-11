@@ -25,7 +25,7 @@ CLapi.addRoute('academic/licence', {
   }
 });
 
-CLapi.internals.academic.licence = function(url,resolve,content,start,end) {
+CLapi.internals.academic.licence = function(url,resolve,content,start,end,refresh) {
   // internal function to get licences list, depending on when last locally stored
   var getlicences = function() {
     // licences originally derived from http://licenses.opendefinition.org/licenses/groups/all.json
@@ -99,7 +99,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end) {
   if (!resolved) resolved = url;
 
   var exists = academic_licence.findOne({$or:[{url:url,resolved:resolved}]});
-  if (exists) {
+  if (exists && !refresh) {
     return exists;
   } else if (content) {
     return findlicences(content,resolved); // never saves, just processes
@@ -123,7 +123,11 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end) {
     })(resolved);
     if (info.retrievable) {
       for ( var k in info ) licence[k] = info[k];
-      academic_licence.insert(licence);
+      if (refresh) {
+        academic_licence.update(exists._id,{$set:licence});
+      } else {
+        academic_licence.insert(licence);
+      }
     } else {
       licence.retrievable = false;
     }
