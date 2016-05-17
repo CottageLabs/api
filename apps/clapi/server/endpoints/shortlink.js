@@ -29,6 +29,9 @@ CLapi.addRoute('shortlink/:shortid', {
       // find the short ID and redirect to the link stored for it
       var exists = Shortlinks.findOne(this.urlParams.shortid);
       if (exists) {
+        var count = exists.count ? exists.count : 0;
+        count += 1;
+        Shortlinks.update(exists._id,{$set:{count:count}});
         console.log('Redirecting ' + this.urlParams.shortid + ' to ' + exists.url);
         return {
           statusCode: 302,

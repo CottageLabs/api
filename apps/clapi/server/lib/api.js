@@ -53,6 +53,10 @@
 // api login example:
 // curl -X GET "http://api.cottagelabs.com/accounts" -H "x-id: vhi5m4NJbJF7bRXqp" -H "x-apikey: YOURAPIKEYHERE"
 // curl -X GET "http://api.cottagelabs.com/accounts?id=vhi5m4NJbJF7bRXqp&apikey=YOURAPIKEYHERE"
+
+// would using this new middleware approach help with file upload in store?
+// https://github.com/stubailo/meteor-rest/issues/76
+
 CLapi = new Restivus({
   version: '',
   //apiPath: '',

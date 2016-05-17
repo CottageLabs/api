@@ -19,6 +19,7 @@ CLapi.addRoute('sendmail', {
 });
 
 CLapi.internals.sendmail = function(opts,mail_url) {
+  console.log('Sending an email');
   // should change this to use mailgun API instead of smtp
   // https://documentation.mailgun.com/quickstart-sending.html?utm_source=mailgun&utm_medium=email&utm_campaign=transactional-dns-propagation#send-via-smtp
   if ( !opts.from ) opts.from = Meteor.settings.ADMIN_ACCOUNT_ID;

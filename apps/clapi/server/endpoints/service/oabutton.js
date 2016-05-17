@@ -591,9 +591,13 @@ CLapi.internals.service.oabutton.receive = function(rid,content) {
 CLapi.internals.service.oabutton.status = function(url,type) {
   if (type === undefined) type = 'article';
   var ret = { 
-    blocked: OAB_Blocked.find({url:url}).count(),
+    blocked: OAB_Blocked.find({url:url,type:type}).count(),
     request: OAB_Request.findOne({url:url,type:type}),
     availability: {}
+  }
+  if ( type === 'article' ) {
+    // check with dissemin
+    // worth checking with core?
   }
   //CLapi.internals.academic.resolve(url); 
   // TODO make sure academic resolve is updated to handle URLs as well as DOIs/IDs

@@ -4,6 +4,15 @@
 // handle authn and authz for es indexes and types (and possibly backup triggers)
 // NOTE: if an index/type can be public, just make it public and have nginx route to it directly, saving app load.
 
+CLapi.addRoute('es/import', {
+  post: {
+    authRequired: true,
+    action: function() {
+      return {status: 'success', data:CLapi.internals.es.import(this.request.body)};
+    }
+  }
+});
+
 var esaction = function(user,action,urlp,params,data) {
   var rt = '';
   for ( var up in urlp ) rt += '/' + urlp[up];
@@ -79,4 +88,60 @@ CLapi.internals.es.insert = function(route,data) {
 CLapi.internals.es.delete = function(route) {
   return CLapi.internals.es.query('DELETE',route);
 }
+
+CLapi.internals.es.import = function(data,format,index,type,url,bulk,mappings,ids) {
+  console.log('starting es import');
+  if (ids === undefined) ids = 'es';
+  if (bulk === undefined) {
+    bulk = 1; // this should default to 10000 or something
+  } else if (bulk === false) {
+    bulk = 1;
+  }
+  if (url === undefined) url = Meteor.settings.es.url;
+  var rows;
+  if (format === 'esquery' || format === undefined) {
+    rows = data.hits.hits;
+  } else {
+    rows = data;
+  }
+  if (!Array.isArray(rows)) rows = [rows];
+  var recs = [];
+  var counter = 0;
+  var failures = 0;
+  var dump = '';
+  // TODO if mappings are provided, load them first
+  for ( var i in rows ) {
+    var rec = rows[i]._source !== undefined ? rows[i]._source : rows[i]._fields;
+    var tp = type !== undefined ? type : rows[i]._type;
+    var idx = index !== undefined ? index : rows[i]._index;
+    var id;
+    if (ids) {
+      id = ids === true || ids === 'es'? rows[i]._id : rec[ids];
+    }
+    var addr = url;
+    if ( bulk === 1 ) {
+      console.log('singular import to es');
+      addr += '/' + idx + '/' + tp;
+      if (id !== undefined) addr += '/' + id;
+      try {
+        Meteor.http.call('POST',addr,{data:rec});
+      } catch(err) {
+        failures += 1;
+      }
+    } else {
+      console.log('bulk importing to es');
+      counter += 1;
+      var meta = {"index": {"_index": idx, "_type":tp}};
+      if (id !== undefined) meta.index._id = id;
+      dump += JSON.stringify(meta) + '\n';
+      dump += JSON.stringify(rec) + '\n';
+      if ( counter === bulk || i === rows.length-1 ) {
+        // TODO for now it is impossible to bulk load because of yet more fucking ridiculously terrible handling of files in node...
+      }
+    }
+  }
+  console.log(rows.length + ' ' + failures);
+  return {records:rows.length,failures:failures};
+}
+
 

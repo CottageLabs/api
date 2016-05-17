@@ -137,6 +137,19 @@ Template.oabuttonrequest.events({
     Meteor.call('deleterequest',reqid);
     // TODO should redirect to somewhere now, and confirm deletion
   },
+  'click #deleteblock': function(e) {
+    var sid = Session.get("blockedid");
+    Meteor.call('deletestory',sid);
+    // TODO should redirect to somewhere now, and confirm deletion
+  },
+  'click #maketeststory': function(e) {
+    var sid = Session.get("blockedid");
+    Meteor.call('maketeststory',sid);
+  },
+  'click #maketestrequest': function(e) {
+    var reqid = Session.get("requestid");
+    Meteor.call('maketestrequest',reqid);
+  },
   'click #addsupport': function() {
     var reqid = Session.get("requestid");
     console.log('Creating oabutton request support block for ' + reqid);

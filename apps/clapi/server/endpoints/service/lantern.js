@@ -35,7 +35,7 @@ lantern_results.before.insert(function (userId, doc) {
 });
 
 // curl -X POST -F "userid=1" -F "filecomment=This is a CSV file" -F "upload=@/Users/mm/Desktop/lanterntest.csv" http://dev.api.cottagelabs.com/service/lantern
-  
+
 lantern_processes.findByIdentifier = function(idents) {
   var m = {
     pmcid: idents.pmcid,
@@ -59,7 +59,7 @@ lantern_results.findByIdentifier = function(idents,refresh) {
   } else {
     s.$or = [m];
   }
-  return lantern_results.findOne(s,{limit:1,sort:{createdAt:-1}});
+  return lantern_results.findOne(s,{sort:{createdAt:-1}});
 }
 
 CLapi.addRoute('service/lantern', {
@@ -103,7 +103,7 @@ CLapi.addRoute('service/lantern/:job/progress', {
       // return the info of the job - the job metadata and the progress so far
       var job = lantern_jobs.findOne(this.urlParams.job);
       if (job) {
-        var progress = CLapi.internals.service.lantern.progress(this.urlParams.job);
+        var progress = CLapi.internals.service.lantern.progress(this.urlParams.job,this.queryParams.check);
         return {status: 'success', data: progress}
       } else {
         return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
@@ -140,7 +140,7 @@ CLapi.addRoute('service/lantern/:job/results', {
       
       var res;
       if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
-        var format = 'wellcome'; // format should be derived by the user that is calling this
+        var format = job.user ? 'lantern' : 'wellcome'; // format should be derived by the user that is calling this
         res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
         var grantcount = 0;
         for ( var k in res ) {
@@ -167,17 +167,35 @@ CLapi.addRoute('service/lantern/:job/results', {
             if (job.list[0][ffields[fld]] !== undefined) fields.push(ffields[fld]);
           }
         }
+        if (format !== 'wellcome') {
+          fields.push('In CORE?');
+          fields.push('Archived repositories');
+        }
         fields = fields.concat([
           'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?',
-          'Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence',
-          'Standard Compliance?','Deluxe Compliance?'
+          'Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence'
         ]);
+        if (format === 'wellcome') {
+          fields.push('Standard Compliance?');
+          fields.push('Deluxe Compliance?');
+        } else {
+          fields.push('Preprint Embargo');
+          fields.push('Preprint Self-archiving Policy');
+          fields.push('Postprint Embargo');
+          fields.push('Postprint Self-archiving Policy');
+          fields.push('Publishers Copy Embargo');
+          fields.push('Publishers Copy Self-archiving Policy');
+        }
         for ( var gi=0; gi < grantcount; gi++) {
           fields.push('Grant ' + (parseInt(gi)+1));
           fields.push('Agency ' + (parseInt(gi)+1));
           fields.push('PI ' + (parseInt(gi)+1));
         }
-        fields.push('Compliance Processing Output');
+        if (format === 'wellcome') {
+          fields.push('Compliance Processing Output');
+        } else {
+          fields.push('Provenance');          
+        }
         var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
         var name = 'results';
         if (job.name) name = job.name.split('.')[0] + '_results';
@@ -242,6 +260,21 @@ CLapi.addRoute('service/lantern/result/:res', {
   }
 });
 
+CLapi.addRoute('service/lantern/jobs', {
+  get: {
+    action: function() {
+      var results = [];
+      var jobs = lantern_jobs.find();
+      jobs.forEach(function(job) {
+        job.processes = job.list.length;
+        delete job.list;
+        results.push(job);
+      });
+      return {status: 'success', data: {total:results.length, jobs: results} }
+    }
+  }
+});
+
 // routes to get a count of processes, running processes, reset all processing processes to not processing
 // should probably have admin auth or be removed
 CLapi.addRoute('service/lantern/processes', {
@@ -275,7 +308,33 @@ CLapi.addRoute('service/lantern/process/:proc', {
   }
 });
 
+CLapi.addRoute('service/lantern/status', {
+  get: {
+    action: function() {
+      return {
+        status: 'success', 
+        data: CLapi.internals.service.lantern.status()
+      }
+    }
+  }
+});
+
 CLapi.internals.service.lantern = {};
+
+CLapi.internals.service.lantern.status = function() {
+  return {
+    processes: {
+      total: lantern_processes.find().count(),
+      running: lantern_processes.find({processing:{$exists:true}}).count()
+    },
+    jobs: {
+      total: lantern_jobs.find().count(),
+      done: lantern_jobs.find({done:{$exists:true}}).count()
+    },
+    results: lantern_results.find().count(),
+    users: CLapi.internals.accounts.count({"service.lantern":{$exists:true}})
+  } 
+}
 
 CLapi.internals.service.lantern.reset = function() {
   // reset all processing processes
@@ -292,17 +351,24 @@ CLapi.internals.service.lantern.reset = function() {
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh) {
   // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
-  var job = {user:uid};
+  var user;
+  var job = {};
+  if (input.email) {
+    job.email = input.email;
+    if (!uid) {
+      user = Meteor.users.findOne({"emails.address":input.email});
+      if (user) job.user = user._id;
+    }
+  }
+  if (uid) {
+    user = Meteor.users.findOne(uid);
+    job.email = user.emails[0].address;
+    job.user = uid;
+  }
   // for now if no uid assume a wellcome user in which case refresh needs to be set to 7
   // should really be a check on the user setting, and/or the refresh number already passed in from the request
   if (!uid) refresh = 7;
   if (refresh !== undefined) job.refresh = refresh;
-  if (input.email) {
-    job.email = input.email;
-  } else if (uid) {
-    var user = Meteor.users.findOne(uid);
-    job.email = user.emails[0].address;
-  }
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
     list = input.list;
@@ -356,9 +422,10 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     text += 'You can track the progress of your job at ';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
-    uid ? text += 'https://lantern.cottagelabs.com#' : text += 'http://wellcome.test.cottagelabs.com#' + jid;
+    text += uid ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
+    text += jid;
     text += '\n\nThe Cottage Labs team\n\n';
-    text += 'P.S This is an automated email, please do not reply to it - responses are NOT monitored.'
+    text += 'P.S This is an automated email, please do not reply to it.'
     CLapi.internals.sendmail({
       to:job.email,
       subject:'Job ' + jor + ' submitted successfully',
@@ -409,6 +476,7 @@ CLapi.internals.service.lantern.process = function(processid) {
     licence_source: 'unknown', // where the licence info came from
     romeo_colour: undefined, // the sherpa romeo colour
     embargo: undefined, // embargo data from romeo
+    archiving: undefined, // sherpa romeo archiving data
     author: [], // eupmc author list if available (could look on other sources too?)
     in_core: 'unknown',
     repositories: [], // where CORE says it is
@@ -447,17 +515,19 @@ CLapi.internals.service.lantern.process = function(processid) {
               eupmc = res.data[0];
               result.confidence = 0.9;
             } else {
-              for ( var e; e < res.total < 50 ? res.total : 50; e++) {
-                var diff = CLapi.internals.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
-                if ( diff === 0 ) {
-                  eupmc = res.data[e];
-                  result.confidence = 0.9;
-                } else if (diff < 3) {
-                  eupmc = res.data[e];
-                  result.confidence = (9-diff)/10;                  
+              for ( var e = 0; e < 50; e++) {
+                if (res.data[e] && res.data[e].title) {
+                  var diff = CLapi.internals.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
+                  if ( diff === 0 ) {
+                    eupmc = res.data[e];
+                    result.confidence = 0.9;
+                  } else if (diff < 3) {
+                    eupmc = res.data[e];
+                    result.confidence = (9-diff)/10;                  
+                  }
                 }
               }
-              if (eupmc === undefined) {
+              if (eupmc === undefined && res.data.length > 0) {
                 eupmc = res.data[0];
                 result.confidence = 0.5;
               }
@@ -720,13 +790,35 @@ CLapi.internals.service.lantern.process = function(processid) {
   
   lantern_results.insert(result); // make sure it sets the result with the id of the process, added above
   lantern_processes.remove(proc._id);
+  
+  // update the lantern jobs containing any of the IDs in this process
+  var jobs = lantern_jobs.find({"list.process":proc._id});
+  jobs.forEach(function(job) {
+    if (!job.done) {
+      var done = true;
+      var update = false;
+      for ( var i in job.list ) {
+        if (job.list[i].process === proc._id) {
+          update = true;
+          job.list[i].result = proc._id;
+        } else if ( !job.list[i].result ) {
+          done = false;
+        }
+      }
+      if (update && done) {
+        lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
+      } else if (update) {
+        lantern_jobs.update(job._id, {$set:{list:job.list}});        
+      }
+    }
+  });
 
   return result; // return result or just confirm process is done?
 }
 CLapi.internals.service.lantern.nextProcess = function() {
   // search for processes not already processing, sorted by descending created data
   // add any sort of priority queue checking?
-  var p = lantern_processes.findOne({processing:{$not:{$eq:true}}},{limit:1,sort:{createdAt:-1}});
+  var p = lantern_processes.findOne({processing:{$not:{$eq:true}}},{sort:{createdAt:-1}});
   if (p) {
     console.log(p._id);
     return CLapi.internals.service.lantern.process(p._id);
@@ -736,7 +828,7 @@ CLapi.internals.service.lantern.nextProcess = function() {
   }
 }
 
-CLapi.internals.service.lantern.progress = function(jobid) {
+CLapi.internals.service.lantern.progress = function(jobid,check) {
   // given a job ID, find out how many of the identifiers in the job we have an answer for
   // return a percentage figure for how many have been done
   var job = lantern_jobs.findOne(jobid);
@@ -751,7 +843,7 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         var pi = job.list[i];
         if ( pi.result ) {
           count += 1;
-        } else {
+        } else if (check) { // this presently does not run, takes too long on large jobs
           var found = lantern_results.findOne(pi.process);
           if (!found) {
             // this is OK even with caching, because any results in here could not have existed
@@ -767,11 +859,29 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         }
       }
       var p = count/total * 100;
+      var _notify = function(job) {
+        var jor = job.name ? job.name : job._id;
+        var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
+        text += 'You can now download the results of your job at ';
+        // TODO this bit should depend on user group permissions somehow
+        // for now we assume if a signed in user then lantern, else wellcome
+        text += job.user ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
+        text += job._id;
+        text += '\n\nThe Cottage Labs team\n\n';
+        text += 'P.S This is an automated email, please do not reply to it.'
+        CLapi.internals.sendmail({
+          to:job.email,
+          subject:'Job ' + jor + ' completed successfully',
+          text:text
+        });
+      }
       if ( update && p === 100 ) {
+        if (job.email) _notify(job);
         lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
       } else if ( update ) {
-        lantern_jobs.update(job._id, {$set:{list:job.list}});        
-      } else if ( p === 100 ) {
+        lantern_jobs.update(job._id, {$set:{list:job.list}});  
+      } else if ( p === 100 && !job.done  ) {
+        if (job.email) _notify(job);
         lantern_jobs.update(job._id, {$set:{done:true}});
       }
       return p;
@@ -803,29 +913,30 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
   // for a job, get all the results for it and return them as an object
   var job = lantern_jobs.findOne(jobid);
   if (job) {
-    var update;
+    //var update;
     var results = [];
     for ( var i in job.list ) {
       var ji = job.list[i];
-      var found;
+      //var found;
       if (ji.result) {
-        found = lantern_results.findOne(ji.result);
-      } else {
+        var found = lantern_results.findOne(ji.result);
+      /*} else {
         found = lantern_results.findOne(ji.process);
         if (found) {
           job.list[i].result = found._id;
           update = true;
         }
-      }
-      if ( found ) {
-        for ( var lf in ji) {
-          if (!found[lf]) found[lf] = ji[lf];
+      }*/
+        if ( found ) {
+          for ( var lf in ji) {
+            if (!found[lf]) found[lf] = ji[lf];
+          }
+          if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
+          results.push(found);
         }
-        if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
-        results.push(found);
       }
     }
-    if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
+    //if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
     return results;
   } else {
     return false;
@@ -849,7 +960,7 @@ CLapi.internals.service.lantern.result = function(resultid,identifier,type) {
   }
 }
 
-CLapi.internals.service.lantern.format = function(result,format) {
+var _formatwellcome = function(result) {
   var s = {
     doi:'DOI',
     pmcid:'PMCID',
@@ -865,6 +976,9 @@ CLapi.internals.service.lantern.format = function(result,format) {
     licence_source: 'Licence source',
     romeo_colour: false,
     embargo: false,
+    archiving: false,
+    in_core: false,
+    repositories: false,
     createdAt: false,
     process: false,
     result: false,
@@ -965,32 +1079,153 @@ CLapi.internals.service.lantern.format = function(result,format) {
   }
   if (result.pmcid && result.pmcid.toLowerCase().indexOf('pmc') !== 0) result.pmcid = 'PMC' + result.pmcid; // wellcome expect it to start with PMC
   return result;
-  
+}
+
+var _formatlantern = function(result) {
+  var s = {
+    doi:'DOI',
+    pmcid:'PMCID',
+    pmid: 'PMID',
+    publisher: 'Publisher',
+    title: 'Article title',
+    licence: 'Licence',
+    in_epmc: 'Fulltext in EPMC?',
+    has_fulltext_xml: 'XML Fulltext?',
+    is_aam: 'Author Manuscript?',
+    is_oa: 'Open Access?',
+    confidence: 'Correct Article Confidence',
+    licence_source: 'Licence source',
+    romeo_colour: 'Sherpa Romeo colour',
+    in_core: 'In CORE?',
+    createdAt: false,
+    process: false,
+    result: false,
+    '_id': false // these listed to false just get removed from output
+  }
+  if (result.aheadofprint === false) {
+    result['Ahead of Print?'] = 'FALSE';
+  } else if (result.aheadofprint) {
+    result['Ahead of Print?'] = 'TRUE';
+  } else if ( !result.in_epmc && !result.pmid) {
+    result['Ahead of Print?'] = 'unknown';
+  } else {
+    result['Ahead of Print?'] = 'not applicable';
+  }
+  delete result.aheadofprint;
+  if ( result.provenance ) {
+    result.Provenance = '';
+    var fst = true;
+    for ( var p in result.provenance ) {
+      if (fst) {
+        fst = false;
+      } else {
+        result.Provenance += '\r\n';
+      }
+      result.Provenance += result.provenance[p];
+    }
+    delete result.provenance;
+  }
+  if (result.electronicPublicationDate !== undefined) {
+    result['Electronic Publication Date'] = result.electronicPublicationDate;
+    delete result.electronicPublicationDate;
+  } else {
+    result['Electronic Publication Date'] = 'Unavailable';  
+  }
+  result['Publication Date'] = 'Unavailable';
+  if ( result.journal ) {
+    if (result.journal.dateOfPublication !== undefined) result['Publication Date'] = result.journal.dateOfPublication;
+    result['Journal title'] = result.journal.title;
+    result.ISSN = result.journal.issn;
+    if (result.journal.eissn && ( !result.ISSN || result.ISSN.indexOf(result.journal.eissn) === -1 ) ) result.ISSN += ', ' + result.journal.eissn;
+    if ( result.journal.in_doaj === true ) {
+      result['Journal Type'] = 'oa';
+    } else {
+      result['Journal Type'] = 'hybrid';
+    }
+    delete result.journal;
+  }
+  if ( result.author ) {
+    result['Author(s)'] = '';
+    var first = true;
+    for ( var r in result.author ) {
+      if (first) {
+        first = false;
+      } else {
+        result['Author(s)'] += ', ';
+      }
+      var ar = result.author[r];
+      if ( ar.fullName ) result['Author(s)'] += ar.fullName;
+      //if ( ar.affiliation) result['Author(s)'] += ' - ' + ar.affiliation; disabled by request of Cecy
+      // TODO add some more IFs here depending on author structure, unless altered above to match eupmc structure
+    }
+    delete result.author;
+  }
+  if ( result.grants ) {
+    var grants = [];
+    for ( var w in result.grants) {
+      var g = result.grants[w];
+      if (g.agency.toLowerCase().indexOf('wellcome') !== -1) {
+        grants.unshift(g);
+      } else {
+        grants.push(g);
+      }
+    }
+    for ( var gr in grants ) {
+      if (grants[gr] !== undefined) {
+        result['Grant ' + (parseInt(gr)+1)] = grants[gr].grantId;
+        result['Agency ' + (parseInt(gr)+1)] = grants[gr].agency;
+        result['PI ' + (parseInt(gr)+1)] = grants[gr].PI ? grants[gr].PI : 'unknown';
+      }
+    }
+    delete result.grants;
+  }
+  if (result.embargo) {
+    if (result.embargo.preprint) result['Preprint Embargo'] = result.embargo.preprint;
+    if (result.embargo.postprint) result['Postprint Embargo'] = result.embargo.postprint;
+    if (result.embargo.pdf) result['Publishers Copy Embargo'] = result.embargo.pdf;
+    delete result.embargo;
+  }
+  if (result.archiving) {
+    if (result.archiving.preprint) result['Preprint Self-archiving Policy'] = result.archiving.preprint;
+    if (result.archiving.postprint) result['Postprint Self-archiving Policy'] = result.archiving.postprint;
+    if (result.archiving.pdf) result['Publishers Copy Self-Archiving Policy'] = result.archiving.pdf;
+    delete result.archiving;    
+  }
+  if (result.repositories) {
+    result['Archived repositories'] = '';
+    for ( var rr in result.repositories ) {
+      if (result['Archived repositories'] !== '') result['Archived repositories'] += '\r\n';
+      result['Archived repositories'] += result.repositories[rr];
+    }
+    delete result.repositories;    
+  }
+  for ( var key in result ) {
+    if ( result[key] === true ) result[key] = 'TRUE';
+    if ( result[key] === false ) result[key] = 'FALSE';
+    if ( result[key] === undefined || result[key] === null ) result[key] = 'unknown';
+    if ( s[key] !== undefined ) {
+      if (s[key] !== false) result[s[key]] = result[key];
+      delete result[key];
+    }
+  }
+  if (result.pmcid && result.pmcid.toLowerCase().indexOf('pmc') !== 0) result.pmcid = 'PMC' + result.pmcid;
+  return result;
+}
+
+CLapi.internals.service.lantern.format = function(result,format) {
+  if (format === 'wellcome') {
+    return _formatwellcome(result);
+  } else {
+    return _formatlantern(result);
+  }
 }
 
 CLapi.internals.service.lantern.alertdone = function() {
-  // search for processes not already processing, sorted by descending created data
-  // add any sort of priority queue checking?
   var j = lantern_jobs.find({done:{$not:{$eq:true}}});
   var ret = 0;
   j.forEach(function(job) {
     var progress = CLapi.internals.service.lantern.progress(job._id);
     if (progress === 100) {
-      if (job.email) {
-        var jor = job.name ? job.name : job._id;
-        var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
-        text += 'You can now download the results of your job at ';
-        // TODO this bit should depend on user group permissions somehow
-        // for now we assume if a signed in user then lantern, else wellcome
-        job.user ? text += 'https://lantern.cottagelabs.com#' : text += 'http://wellcome.test.cottagelabs.com#' + job._id;
-        text += '\n\nThe Cottage Labs team\n\n';
-        text += 'P.S This is an automated email, please do not reply to it - responses are NOT monitored.'
-        CLapi.internals.sendmail({
-          to:job.email,
-          subject:'Job ' + jor + ' completed successfully',
-          text:text
-        });
-      }
       ret += 1;
     }
   });

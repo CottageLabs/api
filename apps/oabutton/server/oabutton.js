@@ -45,6 +45,14 @@ Meteor.methods({
       // should also mail the user that created the request to let them know it is in progress (or every user supporting it?)
     }
   },
+  maketestrequest: function(rid) {
+    // only admin user should be able to do this
+    OAB_Request.update(rid,{$set:{test:true}});
+  },
+  maketeststory: function(sid) {
+    // only admin user should be able to do this
+    OAB_Blocked.update(sid,{$set:{test:true}});
+  },
   deleterequest: function(rid) {
     // only admin user should be able to do this
     OAB_Request.remove(rid);

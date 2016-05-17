@@ -44,6 +44,24 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
       var surl = Meteor.settings.academic.licence.remote;
       var g = Meteor.http.call('GET',surl);
       licences = g.data.feed.entry;
+      // TODO re-order the incoming licences to be longest matchtext first
+      /*var slt = {};
+      for ( var l in licences ) {
+        var mt = licences[l].gsx$matchtext;
+        var mtl = mt ? mt.length : 0;
+        if (slt[mtl] === undefined) slt[mtl] = [];
+        slt[mtl].push(l);
+      }
+      var keys = [];
+      for ( var s in slt ) keys.push(s);
+      keys.sort(function(a,b) {return b-a;});
+      var lics = [];
+      for ( var k in keys ) {
+        var kk = keys[k];
+        for (var ob in slt[kk]) {
+          lics.push(licences[slt[kk][ob]]);
+        }
+      }*/
       fs.writeFileSync(localcopy, JSON.stringify(licences));
     }
     return licences;
@@ -77,10 +95,12 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
           lic.licence = l;
           lic.matched = urlmatch;
           lic.matcher = m;
+          break;
         } else if ( text.indexOf(match) !== -1 ) {
           lic.licence = l;
           lic.matched = match;
           lic.matcher = m;
+          break;
         }
       }
     }

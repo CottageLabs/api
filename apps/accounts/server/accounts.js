@@ -100,30 +100,31 @@ Meteor.methods({
         if ( login_services[loc] !== undefined && login_services[loc].service ) service = login_services[loc].service; 
 
         // add new record to timeout in LOGIN_CODE_TIMEOUT_MINUTES
-        var timeout = (new Date()).valueOf() + (Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES * 60 * 1000);
+        var tmot = Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES;
+        if ( login_services[loc] !== undefined && login_services[loc].timeout ) tmot = login_services[loc].timeout; 
+        var timeout = (new Date()).valueOf() + (tmot * 60 * 1000);
         loginCodes.upsert({email:email},{email:email,code:random_code,hash:random_hash,timeout:timeout,service:service});
         var codeType = user ? "login" : "registration";
 
         var name = 'Cottage Labs';
         if ( login_services[loc] !== undefined && login_services[loc].name ) name = login_services[loc].name;
-        var tmot = Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES;
-        if ( login_services[loc] !== undefined && login_services[loc].timeout ) tmot = login_services[loc].timeout; 
         var fr = Meteor.settings.ADMIN_ACCOUNT_ID;
         if ( login_services[loc] !== undefined && login_services[loc].from ) fr = login_services[loc].from; 
+        var tmott = tmot >= 60 ? (tmot/60) + ' hour(s)' : tmot + ' minutes';
         var txt = "Your Cottage Labs " + codeType + " security code is:\r\n\r\n      " + random_code + "\r\n\r\n" +
                     "or use this link:\r\n\r\n      " + login_link_url + "\r\n\r\n" +
-                    "note: this single-use code is only valid for " + tmot + " minutes.";
+                    "note: this single-use code is only valid for " + tmott + " minutes.";
         if ( login_services[loc] !== undefined && login_services[loc].text ) txt = login_services[loc].text; 
         var htm = "<html><body>" +
                     '<p>Your <b><i>Cottage Labs</i></b> ' + codeType + ' security code is:</p>' +
                     '<p style="margin-left:2em;"><font size="+1"><b>' + random_code + '</b></font></p>' +
                     '<p>or click on this link</p>' +
                     '<p style="margin-left:2em;"><font size="-1"><a href="' + login_link_url + '">' + login_link_url + '</a></font></p>' +
-                    '<p><font size="-1">note: this single-use code is only valid for ' + Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES + ' minutes.</font></p>' +
+                    '<p><font size="-1">note: this single-use code is only valid for ' + tmott + '.</font></p>' +
                     '</body></html>';
-        if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html; 
-        txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmot);
-        htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmot);
+        if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html;
+        txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
+        htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
 
         Email.send({
             from: fr,

@@ -46,6 +46,7 @@ iron:middleware-stack@1.0.11
 iron:router@1.0.12
 iron:url@1.0.11
 jquery@1.11.8
+json-routes-mm@2.1.0
 launch-screen@1.0.11
 less@2.6.0
 livedata@1.0.18
@@ -71,7 +72,6 @@ modules-runtime@0.6.3
 mongo@1.1.7
 mongo-id@1.0.4
 mongo-livedata@1.0.12
-nimble:restivus@0.8.10
 npm-bcrypt@0.8.5
 npm-container@1.2.0
 npm-mongo@1.4.43
@@ -84,12 +84,12 @@ rate-limit@1.0.4
 reactive-dict@1.1.7
 reactive-var@1.0.9
 reload@1.1.8
+restivus-mm@0.8.10
 retry@1.0.7
 routepolicy@1.0.10
 service-configuration@1.0.9
 session@1.1.5
 sha@1.0.7
-simple:json-routes@2.1.0
 spacebars@1.0.11
 spacebars-compiler@1.0.11
 spiderable@1.0.13

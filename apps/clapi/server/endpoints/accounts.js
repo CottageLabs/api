@@ -17,8 +17,7 @@ CLapi.addRoute('accounts', {
 CLapi.addRoute('accounts/count', {
   get: {
     action: function() {
-      var u = Meteor.users.find().count();
-      return {status: 'success', data: {count:u}}
+      return {status: 'success', data: {count:CLapi.internals.accounts.count()}}
     }
   }
 });
@@ -26,16 +25,7 @@ CLapi.addRoute('accounts/online', {
   get: {
     authRequired: true,
     action: function() {
-      var u = Meteor.users.find({'status.online':true},{fields:{username:1,emails:1}}).fetch();
-      var users = [];
-      for ( var uu in u ) {
-        var uuu = u[uu];
-        if (uuu.username) {
-          users.push(uuu.username);
-        } else {
-          users.push(uuu.emails[0].address);
-        }
-      }
+      var users = CLapi.internals.accounts.online();
       return {status: 'success', data: {count:users.length, accounts:users}}
     }
   }
@@ -43,8 +33,7 @@ CLapi.addRoute('accounts/online', {
 CLapi.addRoute('accounts/online/count', {
   get: {
     action: function() {
-      var u = Meteor.users.find({'status.online':true}).count();
-      return {status: 'success', data: {count:u}}
+      return {status: 'success', data: {count:CLapi.internals.accounts.onlinecount()}}
     }
   }
 });
@@ -336,6 +325,39 @@ CLapi.addRoute('accounts/:id/request/:grouprole/deny', {
 // if the gif name matches, and the fingerprint of the device asking for it matches, serve a 1x1 gif along with the necessary 
 // cookie set for the domain being called from, if that domain is within a set of allowed domains.
 
+
+CLapi.internals.accounts.count = function(filter) {
+  if (filter === undefined) filter = {};
+  return Meteor.users.find(filter).count()
+}
+CLapi.internals.accounts.online = function(filter) {
+  if (filter === undefined) {
+    filter = {'status.online':true};
+  } else {
+    if (filter.$and === undefined) filter = {$and:[filter]};
+    filter.$and.push({'status.online':true});
+  }
+  var u = Meteor.users.find(filter,{fields:{username:1,emails:1}}).fetch();
+  var users = [];
+  for ( var uu in u ) {
+    var uuu = u[uu];
+    if (uuu.username) {
+      users.push(uuu.username);
+    } else {
+      users.push(uuu.emails[0].address);
+    }
+  }
+  return users;
+}
+CLapi.internals.accounts.onlinecount = function(filter) {
+  if (filter === undefined) {
+    filter = {'status.online':true};
+  } else {
+    if (filter.$and === undefined) filter = {$and:[filter]};
+    filter.$and.push({'status.online':true});
+  }
+  return Meteor.users.find(filter).count();
+}
 
 // no auth control on these actions, cos any code with the ability to call them directly will also have the ability to write directly to the accounts db
 // auth is handled within the API layer above, though
