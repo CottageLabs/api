@@ -3,45 +3,30 @@
     {
       "host": "10.131.20.129",
       "username": "cloo",
-      "pem": "~/.ssh/id_rsa",
+      "pem": "~/.ssh/id_dsa",
       "env": {
-        "PORT": 3001
-      }
-    },
-    {
-      "host": "10.131.20.129",
-      "username": "cloo",
-      "pem": "~/.ssh/id_rsa",
-      "env": {
-        "port": 3002
       }
     },
     {
       "host": "10.131.11.72",
       "username": "cloo",
-      "pem": "~/.ssh/id_rsa",
+      "pem": "~/.ssh/id_dsa",
       "env": {
-        "port": 3001
-      }
-    },
-    {
-      "host": "10.131.11.72",
-      "username": "cloo",
-      "pem": "~/.ssh/id_rsa",
-      "env": {
-        "port": 3002
       }
     }
   ],
   "setupMongo": false,
   "setupNode": false,
-  "setupPhantom": true,
+  "setupPhantom": false,
   "enableUploadProgressBar": true,
   "appName": "clapi",
   "app": ".",
   "env": {
     "ROOT_URL": "http://localhost",
-    "MONGO_URL": "mongodb://10.131.177.187:27017/clapi"
+    "PORT": 3000,
+    "MONGO_URL": "mongodb://10.131.177.187:27017/clapi",
+    "CLUSTER_DISCOVERY_URL": "mongodb://10.131.177.187:27017/clapi",
+    "CLUSTER_WORKERS_COUNT": "auto"
   },
-  "deployCheckWaitTime": 15
+  "deployCheckWaitTime": 60
 }
