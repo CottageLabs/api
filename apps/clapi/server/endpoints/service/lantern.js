@@ -39,7 +39,7 @@ lantern_results.before.insert(function (userId, doc) {
 lantern_processes.findByIdentifier = function(idents) {
   var m = [];
   if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idemts.pmid !== null) m.push({pmid:idents.pmid});
+  if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
   return lantern_processes.findOne({$or: m});
@@ -47,7 +47,7 @@ lantern_processes.findByIdentifier = function(idents) {
 lantern_results.findByIdentifier = function(idents,refresh) {
   var m = [];
   if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idemts.pmid !== null) m.push({pmid:idents.pmid});
+  if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
   var s = {};
