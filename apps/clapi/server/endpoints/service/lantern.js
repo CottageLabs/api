@@ -76,9 +76,14 @@ CLapi.addRoute('service/lantern', {
   },
   post: function() {
     // cannot receive files to meteor restivus! Another ridiculous thing!!!
-    var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh);
-    //console.log(this.request.body);
-    return {status: 'success', data: {job:j}};
+    var maxallowedlength = 3000; // this could be in config or a per user setting...
+    var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
+    if (checklength > maxallowedlength) {
+      return {statusCode: 413, body: {status: 'error', data: checklength + ' too long, max rows allowed is ' + maxallowedlength}}
+    } else {
+      var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh);
+      return {status: 'success', data: {job:j}};
+    }
   }
 });
 
