@@ -13,7 +13,7 @@ login_services = {
     //logo: 'http://static.cottagelabs.com/cottagelabslogo.png',
     extra: 'By signing up and signing in you agree to the<br><a href="https://lantern.cottagelabs.com/terms" target="_blank">Lantern terms of use</a>',
     back: 'https://lantern.cottagelabs.com',
-    hashurl: 'http://test.cottagelabs.com?for=https://lantern.cottagelabs.com',
+    hashurl: 'http://accounts.cottagelabs.com?for=https://lantern.cottagelabs.com',
     timeout: 600,
     service: 'lantern',
     name: 'Lantern',
