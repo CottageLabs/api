@@ -38,18 +38,18 @@ lantern_results.before.insert(function (userId, doc) {
 
 lantern_processes.findByIdentifier = function(idents) {
   var m = [];
-  if (idents.pmcid) m.push({pmcid:idents.pmcid});
-  if (idents.pmid) m.push({pmid:idents.pmid});
-  if (idents.doi) m.push({doi:idents.doi});
-  if (idents.title) m.push({title:idents.title});
+  if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idemts.pmid !== null) m.push({pmid:idents.pmid});
+  if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
+  if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
   return lantern_processes.findOne({$or: m});
 }
 lantern_results.findByIdentifier = function(idents,refresh) {
   var m = [];
-  if (idents.pmcid) m.push({pmcid:idents.pmcid});
-  if (idents.pmid) m.push({pmid:idents.pmid});
-  if (idents.doi) m.push({doi:idents.doi});
-  if (idents.title) m.push({title:idents.title});
+  if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idemts.pmid !== null) m.push({pmid:idents.pmid});
+  if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
+  if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
   var s = {};
   if (refresh) {
     var d = new Date();
@@ -403,13 +403,15 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
       list[i].title = j['Article title'];
       delete list[i]['Article title'];
     }
-    if (j.pmcid) j.pmcid = j.pmcid.toLowerCase().replace('pmc','');
-    var proc = {
-      pmcid: j.pmcid,
-      pmid: j.pmid,
-      doi: j.doi,
-      title: j.title
-    };
+    if (j.title) j.title = j.title.trim();
+    if (j.pmcid) j.pmcid = j.pmcid.replace(/[^0-9]/g,'');
+    if (j.pmid) j.pmid = j.pmid.replace(/[^0-9]/g,'');
+    if (j.doi) j.doi = j.doi.replace(/ /g,''); // also translate from url encoding? Saw one from wellcome with a %2F in it...
+    var proc = {};
+    if (j.doi && j.doi.indexOf('10.') === 0 && j.doi.length > 6 && j.doi.indexOf('/') !== -1) proc.doi = j.doi;
+    if (j.pmcid && j.pmcid.length > 0) proc.pmcid = j.pmcid;
+    if (j.pmid && j.pmid.length > 0) proc.pmid = j.pmid;
+    if (j.title && j.title.length > 2) proc.title = j.title;
     if (refresh !== undefined) proc.refresh = refresh;
     var result = lantern_results.findByIdentifier(proc,refresh);
     if (result) {
@@ -837,20 +839,15 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
       var total = job.list.length;
       var count = 0;
       for ( var i in job.list ) {
-        var pi = job.list[i];
-        if ( pi.result ) {
+        if ( job.list[i].result ) {
           count += 1;
-        } else if (check) { // this presently does not run, takes too long on large jobs
-          var found = lantern_results.findOne(pi.process);
-          if (!found) {
-            // this is OK even with caching, because any results in here could not have existed
-            // when job was submitted, otherwise the result would already have been directly added 
-            // to the job when it was saved. So any results found here must be newer than the job.
-            found = lantern_results.findByIdentifier(pi);
-          }
+        } else if (check) {
+          var found = lantern_results.findOne(job.list[i].process);
+          // could add a check for OTHER results with similar IDs - but shouldn't be any, and would have to re-sanitise the IDs
+          //if (!found) found = lantern_results.findByIdentifier(pi);
           if ( found ) {
             count += 1;
-            pi.result = found._id;
+            job.list[i].result = found._id;
             update = true;
           }
         }
