@@ -54,7 +54,8 @@ lantern_results.findByIdentifier = function(idents,refresh) {
   }
   var s = {};
   if (refresh) {
-    var t = Date.now() - refresh;
+    var d = new Date();
+    var t = d.setDate(d.getDate() - refresh);
     s.$and = [{$or:[m]},{createdAt:{$gte:t}}];
   } else {
     s.$or = [m];
@@ -800,21 +801,14 @@ CLapi.internals.service.lantern.process = function(processid) {
   var jobs = lantern_jobs.find({"list.process":proc._id});
   jobs.forEach(function(job) {
     if (!job.done) {
-      var done = true;
       var update = false;
       for ( var i in job.list ) {
         if (job.list[i].process === proc._id) {
           update = true;
           job.list[i].result = proc._id;
-        } else if ( !job.list[i].result ) {
-          done = false;
         }
       }
-      if (update && done) {
-        lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
-      } else if (update) {
-        lantern_jobs.update(job._id, {$set:{list:job.list}});        
-      }
+      if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
     }
   });
 
@@ -863,8 +857,10 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
           }
         }
       }
-      var p = count/total * 100;
-      var _notify = function(job) {
+      var p = count/total * 100;      
+      if ( p === 100 ) {
+        // this will only happen on first time the progress check finds job is 100% cos otherwise it returns 100 on seeing job.done
+        lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
         var jor = job.name ? job.name : job._id;
         var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
         text += 'You can now download the results of your job at ';
@@ -879,15 +875,9 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
           subject:'Job ' + jor + ' completed successfully',
           text:text
         });
-      }
-      if ( update && p === 100 ) {
-        if (job.email) _notify(job);
-        lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
-      } else if ( update ) {
-        lantern_jobs.update(job._id, {$set:{list:job.list}});  
-      } else if ( p === 100 && !job.done  ) {
-        if (job.email) _notify(job);
-        lantern_jobs.update(job._id, {$set:{done:true}});
+      } else if (update) {
+        // this happens if the job has had some progress but is not yet 100%
+        lantern_jobs.update(job._id, {$set:{list:job.list}});
       }
       return p;
     }
