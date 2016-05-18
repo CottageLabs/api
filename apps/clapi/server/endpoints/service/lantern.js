@@ -403,7 +403,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
       list[i].title = j['Article title'];
       delete list[i]['Article title'];
     }
-    if (j.title) j.title = j.title.trim();
+    if (j.title) j.title = j.title.replace(/\s\s+/g,' ').trim();
     if (j.pmcid) j.pmcid = j.pmcid.replace(/[^0-9]/g,'');
     if (j.pmid) j.pmid = j.pmid.replace(/[^0-9]/g,'');
     if (j.doi) j.doi = j.doi.replace(/ /g,''); // also translate from url encoding? Saw one from wellcome with a %2F in it...
@@ -802,13 +802,16 @@ CLapi.internals.service.lantern.process = function(processid) {
   jobs.forEach(function(job) {
     if (!job.done) {
       var update = false;
+      var updates = {};
       for ( var i in job.list ) {
         if (job.list[i].process === proc._id) {
           update = true;
-          job.list[i].result = proc._id;
+          updates["list." + i + ".result"] = proc._id;
         }
       }
-      if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
+      if (update) {
+        lantern_jobs.update(job._id, {$set:updates});
+      }
     }
   });
 
@@ -832,10 +835,11 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
   // return a percentage figure for how many have been done
   var job = lantern_jobs.findOne(jobid);
   if (job) {
-    var update;
     if (job.done) {
       return 100;
     } else {
+      var update = false;
+      var updates = {};
       var total = job.list.length;
       var count = 0;
       for ( var i in job.list ) {
@@ -847,7 +851,7 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
           //if (!found) found = lantern_results.findByIdentifier(pi);
           if ( found ) {
             count += 1;
-            job.list[i].result = found._id;
+            updates["list." + i + ".result"] = found._id;
             update = true;
           }
         }
@@ -855,7 +859,8 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
       var p = count/total * 100;      
       if ( p === 100 ) {
         // this will only happen on first time the progress check finds job is 100% cos otherwise it returns 100 on seeing job.done
-        lantern_jobs.update(job._id, {$set:{list:job.list,done:true}});
+        updates.done = true;
+        lantern_jobs.update(job._id, {$set:updates});
         var jor = job.name ? job.name : job._id;
         var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
         text += 'You can now download the results of your job at ';
@@ -872,7 +877,7 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
         });
       } else if (update) {
         // this happens if the job has had some progress but is not yet 100%
-        lantern_jobs.update(job._id, {$set:{list:job.list}});
+        lantern_jobs.update(job._id, {$set:updates});
       }
       return p;
     }
