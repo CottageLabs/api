@@ -37,28 +37,26 @@ lantern_results.before.insert(function (userId, doc) {
 // curl -X POST -F "userid=1" -F "filecomment=This is a CSV file" -F "upload=@/Users/mm/Desktop/lanterntest.csv" http://dev.api.cottagelabs.com/service/lantern
 
 lantern_processes.findByIdentifier = function(idents) {
-  var m = {
-    pmcid: idents.pmcid,
-    pmid: idents.pmid,
-    doi: idents.doi,
-    title: idents.title
-  }
-  return lantern_processes.findOne({$or: [m]});
+  var m = [];
+  if (idents.pmcid) m.push({pmcid:idents.pmcid});
+  if (idents.pmid) m.push({pmid:idents.pmid});
+  if (idents.doi) m.push({doi:idents.doi});
+  if (idents.title) m.push({title:idents.title});
+  return lantern_processes.findOne({$or: m});
 }
 lantern_results.findByIdentifier = function(idents,refresh) {
-  var m = {
-    pmcid: idents.pmcid,
-    pmid: idents.pmid,
-    doi: idents.doi,
-    title: idents.title
-  }
+  var m = [];
+  if (idents.pmcid) m.push({pmcid:idents.pmcid});
+  if (idents.pmid) m.push({pmid:idents.pmid});
+  if (idents.doi) m.push({doi:idents.doi});
+  if (idents.title) m.push({title:idents.title});
   var s = {};
   if (refresh) {
     var d = new Date();
     var t = d.setDate(d.getDate() - refresh);
-    s.$and = [{$or:[m]},{createdAt:{$gte:t}}];
+    s.$and = [{$or:m},{createdAt:{$gte:t}}];
   } else {
-    s.$or = [m];
+    s.$or = m;
   }
   return lantern_results.findOne(s,{sort:{createdAt:-1}});
 }

@@ -38,6 +38,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     var localcopy = Meteor.settings.academic.licence.licencesfile;
     var stale = Meteor.settings.academic.licence.stale;
     if ( fs.existsSync(localcopy) && ( ( (new Date()) - fs.statSync(localcopy).mtime) < stale || !Meteor.settings.academic.licence.remote) ) {
+      console.log('licences data retrieved from local copy ' + localcopy);
       licences = JSON.parse(fs.readFileSync(localcopy));
     } else if ( Meteor.settings.academic.licence.remote ) {
       console.log('Getting licences data from google spreadsheet for academic licence calculator')
@@ -45,7 +46,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
       var g = Meteor.http.call('GET',surl);
       licences = g.data.feed.entry;
       // TODO re-order the incoming licences to be longest matchtext first
-      /*var slt = {};
+      var slt = {};
       for ( var l in licences ) {
         var mt = licences[l].gsx$matchtext;
         var mtl = mt ? mt.length : 0;
@@ -61,8 +62,8 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
         for (var ob in slt[kk]) {
           lics.push(licences[slt[kk][ob]]);
         }
-      }*/
-      fs.writeFileSync(localcopy, JSON.stringify(licences));
+      }
+      fs.writeFileSync(localcopy, JSON.stringify(lics));
     }
     return licences;
   }
@@ -92,11 +93,13 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
         var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
         var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
         if ( urlmatch && content.indexOf(urlmatch) !== -1 ) {
+          console.log('academic licence matched on ' + urlmatch);
           lic.licence = l;
           lic.matched = urlmatch;
           lic.matcher = m;
           break;
         } else if ( text.indexOf(match) !== -1 ) {
+          console.log('academic licence matched on ' + urlmatch);
           lic.licence = l;
           lic.matched = match;
           lic.matcher = m;

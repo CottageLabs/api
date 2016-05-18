@@ -9,10 +9,26 @@ upstream clapi {
     server 10.131.20.129:3000;
     server 10.131.11.72:3000;
 }
+# ALLOW CONNECTS TO NON-HTTPS API FOR NOW, TO ALLOW WELLCOME.TEST.COTTAGELABS.COM TO CONTINUE TO EXIST FOR A WHILE
+#server {
+#    listen      80;
+#    server_name api.cottagelabs.com;
+#    return 301 https://$host$request_uri;
+#}
 server {
     listen      80;
+    client_max_body_size 1024M;
+    keepalive_timeout 300;
+    proxy_read_timeout 600s;
+
+    location / {
+        proxy_pass http://clapi/api/;
+        proxy_redirect off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
     server_name api.cottagelabs.com;
-    return 301 https://$host$request_uri;
 }
 server {
     listen          443 ssl spdy;
