@@ -372,7 +372,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
   }
   // for now if no uid assume a wellcome user in which case refresh needs to be set to 7
   // should really be a check on the user setting, and/or the refresh number already passed in from the request
-  if (!uid) refresh = 7;
+  if (!user) refresh = 7;
   if (refresh !== undefined) job.refresh = refresh;
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
@@ -427,7 +427,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     text += 'You can track the progress of your job at ';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
-    text += uid ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
+    text += user ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
     text += jid;
     text += '\n\nThe Cottage Labs team\n\n';
     text += 'P.S This is an automated email, please do not reply to it.'
