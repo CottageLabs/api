@@ -28,7 +28,9 @@
     </tr>
     {{/each}}
   </tbody></table>
+  {{#if isroot currentUser}}
   {{> joingroup}}
+  {{/if}}
 </template>
 
 <template name="joingroup">

@@ -68,21 +68,11 @@ Meteor.methods({
   },
 
   usersblocked: function() {
-    var b = OAB_Blocked.aggregate([ 
-      { $group: { _id: "user"}  },
-      { $group: { _id: 1, count: { $sum: 1 } } }
-    ]);
-    console.log(b);
-    console.log(b.length);
+    var b = OAB_Blocked.aggregate( [ { $group: { _id: "$user"}  } ] );
     return b.length;
   },
   usersrequested: function() {
-    var r = OAB_Request.aggregate([ 
-      { $group: { _id: "user"}  },
-      { $group: { _id: 1, count: { $sum: 1 } } }
-    ]);
-    console.log(r);
-    console.log(r.length);
+    var r = OAB_Request.aggregate( [ { $group: { _id: "$user"}  } ] );
     return r.length;
   }
 });

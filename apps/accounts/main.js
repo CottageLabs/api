@@ -22,6 +22,14 @@ Router.map( function () {
   });
   this.route('managegroup', {
     path: '/admin/:gid',
+    onBeforeAction : function() {
+      if (!Meteor.userId()) {
+        this.render('home');
+      } else {
+        // TODO should add a check for group membership here, but CLapi.cauth is not defined at this point...
+        this.next();
+      }
+    },
     waitOn : function() {
       var subs = [Meteor.subscribe('groupusers',this.params.gid)];
       if ( this.params.gid === 'openaccessbutton' ) {
@@ -31,16 +39,8 @@ Router.map( function () {
       return subs;
     },
     action: function() {
-      if ( Meteor.user() ) {
-        if ( true ) { //CLapi.cauth(this.params.gid + '.admin',Meteor.user() ) ) {
-          Session.set("gid",this.params.gid);
-          this.render('managegroup');
-        } else {
-          this.redirect('/');
-        }
-      } else {
-        this.redirect('/');
-      }
+      Session.set("gid",this.params.gid);
+      this.render('managegroup');
     }
 
   });

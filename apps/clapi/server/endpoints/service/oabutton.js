@@ -341,14 +341,11 @@ CLapi.internals.service.oabutton.stats = function() {
     article: {
       blocks: {
         total: OAB_Blocked.find({type:'article'}).count(),
-        users: OAB_Blocked.aggregate([ 
-          { $match: { type: "article"}  },
-          { $group: { _id: "user"}  },
-          { $group: { _id: 1, count: { $sum: 1 } } }
-        ]).length
+        users: OAB_Blocked.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length
       },
       requests:{
         total: OAB_Request.find({type:'article'}).count(),
+        users: OAB_Request.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length,
         moderate: OAB_Request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
         progress: OAB_Request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
         hold: OAB_Request.find({$and:[{type:'article'},{status:'hold'}]}).count(),
@@ -359,14 +356,11 @@ CLapi.internals.service.oabutton.stats = function() {
     data: {
       blocks: {
         total: OAB_Blocked.find({type:'data'}).count(),
-        users: OAB_Request.aggregate([ 
-          { $match: { type: "data"}  },
-          { $group: { _id: "user"}  },
-          { $group: { _id: 1, count: { $sum: 1 } } }
-        ]).length
+        users: OAB_Blocked.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length
       },
       requests:{
         total: OAB_Request.find({type:'data'}).count(),
+        users: OAB_Request.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length,
         moderate: OAB_Request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
         progress: OAB_Request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
         hold: OAB_Request.find({$and:[{type:'data'},{status:'hold'}]}).count(),
