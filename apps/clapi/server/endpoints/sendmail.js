@@ -9,6 +9,7 @@ CLapi.addRoute('sendmail', {
   },
   post: {
     authRequired: true,
+    roleRequired:'root', // how to decide roles that can post mail?
     action: function() {
       // TODO: check the groups the user is part of, and know which groups are allowed to send mail
       // TODO: get the json content and send it to sendmail

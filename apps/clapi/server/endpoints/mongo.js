@@ -5,6 +5,7 @@
 
 // convenience to remove jobs, processes, results. should have admin auth or be removed
 CLapi.addRoute('mongo/remove/:coll', {
+  roleRequired:'root',
   delete: {
     action: function() {
       return CLapi.internals.mongo.delete(this.urlParams.coll)
@@ -12,6 +13,7 @@ CLapi.addRoute('mongo/remove/:coll', {
   }
 });
 CLapi.addRoute('mongo/remove/:coll/:rec', {
+  roleRequired:'root',
   delete: {
     action: function() {
       return CLapi.internals.mongo.delete(this.urlParams.coll,this.urlParams.rec)

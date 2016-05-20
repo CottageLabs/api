@@ -335,6 +335,49 @@ CLapi.addRoute('service/oabutton/status', {
 
 
 CLapi.internals.service.oabutton = {};
+
+CLapi.internals.service.oabutton.stats = function() {
+  return {
+    article: {
+      blocks: {
+        total: OAB_Blocked.find({type:'article'}).count(),
+        users: OAB_Blocked.aggregate([ 
+          { $match: { type: "article"}  },
+          { $group: { _id: "user"}  },
+          { $group: { _id: 1, count: { $sum: 1 } } }
+        ]).length
+      },
+      requests:{
+        total: OAB_Request.find({type:'article'}).count(),
+        moderate: OAB_Request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
+        progress: OAB_Request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
+        hold: OAB_Request.find({$and:[{type:'article'},{status:'hold'}]}).count(),
+        refused: OAB_Request.find({$and:[{type:'article'},{status:'refused'}]}).count(),
+        received: OAB_Request.find({$and:[{type:'article'},{status:'received'}]}).count()
+      }
+    },
+    data: {
+      blocks: {
+        total: OAB_Blocked.find({type:'data'}).count(),
+        users: OAB_Request.aggregate([ 
+          { $match: { type: "data"}  },
+          { $group: { _id: "user"}  },
+          { $group: { _id: 1, count: { $sum: 1 } } }
+        ]).length
+      },
+      requests:{
+        total: OAB_Request.find({type:'data'}).count(),
+        moderate: OAB_Request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
+        progress: OAB_Request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
+        hold: OAB_Request.find({$and:[{type:'data'},{status:'hold'}]}).count(),
+        refused: OAB_Request.find({$and:[{type:'data'},{status:'refused'}]}).count(),
+        received: OAB_Request.find({$and:[{type:'data'},{status:'received'}]}).count()
+      }
+    },
+    users: CLapi.internals.accounts.count({"roles.openaccessbutton":{$exists:true}})    
+  }  
+}
+
 CLapi.internals.service.oabutton.register = function(data) {
   // TODO this user creation code stuff should go into one place - see the CL accounts app
   var user = Meteor.users.findOne({'emails.address':data.email});
@@ -346,11 +389,12 @@ CLapi.internals.service.oabutton.register = function(data) {
     console.log("CREATED userId = " + userId);
     var apikey = Random.hexString(30);
     var apihash = Accounts._hashLoginToken(apikey);
-    Meteor.users.update(userId, {$set: {'username':data.username,'service':{'openaccessbutton':{'profession':data.profession,'signup':'api'}},'security':{'httponly':!Meteor.settings.public.loginState.HTTPONLY_COOKIES}, 'api': {'keys': [{'key':apikey, 'hashedToken': apihash, 'name':'default'}] }, 'emails.0.verified': true}});
+    Meteor.users.update(userId, {$set: {'username':data.username,'service':{'openaccessbutton':{'profession':data.profession,'signup':'api'}},'security':{'httponly':Meteor.settings.public.loginState.HTTPONLY_COOKIES}, 'api': {'keys': [{'key':apikey, 'hashedToken': apihash, 'name':'default'}] }, 'emails.0.verified': true}});
     Roles.addUsersToRoles(userId, 'user', 'openaccessbutton');
     return {status: "success", data: {apikey:apikey}};
   } else if ( CLapi.cauth('openaccessbutton.user',user) === false ) {
     // user exists but is not yet in openaccessbutton group
+    userId = user._id;
     if ( user.service === undefined ) user.service = {};
     if ( user.service.openaccessbutton === undefined ) user.service.openaccessbutton = {'signup':'api','hadaccount':'already'}
     if (data.profession) user.service.openaccessbutton.profession = data.profession;

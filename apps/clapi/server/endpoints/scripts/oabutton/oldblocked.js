@@ -90,7 +90,8 @@ var oldblocked = function() {
 
 CLapi.addRoute('scripts/oabutton/oldblocked', {
   get: {
-    //authRequired: true,
+    authRequired: true,
+    roleRequired: 'root',
     action: function() {
       if (this.queryParams.csv) {
         if (this.queryParams.refresh === undefined) oldblocked();

@@ -159,6 +159,14 @@ CLapi = new Restivus({
 // set a place to store internal methods - add a key whenever a new folder is added into the API endpoints folder
 CLapi.internals = {accounts:{}, academic:{}, use:{}, service:{}, convert:{}, scripts:{}, contentmine: {}};
 
+CLapi.addRoute('/', {
+  get: {
+    action: function() {
+      return {status:'success',data:'Cottage Labs API',docs:'Coming soon'}
+    }
+  }
+});
+
 // can this become a useful way to show the docs?
 CLapi.addRoute('list', {
   get: {
@@ -227,7 +235,7 @@ CLapi.cauth = function(gr, user, cascade) {
 }
 CLapi.rcauth = function(grs, user, cascade) {
   for ( var ro in grs ) {
-    var a = cauth(grs[ro], user, cascade);
+    var a = CLapi.cauth(grs[ro], user, cascade);
     if ( a ) return a;
   }
   return false;

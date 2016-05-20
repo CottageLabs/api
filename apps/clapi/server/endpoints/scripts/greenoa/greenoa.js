@@ -280,6 +280,7 @@ var counts = function() {
 CLapi.addRoute('scripts/greenoa/run', {
   get: {
     authRequired: true,
+    roleRequired: 'root',
     action: function() {
       return counts(); // this would not actually return, it will timeout...
     }

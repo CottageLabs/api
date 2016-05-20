@@ -336,7 +336,7 @@ CLapi.internals.service.lantern.status = function() {
       done: lantern_jobs.find({done:{$exists:true}}).count()
     },
     results: lantern_results.find().count(),
-    users: CLapi.internals.accounts.count({"service.lantern":{$exists:true}})
+    users: CLapi.internals.accounts.count({"roles.lantern":{$exists:true}})
   } 
 }
 

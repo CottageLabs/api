@@ -1,6 +1,7 @@
 CLapi.addRoute('scripts/odb/fixrecords', {
   post: {
     authRequired: true,
+    roleRequired: 'root',
     action: function() {
       var test = this.queryParams.test;
       var counts = {total:0,updated:0};

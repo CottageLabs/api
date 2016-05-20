@@ -142,7 +142,8 @@ var fixblocked = function() {
 
 CLapi.addRoute('scripts/oabutton/fixblocked', {
   get: {
-    //authRequired: true,
+    authRequired: true,
+    roleRequired: 'root',
     action: function() {
       if (this.queryParams.csv) {
         if (this.queryParams.refresh === undefined) fixblocked();

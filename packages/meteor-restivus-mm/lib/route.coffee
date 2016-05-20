@@ -204,8 +204,23 @@ class share.Route
   ###
   _roleAccepted: (endpointContext, endpoint) ->
     if endpoint.roleRequired
-      if _.isEmpty _.intersection(endpoint.roleRequired, endpointContext.user.roles)
-        return false
+      return CLapi.rcauth(endpoint.roleRequired,endpointContext.user,endpoint.cascade)
+      # could do this in a way that does not make it rely on CL api code, as shown below, but does not handle cascades
+      ###ret = false
+      for i of endpoint.roleRequired
+        ln = endpoint.roleRequired[i].split('.')
+        grp = undefined
+        rol = undefined
+        if ln.length == 1
+          grp = '__global_roles__'
+          rol = ln[0]
+        else
+          grp = ln[0]
+          rol = ln[1]
+        if endpointContext.user.roles and endpointContext.user.roles[grp]
+          if not _.isEmpty _.intersection([rol], endpointContext.user.roles[grp])
+            ret = true
+      return ret###
     true
 
 

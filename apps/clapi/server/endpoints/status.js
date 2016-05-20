@@ -28,9 +28,7 @@ CLapi.internals.status = function() {
     },
     groups: 'TODO',
     lantern: CLapi.internals.service.lantern.status(),
-    openaccessbutton: 'TODO',
-    academic: 'TODO',
-    cron: 'TODO'
+    openaccessbutton: CLapi.internals.service.oabutton.stats()
   }
 };
 
@@ -39,4 +37,5 @@ CLapi.internals.statuscheck = function() {
   status.check = 'TODO: check available use endpoints, and perhaps other things, to see if they are up and respond with results as expected'
   return status;
 }
+
 
