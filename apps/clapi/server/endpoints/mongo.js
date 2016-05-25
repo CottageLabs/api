@@ -28,6 +28,14 @@ CLapi.addRoute('mongo/backup/:coll', {
     }
   }
 });
+CLapi.addRoute('mongo/index/:idx/:coll', {
+  roleRequired:'root',
+  get: {
+    action: function() {
+      return CLapi.internals.mongo.index(this.urlParams.idx,this.urlParams.coll)
+    }
+  }
+});
 
 CLapi.internals.mongo = {};
 
@@ -58,5 +66,18 @@ CLapi.internals.mongo.backup = function(coll) {
   }
 }
 
+CLapi.internals.mongo.index = function(idx,coll,del,mapping) {
+  if (del === undefined) del = true;
+  // can add generic indexing capability here, but should keep a settings-based control on what indexes it can operate on,
+  // as it is potentially very destructive
+  if (coll.toLowerCase() === 'oab_blocked') {
+    var bulks = OAB_Blocked.find().fetch();
+    if (del) CLapi.internals.es.delete('/oabutton/blocked');
+    var res = CLapi.internals.es.import(bulks,false,'oabutton','blocked',undefined,undefined,undefined,true);
+    return {status:'success',data:res};
+  } else {
+    return {status:'error'}
+  }
+}
 
 

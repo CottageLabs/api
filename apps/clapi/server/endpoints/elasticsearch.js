@@ -108,7 +108,7 @@ CLapi.internals.es.import = function(data,format,index,type,url,bulk,mappings,id
   if (format === undefined) format = 'es';
   if (ids === undefined) ids = 'es';
   if (bulk === undefined) {
-    bulk = 10000; // this should default to 10000 or something, once bulk problem below is solved
+    bulk = 10000;
   } else if (bulk === false) {
     bulk = 1;
   }
