@@ -12,6 +12,9 @@ OAB_Blocked.before.update(function (userId, doc, fieldNames, modifier, options) 
 OAB_Blocked.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oabutton/blocked/' + doc._id, doc);
 });
+OAB_Blocked.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oabutton/blocked/' + doc._id);
+});
 
 OAB_Request = new Mongo.Collection("oabutton_request");
 OAB_Request.before.insert(function (userId, doc) {
@@ -25,6 +28,9 @@ OAB_Request.before.update(function (userId, doc, fieldNames, modifier, options) 
 });
 OAB_Request.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oabutton/request/' + doc._id, doc);
+});
+OAB_Blocked.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oabutton/request/' + doc._id);
 });
 
 Router.map( function () {

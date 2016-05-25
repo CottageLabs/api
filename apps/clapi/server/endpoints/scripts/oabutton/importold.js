@@ -195,6 +195,12 @@ var getreallyoldblocked = function() {
 }
 
 var run = function(save) {
+  var chuck = OAB_Blocked.find({"legacy.legacy":true});
+  var woodchuck = 0;
+  chuck.forEach(function(c) {
+    woodchuck += 1;
+    if (save) OAB_Blocked.remove(c._id);
+  });
   var blocks = [];
   var locations = {};
   var old = getoldblocked();
@@ -232,11 +238,12 @@ var run = function(save) {
       block.location = locations[block.user];
       foundlocs += 1;
     }
-    if (save) OAB_Blocked.insert(block);    
+    if (block.location && block.location.geo && (!block.location.geo.lat || !block.location.geo.lon) ) delete block.location;
+    if (save) OAB_Blocked.insert(block);
   }
   // call a function to get the old wishlist records - for each try to make it meet current request format 
   // and match with a urlemail and a current user - if possible, save it as a request
-  return {blocks: blocks.length, located: foundlocs, oldstart: old.started, oldtotal: old.total, oldoldstart: oldold.started, oldoldtotal: oldold.total}
+  return {woodchuck:woodchuck, blocks: blocks.length, located: foundlocs, oldstart: old.started, oldtotal: old.total, oldoldstart: oldold.started, oldoldtotal: oldold.total}
 }
 
 CLapi.addRoute('scripts/oabutton/importold', {
