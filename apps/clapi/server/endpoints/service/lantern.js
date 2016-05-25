@@ -685,7 +685,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       var gr = result.grants[g];
       if (gr.grantId) {
         var grid = gr.grantId;
-        if (gr.agency.toLowerCase().indexOf('wellcome') !== -1 ) {
+        if (gra.agency && gr.agency.toLowerCase().indexOf('wellcome') !== -1 ) {
           grid = grid.split('/')[0];
           console.log('Lantern simplified ' + gr.grantId + ' to ' + grid + ' for Grist API call');
         }
