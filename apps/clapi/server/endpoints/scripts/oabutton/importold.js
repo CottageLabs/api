@@ -16,7 +16,7 @@ var getoldblocked = function() {
       } else {
         rec.metadata.author = [];
         for ( var a in rec.author ) {
-          rec.metadata.author.push({name:rec.author});
+          rec.metadata.author.push({name:rec.author[a]});
         }
       }
       delete rec.author;

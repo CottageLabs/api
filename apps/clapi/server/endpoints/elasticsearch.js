@@ -97,7 +97,13 @@ CLapi.internals.es.query = function(action,route,data,url) {
   }
   var opts = {}
   if (data) opts.data = data;
-  return Meteor.http.call(action,esurl+route,opts).data;
+  var ret;
+  try {
+    ret = Meteor.http.call(action,esurl+route,opts).data;
+  } catch(err) {
+    ret = {info: 'the call to es returned an error, but that may not necessarily be bad, due to more meteor / node stupidity'}
+  }
+  return ret;
 }
 CLapi.internals.es.insert = function(route,data,url) {
   return CLapi.internals.es.query('POST',route,data,url);
