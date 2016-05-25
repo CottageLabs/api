@@ -82,18 +82,32 @@ var getoldblocked = function() {
       if (rec.email.indexOf(rec['emails[4]']) === -1 ) rec.email.push(rec['emails[4]']); 
       delete rec['emails[4]'];
     }
-    if (rec['emails[5]']) {
-      if (rec.email.indexOf(rec['emails[5]']) === -1 ) rec.email.push(rec['emails[5]']); 
-      delete rec['emails[5]'];
-    }
-    if (rec['emails[6]']) {
-      if (rec.email.indexOf(rec['emails[6]']) === -1 ) rec.email.push(rec['emails[6]']); 
-      delete rec['emails[6]'];
-    }
-    if (rec['emails[7]']) {
-      if (rec.email.indexOf(rec['emails[7]']) === -1 ) rec.email.push(rec['emails[7]']); 
-      delete rec['emails[7]'];
-    }
+    if (rec['emails[5]']) delete rec['emails[5]'];
+    if (rec['emails[6]']) delete rec['emails[6]'];
+    if (rec['emails[7]']) delete rec['emails[7]'];
+    if (rec['emails[8]']) delete rec['emails[8]'];
+    if (rec['emails[9]']) delete rec['emails[9]'];
+    if (rec['emails[10]']) delete rec['emails[10]'];
+    if (rec['emails[11]']) delete rec['emails[11]'];
+    if (rec['emails[12]']) delete rec['emails[12]'];
+    if (rec['emails[13]']) delete rec['emails[13]'];
+    if (rec['emails[14]']) delete rec['emails[14]'];
+    if (rec['emails[15]']) delete rec['emails[15]'];
+    if (rec['emails[16]']) delete rec['emails[16]'];
+    if (rec['emails[17]']) delete rec['emails[17]'];
+    if (rec['emails[18]']) delete rec['emails[18]'];
+    if (rec['emails[19]']) delete rec['emails[19]'];
+    if (rec['emails[20]']) delete rec['emails[20]'];
+    if (rec['emails[21]']) delete rec['emails[21]'];
+    if (rec['emails[22]']) delete rec['emails[22]'];
+    if (rec['emails[23]']) delete rec['emails[23]'];
+    if (rec['emails[24]']) delete rec['emails[24]'];
+    if (rec['emails[25]']) delete rec['emails[25]'];
+    if (rec['emails[26]']) delete rec['emails[26]'];
+    if (rec['emails[27]']) delete rec['emails[27]'];
+    if (rec['emails[28]']) delete rec['emails[28]'];
+    if (rec['emails[29]']) delete rec['emails[29]'];
+    if (rec['emails[30]']) delete rec['emails[30]'];
     if (rec.email) {
       rec.legacy.email = rec.email;
       delete rec.email;
