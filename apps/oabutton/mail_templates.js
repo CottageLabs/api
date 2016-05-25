@@ -18,10 +18,10 @@ We'll use the Open Science Framework to host, preserve, and identify your data. 
 initial metadata and licence the data CC0 (the recommended licence for sharing data).\n\n \
 We know preparing to share your data can take some time, and you're probably extremely busy, so you can put this request on hold if necessary. \
 You can tell us how long you need by just visiting the corresponding link below:\n\n \
-https://opendatabutton.org/respond/{{rid}}?hold=7days\n \
-https://opendatabutton.org/respond/{{rid}}?hold=14days\n \
-https://opendatabutton.org/respond/{{rid}}?hold=28days\n \
-https://opendatabutton.org/respond/{{rid}}?hold=refuse\n\n \
+https://opendatabutton.org/respond/{{respond}}?hold=7days\n \
+https://opendatabutton.org/respond/{{respond}}?hold=14days\n \
+https://opendatabutton.org/respond/{{respond}}?hold=28days\n \
+https://opendatabutton.org/respond/{{respond}}?hold=refuse\n\n \
 Once you've uploaded or provided a link, our community will confirm it and then you'll receive an open data badge to recognise your efforts.\n\n \
 If you have any other issues, email us at data@openaccessbutton.org.\n\n \
 Kind Regards,\n\n\n \
