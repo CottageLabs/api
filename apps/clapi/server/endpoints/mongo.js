@@ -20,6 +20,14 @@ CLapi.addRoute('mongo/remove/:coll/:rec', {
     }
   }
 });
+CLapi.addRoute('mongo/backup/:coll', {
+  roleRequired:'root',
+  get: {
+    action: function() {
+      return CLapi.internals.mongo.backup(this.urlParams.coll)
+    }
+  }
+});
 
 CLapi.internals.mongo = {};
 
@@ -32,3 +40,23 @@ CLapi.internals.mongo.delete = function(coll,rec) {
   if ( coll === 'academic_resolved' ) academic_resolved.remove(rec);
   return {status: 'success'}
 }
+
+CLapi.internals.mongo.backup = function(coll) {
+  var fs = Meteor.npmRequire('fs');
+  var outdir = Meteor.settings.mongo.backupFolder;
+  outdir += '/' + coll;
+  if (!fs.existsSync(outdir)) fs.mkdirSync(outdir);
+  var fn = outdir + '/' + Date.now() + '.json';
+  var recs;
+  if ( coll === 'oab_blocked' ) recs = OAB_Blocked.find().fetch();
+  // should change this to a loop over results without the fetch, writing into the file
+  fs.writeFileSync(fn,JSON.stringify(recs,"","  "));
+  if (recs) {
+    return {status: 'success', total: recs.length, coll: coll}
+  } else {
+    return {status:'error'}
+  }
+}
+
+
+
