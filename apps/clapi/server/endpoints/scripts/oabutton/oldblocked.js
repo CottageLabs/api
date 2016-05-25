@@ -19,6 +19,8 @@ var oldblocked = function() {
   var records = [];
   for ( var i in recs ) {
     var rec = recs[i];
+    rec.type = 'article';
+    rec.legacy = {legacy:true};
     if (rec.id !== undefined) delete rec.id;
     if (rec.metadata === undefined) rec.metadata = {};
     if (rec.story === undefined) rec.story = '';
@@ -35,7 +37,7 @@ var oldblocked = function() {
       delete rec.user_slug;
     }
     if ( rec.accessed ) {
-      rec.created_date = rec.accessed; // decide how to format created date for new system
+      rec.legacy.created_date = rec.accessed; // decide how to format created date for new system
       delete rec.accessed;
     }
     if (rec.location) {

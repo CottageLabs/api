@@ -93,13 +93,13 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
         var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
         var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
         if ( urlmatch && content.indexOf(urlmatch) !== -1 ) {
-          console.log('academic licence matched on ' + urlmatch);
+          console.log('academic licence matched on url ' + urlmatch);
           lic.licence = l;
           lic.matched = urlmatch;
           lic.matcher = m;
           break;
         } else if ( text.indexOf(match) !== -1 ) {
-          console.log('academic licence matched on ' + urlmatch);
+          console.log('academic licence matched on text ' + match);
           lic.licence = l;
           lic.matched = match;
           lic.matcher = m;

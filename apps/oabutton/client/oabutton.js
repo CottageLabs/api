@@ -95,9 +95,6 @@ Template.oabuttonrequest.requeststatus = function() {
     return 'has been received';
   }
 }
-Template.oabuttonrequest.userisadmin = function(user) {
-  return user && user.roles && user.roles.openaccessbutton && user.roles.openaccessbutton.indexOf('admin') !== -1;
-}
 
 Template.oabuttonrequest.events({
   'change #status': function() {

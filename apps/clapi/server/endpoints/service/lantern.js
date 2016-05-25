@@ -523,7 +523,7 @@ CLapi.internals.service.lantern.process = function(processid) {
             } else {
               for ( var e = 0; e < 50; e++) {
                 if (res.data[e] && res.data[e].title) {
-                  var diff = CLapi.internals.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
+                  var diff = CLapi.internals.tdm.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
                   if ( diff === 0 ) {
                     eupmc = res.data[e];
                     result.confidence = 0.9;
@@ -613,12 +613,14 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.author = eupmc.authorList.author;
       result.provenance.push('Added author list from EUPMC');
     }
-    var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
-    if (aam !== false) {
-      result.is_aam = true;
-      result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
-    } else {
-      result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');      
+    if (!result.in_epmc) {
+      var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
+      if (aam !== false) {
+        result.is_aam = true;
+        result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
+      } else {
+        result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');      
+      }
     }
   }
 
@@ -965,7 +967,6 @@ var _formatwellcome = function(result) {
     licence: 'Licence',
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
-    is_aam: 'Author Manuscript?',
     is_oa: 'Open Access?',
     confidence: 'Correct Article Confidence',
     licence_source: 'Licence source',
@@ -979,6 +980,14 @@ var _formatwellcome = function(result) {
     result: false,
     '_id': false // these listed to false just get removed from output
   }
+  if (result.in_epmc) {
+    result['Author Manuscript?'] = "not applicable";
+  } else if (result.is_aam) {
+    result['Author Manuscript?'] = "TRUE";
+  } else {
+    result['Author Manuscript?'] = "FALSE";
+  }
+  delete result.is_aam;
   if (result.aheadofprint === false) {
     result['Ahead of Print?'] = 'FALSE';
   } else if (result.aheadofprint) {
@@ -991,8 +1000,8 @@ var _formatwellcome = function(result) {
   delete result.aheadofprint;
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
-  var lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'').replace(/-/g,'') : '';
-  var lics = lic.indexOf('ccby') !== -1 || lic.indexOf('cc0') !== -1 ? true : false;
+  var lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
+  var lics = lic === 'cc-by' || lic === 'cc0' ? true : false;
   if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
   if (result.in_epmc && result.licence_source.indexOf('epmc') === 0 && lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';

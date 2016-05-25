@@ -157,7 +157,7 @@ CLapi = new Restivus({
 });
 
 // set a place to store internal methods - add a key whenever a new folder is added into the API endpoints folder
-CLapi.internals = {accounts:{}, academic:{}, use:{}, service:{}, convert:{}, scripts:{}, contentmine: {}};
+CLapi.internals = {accounts:{}, academic:{}, use:{}, service:{}, convert:{}, scripts:{}, tdm: {}};
 
 CLapi.addRoute('/', {
   get: {

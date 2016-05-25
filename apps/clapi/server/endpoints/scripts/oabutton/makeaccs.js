@@ -26,7 +26,8 @@ var makeaccs = function(execute) {
           Roles.addUsersToRoles(userId, 'user', 'openaccessbutton');
         } catch(err) {
           output.errors += 1;
-          console.log(err);
+          console.log(rec.email);
+          //console.log(err);
         }
       }
       output.created += 1;
