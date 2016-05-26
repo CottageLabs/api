@@ -771,7 +771,7 @@ CLapi.internals.service.lantern.process = function(processid) {
   }
   
   // if license could not be found yet, call academic/licence to get info from the splash page
-  if (!result.licence) {
+  if (!result.licence || result.licence === 'unknown') {
     var url;
     if (result.doi) {
       url = CLapi.internals.academic.doiresolve(result.doi);
