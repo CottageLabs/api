@@ -146,7 +146,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     })(resolved);
     if (info.retrievable) {
       for ( var k in info ) licence[k] = info[k];
-      if (refresh) {
+      if (exists && refresh) {
         academic_licence.update(exists._id,{$set:licence});
       } else {
         academic_licence.insert(licence);
