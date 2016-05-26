@@ -38,6 +38,15 @@
 
   </head>
 
+  <script>
+  jQuery(document).ready(function() {
+    var loc = window.location.href;
+    if (loc.indexOf('openaccessbutton') !== -1) {
+      $('#biggie').css({'background-color':'#f04717'});
+    }
+  });
+  </script>
+
   <div class="navbar navbar-fixed-top" style="background-color:white;">
     <div class="container-fluid">
       <div class="navbar-header">
@@ -46,9 +55,11 @@
           <span class="glyphicon glyphicon-list"></span>
         </button>
         <ul class="nav navbar-nav">
-          <li><img class="img" src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:52px;padding-top:2px;"></li>
-          <li><a href="https://opendatabutton.org" style="font-size:18px;">Open Data Button</a></li>
-          <li><p style="padding-top:10px;"><small>&lt;beta&gt;</small></p></li>
+          <li class="oab" style="display:none;"><img class="img" src="/static/oabutton_logo_final200.png" style="height:54px;padding-top:2px;"></li>
+          <li class="oab" style="display:none;"><a href="https://openaccessbutton.org" style="font-size:18px;">Open Access Button</a></li>
+          <li class="odb"><img class="img" src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:52px;padding-top:2px;"></li>
+          <li class="odb"><a href="https://opendatabutton.org" style="font-size:18px;">Open Data Button</a></li>
+          <li class="odb"><p style="padding-top:10px;"><small>&lt;beta&gt;</small></p></li>
         </ul>
       </div>
       <div class="navbar-collapse collapse">
@@ -61,7 +72,7 @@
           <li><a href="/account">Your account</a></li>
           {{else}}
           <li><a href="/login">Login</a></li>
-          <li style="background-color:#398bc5;;color:#212f3f;height:55px;z-index:10000;
+          <li id="biggie" style="background-color:#398bc5;color:#212f3f;height:55px;z-index:10000;
           -webkit-border-bottom-right-radius: 5px;-webkit-border-bottom-left-radius: 5px;
           -moz-border-radius-bottomright: 5px;-moz-border-radius-bottomleft: 5px;border-bottom-right-radius: 5px;border-bottom-left-radius: 5px;">
           <a href="/login" style="font-size:1.2em;font-weight:bold;">Download</a></li>
