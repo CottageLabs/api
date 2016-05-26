@@ -613,7 +613,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.author = eupmc.authorList.author;
       result.provenance.push('Added author list from EUPMC');
     }
-    if (!result.in_epmc) {
+    if (result.in_epmc) {
       var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
       if (aam !== false) {
         result.is_aam = true;
@@ -980,7 +980,7 @@ var _formatwellcome = function(result) {
     result: false,
     '_id': false // these listed to false just get removed from output
   }
-  if (result.in_epmc) {
+  if (!result.in_epmc) {
     result['Author Manuscript?'] = "not applicable";
   } else if (result.is_aam) {
     result['Author Manuscript?'] = "TRUE";
