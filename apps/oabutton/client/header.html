@@ -38,15 +38,6 @@
 
   </head>
 
-  <script>
-  jQuery(document).ready(function() {
-    var loc = window.location.href;
-    if (loc.indexOf('openaccessbutton') !== -1) {
-      $('#biggie').css({'background-color':'#f04717'});
-    }
-  });
-  </script>
-
   <div class="navbar navbar-fixed-top" style="background-color:white;">
     <div class="container-fluid">
       <div class="navbar-header">
@@ -55,7 +46,7 @@
           <span class="glyphicon glyphicon-list"></span>
         </button>
         <ul class="nav navbar-nav">
-          <li class="oab" style="display:none;"><img class="img" src="/static/oabutton_logo_final200.png" style="height:54px;padding-top:2px;"></li>
+          <li class="oab" style="display:none;"><img class="img" src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:54px;padding-top:2px;"></li>
           <li class="oab" style="display:none;"><a href="https://openaccessbutton.org" style="font-size:18px;">Open Access Button</a></li>
           <li class="odb"><img class="img" src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:52px;padding-top:2px;"></li>
           <li class="odb"><a href="https://opendatabutton.org" style="font-size:18px;">Open Data Button</a></li>
@@ -81,5 +72,16 @@
       </div>
     </div>
   </div>
+
+  <script>
+  jQuery(document).ready(function() {
+    var loc = window.location.href;
+    if (loc.indexOf('openaccessbutton') !== -1 || loc.indexOf('cottagelabs') !== -1) {
+      $('#biggie').css({'background-color':'#f04717'});
+      $('.odb').hide();
+      $('.oab').show();
+    }
+  });
+  </script>
 
 </template>
