@@ -1001,7 +1001,7 @@ var _formatwellcome = function(result) {
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
   var lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
-  var lics = lic === 'cc-by' || lic === 'cc0' ? true : false;
+  var lics = lic === 'cc-by' || lic === 'cc0' || lic === 'cc-zero' ? true : false;
   if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
   if (result.in_epmc && result.licence_source.indexOf('epmc') === 0 && lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
