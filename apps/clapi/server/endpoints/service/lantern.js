@@ -177,12 +177,17 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         fields = fields.concat([
           'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?',
-          'Open Access?','Licence','Licence source','Journal Type','Correct Article Confidence'
+          'Open Access?','Journal Type','Correct Article Confidence'
         ]);
         if (format === 'wellcome') {
           fields.push('Standard Compliance?');
           fields.push('Deluxe Compliance?');
+          fields.push('Publisher Licence');
+          fields.push('EPMC Licence');
+          fields.push('EPMC Licence source');
         } else {
+          fields.push('Licence');
+          fields.push('Licence source');
           fields.push('Preprint Embargo');
           fields.push('Preprint Self-archiving Policy');
           fields.push('Postprint Embargo');
@@ -478,8 +483,10 @@ CLapi.internals.service.lantern.process = function(processid) {
     is_oa: false, // set to true if eupmc or other source says is oa
     aheadofprint: undefined, // if pubmed returns a date for this, it will be a date
     has_fulltext_xml: false, // set to true if oa and in epmc and can retrieve fulltext xml from eupmc rest API url
-    licence: 'unknown', // what sort of licence this has - should be a string like "cc by"
+    licence: 'unknown', // what sort of licence this has - should be a string like "cc-by"
+    epmc_licence: 'unknown', // the licence in EPMC, should be a string like "cc-by"
     licence_source: 'unknown', // where the licence info came from
+    epmc_licence_source: 'unknown', // where the EPMC licence info came from (fulltext xml, EPMC splash page, etc.)
     romeo_colour: undefined, // the sherpa romeo colour
     embargo: undefined, // embargo data from romeo
     archiving: undefined, // sherpa romeo archiving data
@@ -606,14 +613,21 @@ CLapi.internals.service.lantern.process = function(processid) {
     var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc);
     if (lic !== false) {
       result.licence = lic.licence;
+      result.epmc_licence = lic.licence;
       result.licence_source = lic.source;
+      result.epmc_licence_source = lic.source;
       result.provenance.push('Added licence from ' + lic.source);
+      result.provenance.push('Added EPMC licence from ' + lic.source);
+
+      // result.licence and result.licence_source can be overwritten later by
+      // the academic licence detection (what OAG used to do), but we will keep the
+      // EPMC information separately.
     }
     if (eupmc.authorList && eupmc.authorList.author) {
       result.author = eupmc.authorList.author;
       result.provenance.push('Added author list from EUPMC');
     }
-    if (!result.in_epmc) {
+    if (result.in_epmc) {
       var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
       if (aam !== false) {
         result.is_aam = true;
@@ -771,7 +785,8 @@ CLapi.internals.service.lantern.process = function(processid) {
   }
   
   // if license could not be found yet, call academic/licence to get info from the splash page
-  if (!result.licence) {
+  if (!result.licence || result.licence === 'unknown' || (result.licence != 'cc-by' && result.licence != 'cc-zero')) {
+    console.log('Running publisher academic licence detection');
     var url;
     if (result.doi) {
       url = CLapi.internals.academic.doiresolve(result.doi);
@@ -964,12 +979,13 @@ var _formatwellcome = function(result) {
     pmid: 'PMID',
     publisher: 'Publisher',
     title: 'Article title',
-    licence: 'Licence',
+    licence: "Publisher Licence",
+    epmc_licence: 'EPMC Licence',
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
     is_oa: 'Open Access?',
     confidence: 'Correct Article Confidence',
-    licence_source: 'Licence source',
+    epmc_licence_source: 'EPMC Licence source',
     romeo_colour: false,
     embargo: false,
     archiving: false,
@@ -979,8 +995,18 @@ var _formatwellcome = function(result) {
     process: false,
     result: false,
     '_id': false // these listed to false just get removed from output
+  };
+  if (result.epmc_licence !== 'unknown' && result.licence_source == result.epmc_licence_source) {
+    // Did we look up a separate licence on the publisher website? If so, we want to display it.
+    // But if we've branched into here, then we did not do a separate look up
+    // (i.e. we were happy with EPMC results). So the "Publisher Licence" column should say "not applicable".
+
+    // There is one exception: if both licence_source and epmc_licence_source say "unknown", then obviously
+    // Publisher Licence is applicable, and should say "unknown". We don't want to change an "unknown" into a
+    // "not applicable". So we only set Publisher Licence to "not applicable" if a licence *was* found in EPMC.
+    result.licence = "not applicable";
   }
-  if (result.in_epmc) {
+  if (!result.in_epmc) {
     result['Author Manuscript?'] = "not applicable";
   } else if (result.is_aam) {
     result['Author Manuscript?'] = "TRUE";
@@ -1000,8 +1026,13 @@ var _formatwellcome = function(result) {
   delete result.aheadofprint;
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
-  var lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
-  var lics = lic === 'cc-by' || lic === 'cc0' ? true : false;
+  var compliance_lic;
+  if (result.licence === 'not applicable') {
+    compliance_lic = result.epmc_licence ? result.epmc_licence.toLowerCase().replace(/ /g,'') : '';
+  } else {
+    compliance_lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
+  }
+  var lics = compliance_lic === 'cc-by' || compliance_lic === 'cc0' || compliance_lic === 'cc-zero' ? true : false;
   if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
   if (result.in_epmc && result.licence_source.indexOf('epmc') === 0 && lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
@@ -1101,6 +1132,8 @@ var _formatlantern = function(result) {
     licence_source: 'Licence source',
     romeo_colour: 'Sherpa Romeo colour',
     in_core: 'In CORE?',
+    epmc_licence: false,
+    epmc_licence_source: false,
     createdAt: false,
     process: false,
     result: false,
