@@ -4,9 +4,9 @@ Template.managegroup.group = function() {
   if (!g) g = {_id:Session.get("gid"),nogroup:true};
   return g;
 }
-Template.managegroup.groupusers = function() {
+/*Template.managegroup.groupusers = function() {
   return Meteor.users.find();
-}
+}*/
 Template.managegroup.userscount = function() {
   return Meteor.users.find().count();
 }
@@ -23,7 +23,53 @@ Template.managegroup.rolenames = function(uacc) {
   return keys;
 };
 
+Template.managegroup.founduser = function() {
+  if (Session.get('selecteduser')) {
+    return Meteor.users.findOne(Session.get('selecteduser'));
+  } else {
+    return false;
+  }
+}
+
+Template.managegroup.rendered = function() {
+  Meteor.typeahead.inject();
+};
+Template.managegroup.helpers({
+  usersearch: function() {
+    return Meteor.users.find().fetch().map(function(it){ 
+      var ret = '';
+      if (it.username) ret += it.username;
+      if (it.emails && it.emails.length > 0 ) {
+        if (ret.length > 0) ret += ' - ';
+        ret += it.emails[0].address;
+      }
+      if (ret.length === 0) ret = 'ID ' + it._id;
+      return ret; 
+    });
+  },
+  userblocks: function(uacc) {
+    return OAB_Blocked.find({'user':uacc._id}).count();
+  },
+  userrequests: function(uacc) {
+    return OAB_Request.find({'user':uacc._id}).count();    
+  }
+});
+
+Template.registerHelper('searchedemail', function() {
+  return Session.get("searchedemail");
+});
+
 Template.managegroup.events({
+  "click #finduser": function(event) {
+    Session.set('searchedemail',undefined);
+    Session.set('selecteduser',undefined);
+    var vs = $('#usersearch').val().split(' - ');
+    var v = vs.length === 1 ? vs[0] : vs[1];
+    var u = Meteor.users.findOne({'emails.address':v});
+    Session.set('searchedemail',v);
+    if (u === undefined) u = Meteor.users.findOne(v.replace('ID ',''));
+    if (u !== undefined) Session.set('selecteduser',u._id);
+  },
   "click #adduser": function(event) {
     Meteor.call('addusertogroup',$('#newuser').val(),Session.get("gid"));
   },
@@ -67,10 +113,9 @@ UI.registerHelper('usergroups', function(uacc,filter) {
   return u;
 });
 
-UI.registerHelper('isadmin', function(uacc, group) {
-  if (uacc === null || uacc === undefined) return false;
-  if (group === undefined) group = Session.get("gid");
-  return (uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
+UI.registerHelper('isadmin', function(uacc) {
+  var group = Session.get("gid");
+  return (group && uacc && uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
 });
 
 UI.registerHelper('isroot', function(uacc) {
@@ -93,34 +138,29 @@ UI.registerHelper('equals', function(x,y) {
 
 
 Template.manage_openaccessbutton.onRendered(function() {
-  if ( _.isEmpty(Session.get('usersblocked')) ) {
-    Meteor.call('usersblocked', function(err, result) {
-      Session.set('usersblocked', result);
-    });
-  }
-  if ( _.isEmpty(Session.get('usersrequested')) ) {
-    Meteor.call('usersrequested', function(err, result) {
-      Session.set('usersrequested', result);
+  if ( _.isEmpty(Session.get('userstats')) ) {
+    Meteor.call('userstats', function(err, result) {
+      Session.set('userstats', result);
     });
   }
 });
 
-Template.manage_openaccessbutton.requestscount = function(status) {
+Template.manage_openaccessbutton.requestscount = function(status,type) {
   var filter = {};
   if (status) filter.status = status;
+  if (type) filter.type = type;
   return OAB_Request.find(filter).count();
 }
 Template.manage_openaccessbutton.requestssuccesscount = function() {
   return OAB_Request.find({success:true}).count();
 }
-Template.manage_openaccessbutton.blockedcount = function() {
-  return OAB_Blocked.find().count();
+Template.manage_openaccessbutton.blockedcount = function(type) {
+  var filter = {};
+  if (type) filter.type = type;
+  return OAB_Blocked.find(filter).count();
 }
-Template.manage_openaccessbutton.usersblocked = function() {
-  return Session.get('usersblocked');
-}
-Template.manage_openaccessbutton.usersrequested = function() {
-  return Session.get('usersrequested');
+Template.manage_openaccessbutton.userstats = function() {
+  return Session.get('userstats');
 }
 Template.manage_openaccessbutton.userblocked = function(uid) {
   return OAB_Blocked.find({user:uid}).count();

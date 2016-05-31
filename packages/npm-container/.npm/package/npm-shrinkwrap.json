@@ -216,6 +216,11 @@
         }
       }
     },
+    "node-uuid": {
+      "version": "1.4.7",
+      "resolved": "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.7.tgz",
+      "from": "node-uuid@1.4.7"
+    },
     "request": {
       "version": "2.61.0",
       "resolved": "https://registry.npmjs.org/request/-/request-2.61.0.tgz",

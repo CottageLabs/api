@@ -97,10 +97,20 @@ CLapi.internals.convert.xml2txt = function(url,content,html) {
 
 CLapi.internals.convert.file2txt = Async.wrap(function(url, content, callback) {
   var textract = Meteor.npmRequire('textract');
+  // NOTE extracting pdf requires pdftotext to be installed on the machine
+  // https://www.npmjs.com/package/textract
+  // http://www.foolabs.com/xpdf/download.html
+  // or may be better off just using pdf2json https://www.npmjs.com/package/pdf2json
   // if we have content rather than url do this a different way...
-  textract.fromUrl(url, function( err, result ) {
-    return callback(null,result);
-  });
+  if (url) {
+    textract.fromUrl(url, function( err, result ) {
+      return callback(null,result);
+    });
+  } else {
+    textract.fromBufferWithMime('application/pdf',content, function( err, result ) {
+      return callback(null,result);
+    });
+  }
 });
 
 CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {

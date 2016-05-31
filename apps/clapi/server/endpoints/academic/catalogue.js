@@ -49,7 +49,7 @@ CLapi.internals.academic.catalogue.save = function(record,date) {
   // save a record into the catalogue?
 }
 
-CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources) {
+CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources,retrieve) {
   var dated = function( delim, less ) {
       if ( delim === undefined ) delim = '';
       if ( less === undefined ) less = 1;
@@ -65,10 +65,12 @@ CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources
   if (date === undefined) date = dated();
   if (resolve === undefined) resolve = true;
   if (sources === undefined) sources = ['crossref','europepmc'];
+  if (retrieve === undefined) retrieve = true;
   var exists = false; // TODO check to see if an index has already been made for today
   if (exists && !refresh) {
     return {status: 'success', data: exists.total} // get the total in the index
   } else {    
+    var uuid = Meteor.npmRequire('node-uuid');
     var records = [];
     var from, size, total, first, res, result;
     
@@ -104,6 +106,7 @@ CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources
               var rs = CLapi.internals.academic.resolve(result.doi);
               result.resolved = {url:rs.url,source:rs.source,cookie:rs.cookie};
             }
+            result._id = uuid.v4();
             records.push(result);
           }
         }
@@ -152,6 +155,7 @@ CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources
               var reus = CLapi.internals.academic.resolve(w);
               result.resolved = {url:reus.url,source:reus.source,cookie:reus.cookie};
             }
+            result._id = uuid.v4();
             records.push(result);
           }
         }
@@ -159,9 +163,31 @@ CLapi.internals.academic.catalogue.daily = function(date,refresh,resolve,sources
       }
     }
     // TODO: add more sources to check in, and update the sources list to show where we checked    
+    if (retrieve) {
+      var fs = Meteor.npmRequire('fs');
+      // TODO create a folder in the store named by todays date
+      for ( var rr in records ) {
+        var rc = records[rr];
+        if (rc.resolved && rc.resolved.url ) {
+          var cookie = '';
+          if (rc.resolved.cookie) {
+            var resp = Meteor.http.call('GET',rc.resolved.cookie);
+            if (resp.headers['set-cookie']) cookie = resp.headers['set-cookie'].join( "; " );
+          }
+          var fl = Meteor.http.call('GET',rc.resolved.url,{npmRequestHeaders:{'Set-Cookie':cookie}}); // TODO check is this how to pass in the cookie
+          // fs.mkDirSync(); // TODO create a folder in todays date with the uuid of this record
+          // fs.writeFileSync() // TODO write the file using sanitised URL and then put the fl content into the file
+          try {
+            // TODO file2txt needs to accept content instead of url
+            // OR just upload the file itself as an attachment and let es deal with it directly?
+            // if so how will this work with a bulk upload? need to send separately after record creation?
+            // records[rr].content = CLapi.internals.convert.file2txt(fl);
+          } catch(err) {}
+        }
+      }
+    }
     Claoi.internals.es.delete('/catalogue/' + date);
     CLapi.internals.es.import(records,false,'catalogue',date);
-    // TODO: for every record, try to resolve it and retrieve the content for it, and save that into a store
     return {status: 'success', data: records.length}
   }
 }

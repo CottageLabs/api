@@ -57,6 +57,77 @@
 </template>
 
 <template name="managegroup">
+  
+  <style>
+  .typeahead,
+  .tt-query,
+  .tt-hint {
+    width: 396px;
+    padding: 8px 12px;
+    line-height: 30px;
+    border: 2px solid #ccc;
+    -webkit-border-radius: 8px;
+       -moz-border-radius: 8px;
+            border-radius: 8px;
+    outline: none;
+  }
+
+  .typeahead {
+    background-color: #fff;
+  }
+
+  .typeahead:focus {
+    border: 2px solid #0097cf;
+  }
+
+  .tt-query {
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+       -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+            box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+  }
+
+  .tt-hint {
+    color: #999
+  }
+
+  .tt-menu {
+    width: 422px;
+    margin: 4px 0;
+    padding: 8px 0;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    -webkit-border-radius: 8px;
+       -moz-border-radius: 8px;
+            border-radius: 8px;
+    -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+       -moz-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+            box-shadow: 0 5px 10px rgba(0,0,0,.2);
+  }
+
+  .tt-suggestion {
+    padding: 3px 20px;
+    font-size: 18px;
+    line-height: 24px;
+  }
+
+  .tt-suggestion:hover {
+    cursor: pointer;
+    color: #fff;
+    background-color: #0097cf;
+  }
+
+  .tt-suggestion.tt-cursor {
+    color: #fff;
+    background-color: #0097cf;
+
+  }
+
+  .tt-suggestion p {
+    margin: 0;
+  }
+  </style>
+  
   <div class="container-fluid">
     <div class="row">
       <div class="col-md-12">
@@ -75,32 +146,32 @@
         <h2>{{userscount}} users</h2>
         {{#if isroot currentUser}}
         <p>
-          <input class="form-control" id="newuser" style="width:200px;display:inline;margin-top:2px;" placeholder="search users">
-          <a href="#" class="btn btn-default" id="inviteuser">Invite user</a>
-          <a href="#" class="btn btn-default" id="adduser">Add user</a>
+          <input class="form-control typeahead" name="usersearch" id="usersearch" type="text"
+            placeholder="search users" autocomplete="on" spellcheck="off" data-source="usersearch">
+          <!--<input class="form-control" id="newuser" style="width:200px;display:inline;margin-top:2px;" placeholder="search users">-->
+          <a href="#" class="btn btn-default" id="finduser">Find user</a>
         </p>
         {{/if}}
-        <table class="table table-striped table-bordered"><thead></thead><tbody>
-          {{#each groupusers}}
-          <tr>
-            <td>{{userhandle this}}</td>
-            <td>{{rolenames this}}</td>
-            <td>
-              {{#if isadmin this}}
-              <a class="btn btn-info" href="#" id="removeadmin" user="{{userhandle this}}">Remove admin role</a>
-              {{else}}
-              <a class="btn btn-default" href="#" id="makeadmin" user="{{userhandle this}}">Add admin role</a>
-              {{/if}}
-            </td>
-            <td>
-              <a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle this}}">Remove user</a>
-              <!--<a class="btn btn-default" href="#">View</a>
-              <a class="btn btn-default" href="#">Email</a>
-              <a class="btn btn-default" href="#">Ban</a>-->
-            </td>
-          </tr>
-          {{/each}}
-        </tbody></table>
+        {{#if founduser}}
+        <div class="well">
+          <p>{{userhandle founduser}}</p>
+          <p>{{rolenames founduser}}</p>
+          {{#if isadmin founduser}}
+          <p><a class="btn btn-info" href="#" id="removeadmin" user="{{userhandle founduser}}">Remove admin role</a></p>
+          {{else}}
+          <p><a class="btn btn-default" href="#" id="makeadmin" user="{{userhandle founduser}}">Add admin role</a></p>
+          {{/if}}
+          <p><a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle founduser}}">Remove user</a></p>
+          <p>
+            Blocked {{userblocks founduser}} times and submitted {{userrequests founduser}} requests.
+          </p>
+        </div>
+        {{else}}
+        {{#if searchedemail}}
+        <!--<p><a href="#" class="btn btn-default" id="inviteuser">Invite user</a></p>-->
+        <p>No user found for {{searchedemail}} <a href="#" class="btn btn-default" id="adduser">Add user</a></p>
+        {{/if}}
+        {{/if}}
         
       </div>
     </div>
@@ -114,12 +185,19 @@
 
 
 <template name="manage_openaccessbutton">
-  <p>{{blockedcount}} stories (block events) have been recorded by {{usersblocked}} users</p>
-  <p>{{requestscount}} requests have been recorded by {{usersrequested}} users</p>
-  <p>{{requestscount 'moderate'}} requests are in moderation, {{requestscount 'progress'}} in progress, {{requestscount 'hold'}} on hold, 
-    {{requestscount 'refused'}} refused, and {{requestscount 'provided'}} provided</p>
-  <p>Option to email users filtered by X?</p>
-  <p>Option to email requestees filtered by X?</p>
+  <p>(Managing openaccessbutton includes managing opendatabutton)</p>
+  <p>For opendatabutton, {{blockedcount 'data'}} stories (block events) have been recorded by {{userstats.data.blocked}} users, 
+    and {{requestscount undefined 'data'}} requests have been submitted by {{userstats.data.requested}} users.</p>
+  <p>{{requestscount 'moderate' 'data'}} data requests are in moderation, {{requestscount 'progress' 'data'}} in progress, 
+    {{requestscount 'hold' 'data'}} on hold, {{requestscount 'refused' 'data'}} refused, and {{requestscount 'provided' 'data'}} provided</p>
+
+  <p>For openaccessbutton, {{blockedcount 'article'}} stories (block events) have been recorded by {{userstats.article.blocked}} users, 
+  and {{requestscount undefined 'article'}} requests have been submitted by {{userstats.article.requested}} users.</p>
+  <p>{{requestscount 'moderate' 'article'}} article requests are in moderation, {{requestscount 'progress' 'article'}} in progress, 
+    {{requestscount 'hold' 'article'}} on hold, {{requestscount 'refused' 'article'}} refused, and {{requestscount 'provided' 'article'}} provided</p>
+
+  <p>Filter users: </p>
+  <p>Option to email or export filtered set</p>
 </template>
 
 <template name="manage_cottagelabs">
