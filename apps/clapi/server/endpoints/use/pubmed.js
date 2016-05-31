@@ -60,18 +60,14 @@ CLapi.internals.use.pubmed.pmid = function(pmid) {
 }
 
 CLapi.internals.use.pubmed.aheadofprint = function(pmid) {
-  var info = CLapi.internals.use.pubmed.pmid(pmid);
-  if (info.status === 'success') {
-    var ret = false;
-    if (info.data && info.data.History) {
-      for ( var h in info.data.History) {
-        if (info.data.History[h].aheadofprint !== undefined) ret = info.data.History[h].aheadofprint;
-      }
-    }
-    return ret;
-  } else {
-    return false;
+  var pubmed_xml_url = 'http://www.ncbi.nlm.nih.gov/pubmed/' + pmid + '?report=xml';
+  console.log('pubmed web UI GET to ' + pubmed_xml_url);
+  var res = Meteor.http.call('GET', pubmed_xml_url);
+  if (res.content !== undefined) {
+    // if "aheadofprint" is present here, then the article is an Ahead of Print article
+    var aheadofprint = res.content.indexOf('PublicationStatus&gt;aheadofprint&lt;/PublicationStatus') !== -1;
   }
+  return aheadofprint;
 }
 
 
