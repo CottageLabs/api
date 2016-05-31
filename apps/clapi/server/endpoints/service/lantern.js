@@ -364,16 +364,16 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
   var job = {};
   if (input.email) {
     job.email = input.email;
-    if (!uid) {
-      user = Meteor.users.findOne({"emails.address":input.email});
-      if (user) job.user = user._id;
-    }
+    // if (!uid) {
+    //   user = Meteor.users.findOne({"emails.address":input.email});
+    //   if (user) job.user = user._id;
+    // }
   }
-  if (uid) {
-    user = Meteor.users.findOne(uid);
-    job.email = user.emails[0].address;
-    job.user = uid;
-  }
+  // if (uid) {
+  //   user = Meteor.users.findOne(uid);
+  //   job.email = user.emails[0].address;
+  //   job.user = uid;
+  // }
   // for now if no uid assume a wellcome user in which case refresh needs to be set to 7
   // should really be a check on the user setting, and/or the refresh number already passed in from the request
   if (!user) refresh = 7;
