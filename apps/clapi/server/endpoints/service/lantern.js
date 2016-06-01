@@ -206,14 +206,17 @@ CLapi.addRoute('service/lantern/:job/results', {
           fields.push('Publishers Copy Embargo');
           fields.push('Publishers Copy Self-archiving Policy');
         }
+
+        if (format === 'wellcome') {
+          fields.push('Compliance Processing Output');
+        }
+        
         for ( var gi=0; gi < grantcount; gi++) {
           fields.push('Grant ' + (parseInt(gi)+1));
           fields.push('Agency ' + (parseInt(gi)+1));
           fields.push('PI ' + (parseInt(gi)+1));
         }
-        if (format === 'wellcome') {
-          fields.push('Compliance Processing Output');
-        } else {
+        if (format !== 'wellcome') {
           fields.push('Provenance');          
         }
         var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
