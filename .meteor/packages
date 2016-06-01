@@ -40,3 +40,5 @@ json-routes-mm
 restivus-mm
 meteorhacks:cluster
 sergeyt:typeahead
+tomi:upload-server
+tomi:upload-jquery
