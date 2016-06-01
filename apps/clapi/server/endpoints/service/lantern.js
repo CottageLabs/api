@@ -171,23 +171,34 @@ CLapi.addRoute('service/lantern/:job/results', {
             if (job.list[0][ffields[fld]] !== undefined) fields.push(ffields[fld]);
           }
         }
+
         if (format !== 'wellcome') {
           fields.push('In CORE?');
           fields.push('Archived repositories');
         }
+
         fields = fields.concat([
           'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?',
-          'Open Access?','Journal Type','Correct Article Confidence'
+          'Open Access?'
         ]);
+
         if (format === 'wellcome') {
-          fields.push('Standard Compliance?');
-          fields.push('Deluxe Compliance?');
-          fields.push('Publisher Licence');
           fields.push('EPMC Licence');
           fields.push('EPMC Licence source');
+          fields.push('Publisher Licence');
         } else {
           fields.push('Licence');
           fields.push('Licence source');
+        }
+
+        fields = fields.concat([
+          'Journal Type','Correct Article Confidence'
+        ]);
+
+        if (format === 'wellcome') {
+          fields.push('Standard Compliance?');
+          fields.push('Deluxe Compliance?');
+        } else {
           fields.push('Preprint Embargo');
           fields.push('Preprint Self-archiving Policy');
           fields.push('Postprint Embargo');
