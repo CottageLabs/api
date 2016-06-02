@@ -210,7 +210,7 @@ CLapi.addRoute('service/lantern/:job/results', {
         if (format === 'wellcome') {
           fields.push('Compliance Processing Output');
         }
-        
+
         for ( var gi=0; gi < grantcount; gi++) {
           fields.push('Grant ' + (parseInt(gi)+1));
           fields.push('Agency ' + (parseInt(gi)+1));
@@ -632,6 +632,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.epmc_licence_source = lic.source;
       result.provenance.push('Added licence from ' + lic.source);
       result.provenance.push('Added EPMC licence from ' + lic.source);
+      // TODO record url and statement that matched as well
 
       // result.licence and result.licence_source can be overwritten later by
       // the academic licence detection (what OAG used to do), but we will keep the
@@ -800,6 +801,7 @@ CLapi.internals.service.lantern.process = function(processid) {
   
   // if license could not be found yet, call academic/licence to get info from the splash page
   if (!result.licence || result.licence === 'unknown' || (result.licence != 'cc-by' && result.licence != 'cc-zero')) {
+    result.publisher_licence_check_ran = true;
     console.log('Running publisher academic licence detection');
     var url;
     if (result.doi) {
@@ -818,11 +820,17 @@ CLapi.internals.service.lantern.process = function(processid) {
       if (lic.licence && lic.licence !== 'unknown') {
         result.licence = lic.licence;
         result.licence_source = 'publisher_splash_page';
+        // TODO Wellcome with their split licence column ended up needing to know the publisher licence separately, but
+        // this duplicates (some) information with the .licence result field, probably worth refactoring.
+        result.publisher_licence = lic.licence;
         result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG)');
       } else {
-        result.provenance.push('Unable to retrieve licence data via article splash page lookup (used to be OAG)');    
+        result.publisher_licence = 'unknown';
+        result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG)');
       }
     }
+  } else {
+    result.publisher_licence_check_ran = false;
   }
   
   lantern_results.insert(result); // make sure it sets the result with the id of the process, added above
@@ -993,7 +1001,7 @@ var _formatwellcome = function(result) {
     pmid: 'PMID',
     publisher: 'Publisher',
     title: 'Article title',
-    licence: "Publisher Licence",
+    publisher_licence: "Publisher Licence",
     epmc_licence: 'EPMC Licence',
     in_epmc: 'Fulltext in EPMC?',
     has_fulltext_xml: 'XML Fulltext?',
@@ -1008,17 +1016,21 @@ var _formatwellcome = function(result) {
     createdAt: false,
     process: false,
     result: false,
+    publisher_licence_check_ran: false,
     '_id': false // these listed to false just get removed from output
   };
-  if (result.epmc_licence !== 'unknown' && result.licence_source == result.epmc_licence_source) {
+  if (!result.publisher_licence_check_ran && result.publisher_licence !== 'unknown') {
     // Did we look up a separate licence on the publisher website? If so, we want to display it.
     // But if we've branched into here, then we did not do a separate look up
     // (i.e. we were happy with EPMC results). So the "Publisher Licence" column should say "not applicable".
 
-    // There is one exception: if both licence_source and epmc_licence_source say "unknown", then obviously
+    // There is one exception: if we did a publisher site licence lookup but got nothing, then obviously
     // Publisher Licence is applicable, and should say "unknown". We don't want to change an "unknown" into a
-    // "not applicable". So we only set Publisher Licence to "not applicable" if a licence *was* found in EPMC.
-    result.licence = "not applicable";
+    // "not applicable".
+    result.publisher_licence = "not applicable";
+  }
+  if (result.publisher_licence === undefined) {
+    result.publisher_licence = 'unknown';
   }
   if (!result.in_epmc) {
     result['Author Manuscript?'] = "not applicable";
@@ -1040,12 +1052,7 @@ var _formatwellcome = function(result) {
   delete result.aheadofprint;
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
-  var compliance_lic;
-  if (result.licence === 'not applicable') {
-    compliance_lic = result.epmc_licence ? result.epmc_licence.toLowerCase().replace(/ /g,'') : '';
-  } else {
-    compliance_lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
-  }
+  var compliance_lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
   var lics = compliance_lic === 'cc-by' || compliance_lic === 'cc0' || compliance_lic === 'cc-zero' ? true : false;
   if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
@@ -1151,6 +1158,8 @@ var _formatlantern = function(result) {
     createdAt: false,
     process: false,
     result: false,
+    publisher_licence_check_ran: false,
+    publisher_licence: false,
     '_id': false // these listed to false just get removed from output
   }
   if (result.aheadofprint === false) {
