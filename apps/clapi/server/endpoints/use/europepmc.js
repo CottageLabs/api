@@ -261,12 +261,15 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
     if (fulltext && fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+      // console.log("First call for AAM XML");
       return 'Y_IN_EPMC_FULLTEXT';
     } else if ( pmcid ) {
       var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+        // console.log("Different call for AAM XML");
         return 'Y_IN_EPMC_FULLTEXT';
       } else {
+        // console.log('AAM info not found in XML, trying HTML.')
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
           var pg = Meteor.http.call('GET',url);
@@ -279,6 +282,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
             if (page.indexOf(s1) !== -1 || page.indexOf(s2) !== -1 || page.indexOf(s3) !== -1 || page.indexOf(s4) !== -1) {
               return 'Y_IN_EPMC_SPLASHPAGE';
             } else {
+              // console.log('AAM info not found in HTML');
               return false;
             }
           } else {

@@ -654,7 +654,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.provenance.push('Added author list from EUPMC');
     }
     if (result.in_epmc) {
-      var aam = CLapi.internals.use.europepmc.authorManuscript(undefined,eupmc);
+      var aam = CLapi.internals.use.europepmc.authorManuscript(result.pmcid,eupmc);
       if (aam !== false) {
         result.is_aam = true;
         result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
