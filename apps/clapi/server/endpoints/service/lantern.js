@@ -42,6 +42,9 @@ lantern_processes.findByIdentifier = function(idents) {
   if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
+  if (m.length === 0) {  // causes a Mongo error otherwise, since Mongo does not like $or: [] in the queries below
+    return undefined;
+  }
   return lantern_processes.findOne({$or: m});
 }
 lantern_results.findByIdentifier = function(idents,refresh) {
@@ -50,6 +53,11 @@ lantern_results.findByIdentifier = function(idents,refresh) {
   if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
+
+  if (m.length === 0) {  // causes a Mongo error otherwise, since Mongo does not like $or: [] in the queries below
+    return undefined;
+  }
+
   var s = {};
   if (refresh) {
     var d = new Date();
