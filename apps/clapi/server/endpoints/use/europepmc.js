@@ -197,6 +197,7 @@ CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qry
 
 CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   var res;
+  var maybe_licence;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
@@ -204,30 +205,44 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
     if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
     if (fulltext) {
       var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
+      // console.log(pmcid + ' licinperms XML check: ' + licinperms);
       if (licinperms.licence && licinperms.licence !== 'unknown') {
+        // console.log(pmcid + ' licinperms XML check success, found licence: ' + licinperms.licence);
         return {licence:licinperms.licence,source:'epmc_xml_permissions'}
-      } else if ( fulltext.indexOf('<permissions>') !== -1 ) {
-        return {licence:'non-standard-licence',source:'epmc_xml_permissions'} // TODO check with ET if this should get overwritten by subsequent finds
-      } else {
-        var licanywhere = CLapi.internals.academic.licence(undefined,undefined,fulltext);
-        if (licanywhere.licence && licanywhere.licence !== 'unknown') {
-          return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions'}
-        } else {
-          if (pmcid) {
-            var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/PMC' + pmcid,false,undefined,undefined,undefined,true);
-            if (licsplash.licence && licsplash.licence !== 'unknown') {
-              return {licence:licsplash.licence,source:'epmc_html'}
-            } else {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
       }
-    } else {
-      return false;
+      // console.log(pmcid + ' licinperms XML check failed');
+
+      var licanywhere = CLapi.internals.academic.licence(undefined,undefined,fulltext);
+      // console.log(pmcid + ' licanywhere XML check' + licanywhere);
+      if (licanywhere.licence && licanywhere.licence !== 'unknown') {
+        // console.log(pmcid + ' licanywhere XML check success: ' + licanywhere.licence);
+        return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions'}
+      }
+      // console.log(pmcid + ' licanywhere XML check failed');
+
+      if ( fulltext.indexOf('<permissions>') !== -1 ) {
+        // console.log(pmcid + ' licinperms XML check discovered non-standard-licence');
+        maybe_licence = {licence:'non-standard-licence',source:'epmc_xml_permissions'};
+      }
     }
+
+    // console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
+    if (pmcid) {
+      var normalised_pmcid = pmcid;
+      if (normalised_pmcid.indexOf('PMC') === -1) { normalised_pmcid = 'PMC' + pmcid; }
+      var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
+      // console.log(pmcid + ' licsplash HTML check' + licsplash);
+      if (licsplash.licence && licsplash.licence !== 'unknown') {
+        // console.log(pmcid + ' licsplash HTML check success' + licsplash.licence);
+        return {licence:licsplash.licence,source:'epmc_html'}
+      } else {
+        // console.log(pmcid + ' licsplash HTML check failed');
+      }
+    }
+
+    if (maybe_licence) { return maybe_licence }
+
+    return false;
   }
 }
 

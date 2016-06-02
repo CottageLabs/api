@@ -624,7 +624,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
     }
-    var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc);
+    var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc,ft);
     if (lic !== false) {
       result.licence = lic.licence;
       result.epmc_licence = lic.licence;
