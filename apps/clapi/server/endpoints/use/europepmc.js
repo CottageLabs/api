@@ -208,7 +208,10 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
       // console.log(pmcid + ' licinperms XML check: ' + licinperms);
       if (licinperms.licence && licinperms.licence !== 'unknown') {
         // console.log(pmcid + ' licinperms XML check success, found licence: ' + licinperms.licence);
-        return {licence:licinperms.licence,source:'epmc_xml_permissions'}
+        return {licence:licinperms.licence,source:'epmc_xml_permissions',
+          matcher: licinperms.matcher ? licinperms.matcher : undefined,
+          matched: licinperms.matched ? licinperms.matched : undefined
+        }
       }
       // console.log(pmcid + ' licinperms XML check failed');
 
@@ -216,7 +219,10 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
       // console.log(pmcid + ' licanywhere XML check' + licanywhere);
       if (licanywhere.licence && licanywhere.licence !== 'unknown') {
         // console.log(pmcid + ' licanywhere XML check success: ' + licanywhere.licence);
-        return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions'}
+        return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions',
+          matcher: licanywhere.matcher ? licanywhere.matcher : undefined,
+          matched: licanywhere.matched ? licanywhere.matched : undefined
+        }
       }
       // console.log(pmcid + ' licanywhere XML check failed');
 
@@ -233,7 +239,10 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
       // console.log(pmcid + ' licsplash HTML check' + licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
         // console.log(pmcid + ' licsplash HTML check success' + licsplash.licence);
-        return {licence:licsplash.licence,source:'epmc_html'}
+        return {licence:licsplash.licence,source:'epmc_html',
+          matcher: licsplash.matcher ? licsplash.matcher : undefined,
+          matched: licsplash.matched ? licsplash.matched : undefined
+        }
       } else {
         // console.log(pmcid + ' licsplash HTML check failed');
       }

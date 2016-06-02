@@ -639,9 +639,11 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.epmc_licence = lic.licence;
       result.licence_source = lic.source;
       result.epmc_licence_source = lic.source;
-      result.provenance.push('Added licence from ' + lic.source);
-      result.provenance.push('Added EPMC licence from ' + lic.source);
-      // TODO record url and statement that matched as well
+      var extrainfo = '';
+      if (lic.matched) {extrainfo += ' The bit that let us determine the licence was: ' + lic.matched + ' .';}
+      if (lic.matcher) {extrainfo += ' If licence statements contain URLs we will try to find those in addition to ' +
+        'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matched + ' .';}
+      result.provenance.push('Added EPMC licence from ' + lic.source + '.' + extrainfo);
 
       // result.licence and result.licence_source can be overwritten later by
       // the academic licence detection (what OAG used to do), but we will keep the
@@ -832,10 +834,14 @@ CLapi.internals.service.lantern.process = function(processid) {
         // TODO Wellcome with their split licence column ended up needing to know the publisher licence separately, but
         // this duplicates (some) information with the .licence result field, probably worth refactoring.
         result.publisher_licence = lic.licence;
-        result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG)');
+        var extrainfo = '';
+        if (lic.matched) {extrainfo += ' The bit that let us determine the licence was: ' + lic.matched + ' .';}
+        if (lic.matcher) {extrainfo += ' If licence statements contain URLs we will try to find those in addition to ' +
+          'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matched + ' .';}
+        result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG).' + extrainfo);
       } else {
         result.publisher_licence = 'unknown';
-        result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG)');
+        result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG).');
       }
     }
   } else {
