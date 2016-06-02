@@ -620,6 +620,7 @@ CLapi.internals.service.lantern.process = function(processid) {
     }
     var ft;
     if (result.is_oa && result.in_epmc) ft = CLapi.internals.use.europepmc.fulltextXML(undefined,eupmc);
+    if (!ft && result.pmcid) { ft = CLapi.internals.use.europepmc.fulltextXML(result.pmcid); }
     if (ft) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');

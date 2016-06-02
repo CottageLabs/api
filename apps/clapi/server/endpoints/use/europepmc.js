@@ -228,8 +228,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
 
     // console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
     if (pmcid) {
-      var normalised_pmcid = pmcid;
-      if (normalised_pmcid.indexOf('PMC') === -1) { normalised_pmcid = 'PMC' + pmcid; }
+      var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
       var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
       // console.log(pmcid + ' licsplash HTML check' + licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
