@@ -950,8 +950,9 @@ CLapi.internals.service.lantern.progress = function(jobid) {
   // return a percentage figure for how many have been done
   var job = lantern_jobs.findOne(jobid);
   if (job) {
+    var p;
     if (job.done) {
-      return 100;
+      p = 100;
     } else {
       //var update = false;
       //var updates = {};
@@ -971,7 +972,7 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         }
         //}
       }
-      var p = count/total * 100;      
+      p = count/total * 100;      
       if ( p === 100 ) {
         // this will only happen on first time the progress check finds job is 100% cos otherwise it returns 100 on seeing job.done
         //updates.done = true;
@@ -995,8 +996,8 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         // this happens if the job has had some progress but is not yet 100%
         lantern_jobs.update(job._id, {$set:updates});
       }*/
-      return p;
     }
+    return {progress:p,name:job.name,email:job.email,_id:job._id};
   } else {
     return false;
   }

@@ -113,8 +113,8 @@ UI.registerHelper('usergroups', function(uacc,filter) {
   return u;
 });
 
-UI.registerHelper('isadmin', function(uacc) {
-  var group = Session.get("gid");
+UI.registerHelper('isadmin', function(uacc,group) {
+  if (group === undefined) group = Session.get("gid");
   return (group && uacc && uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
 });
 
