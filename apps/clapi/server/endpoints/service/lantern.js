@@ -105,7 +105,8 @@ CLapi.addRoute('service/lantern/:job', {
       // return the info of the job - the job metadata and the progress so far
       var job = lantern_jobs.findOne(this.urlParams.job);
       if (job) {
-        job.progress = CLapi.internals.service.lantern.progress(this.urlParams.job);
+        var p = CLapi.internals.service.lantern.progress(this.urlParams.job);
+        job.progress = p ? p : 0;
         return {status: 'success', data: job}
       } else {
         return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
@@ -1363,7 +1364,7 @@ CLapi.internals.service.lantern.alertdone = function() {
   var ret = 0;
   j.forEach(function(job) {
     var progress = CLapi.internals.service.lantern.progress(job._id);
-    if (progress === 100) {
+    if (progress && progress.progress === 100) {
       ret += 1;
     }
   });
