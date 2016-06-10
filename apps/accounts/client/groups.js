@@ -169,4 +169,23 @@ Template.manage_openaccessbutton.userrequested = function(uid) {
   return OAB_Request.find({user:uid}).count();
 }
 
+Template.manage_openaccessbutton.defaultapikey = function() {
+  console.log(Meteor.user());
+  for ( var k in Meteor.user().api.keys ) {
+    var dk = Meteor.user().api.keys[k];
+    if ( dk.name === 'default' ) return dk.key;
+  }
+};
+
+Template.manage_openaccessbutton.events({
+  'click #emailusers': function() {
+    $('#usersemail').val("").toggle();
+    $('#sendemail').toggle();
+  },
+  'click #sendemail': function() {
+    // TODO something...
+  }
+});
+
+
 

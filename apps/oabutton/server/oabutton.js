@@ -17,8 +17,12 @@ Meteor.publish("requestrelatedtoblock", function (bid) {
   // if not, return nothing. If yes, return all oabutton users
   return Meteor.users.find({}, { limit: limit});
 });*/
-Meteor.publish("request", function (rid) {
-  return OAB_Request.find(rid);
+Meteor.publish("request", function (rid,receiver) {
+  if (rid) {
+    return OAB_Request.find(rid);
+  } else {
+    return OAB_Request.find({receiver:receiver});
+  }
 });
 Meteor.publish("blockedforurl", function (url) {
   return OAB_Blocked.find({url:url});
@@ -81,5 +85,25 @@ Meteor.methods({
   },
   mailinglist: function(uid) {
     Meteor.users.update(uid,{$set:{'service.openaccessbutton.mailing_list':true}});
+  },
+  setreceived: function(respid,description,url) {
+    var req = OAB_Request.findOne({receiver:respid});
+    var today = new Date().getTime();
+    if (req && req.received === undefined) {
+      // TODO this should perhaps call CLapi.internals.service.oabutton.receive
+      OAB_Request.update(req._id,{$set:{received:{date:today,from:req.email,url:url,description:description},status:'received'}});
+      // TODO email everyone waiting for it, email author providing it to confirm, email the first requestee, ask people to validate it
+    }
+    // TODO forward content to OSF if data, and zenodo if article
+  },
+  setvalidated: function(respid,uid) {
+    var req = OAB_Request.findOne({receiver:respid});
+    var today = new Date().getTime();
+    if (req && req.received) OAB_Request.update(req._id,{$set:{'received.validated':{user:uid,date:today}}});
+    // TODO email the author that provided the content, and if an ODB request, send them a nice badge link
+  },
+  listreceivedfiles: function(respid) {
+    var fs = Meteor.npmRequire('fs');
+    return fs.readdirSync(Meteor.settings.uploadServer.uploadDir + '/openaccessbutton/' + respid);
   }
 });

@@ -1,0 +1,41 @@
+
+<template name="fileupload">
+  <style>
+  .jqDropZone {
+    background: transparent;
+    width: 100%;
+    min-height: 200px;
+    line-height: 50px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .jqDropZone.in {
+    width: 600px;
+    height: 200px;
+    line-height: 200px;
+    font-size: larger;
+  }
+  .jqDropZone.hover {
+    background: lawngreen;
+  }
+  .jqDropZone.fade {
+    -webkit-transition: all 0.3s ease-out;
+    -moz-transition: all 0.3s ease-out;
+    -ms-transition: all 0.3s ease-out;
+    -o-transition: all 0.3s ease-out;
+    transition: all 0.3s ease-out;
+    opacity: 1;
+  }
+  </style>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        {{> upload_bootstrap}}
+        <div class="well" style="margin-top:10px;">
+        {{> dropzone}}          
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

@@ -1,13 +1,84 @@
 
-<template name="accounts">    
+<template name="accounts">
   <div class="container-fluid">
-    {{> user_account}}                    
+    {{> user_account}}
+  </div>
+</template>
+
+<template name="profile">
+  <div class="container-fluid">
+    {{> loggedin}}
+    <div class="row">
+      <div class="col-md-12">
+        <h3>Profile</h3>
+        <p>
+          Profile options here to set or change username (defaults to first email address so that is used in public places).
+          For setting or changing username, a check for uniqueness is required.
+          Also add a bio, URL to profile picture, and any other profile data the user should be able to add and manage.
+        </p>
+        <p>
+          Users should also be able to add email addresses to the account, and set which email is the default one.
+        </p>
+
+        <h3>Permissions</h3>
+        <p>
+          Show the groups and roles the user is part of. Link groups that are about services we run to those running services, 
+          so that they can be easily navigated to? Provide options to remove self from role and to request access to role?
+          Also could create a group for this user, where roles could be delegated to other users within this user group, so that 
+          responsibility of this user becomes available to multiple other users (turns this account into an "org" account).
+          So also search for and list user accounts that are in the group that matches this user ID, and the roles they have in 
+          that group, so this user can review the other users that have access to their account.
+        </p>
+        <p>
+          {{#each rn in rolenames}}
+          {{rn}}<br>
+          {{/each}}        
+        </p>
+
+        <h3>Security</h3>
+        <p>
+          Eventually provide two-factor signin. Also provide log of user login activity / status data.
+          Option to login on only one device or mutliple (controlled by setPassword call on server, whether logout option is true or not).
+          Options to logout of "all devices" / "all places". Disable / delete account.
+          Can also do device fingerprinting with https://github.com/Valve/fingerprintjs2.
+          Also have option if settings have API_AUTH_BY_COOKIE_KEY then user can choose if their cookies should be httponly or not
+          If they are not then they can be conveniently picked up to authenticate API requests from the browser 
+          but that also allows XSS. So if they are httponly then the user has more security but can ONLY auth to the API using the ID and API key.
+          Also can have an option to use device fingerprinting, in which case collect a fingerprint from this accounts page and store it. Then 
+          on cookie login or other methods done via web UI, can capture device fingerprint (but of course this only works per device, and can cause 
+          login to become invalid, e.g. if user device / browser / etc is updated or upgraded in certain ways. So provides more security for extra 
+          potential hassle.)
+          A user could also choose how long they want their cookie to last for?
+        </p>
+
+        <h3>API</h3>
+        <p>
+          The Cottage Labs API is at https://api.cottagelabs.com and provides various features depending on membership 
+          of certain groups. Using the API requires authentication with the account ID and API key, shown below. The 
+          API docs explains more, and how to use the ID and API key.
+        </p>
+        <p>
+          Account ID {{currentUser._id}}
+        </p>
+        <p>
+          API key {{defaultapikey}}
+        </p>
+        <p>
+          Could allow for multiple API keys per account, and re-generation of API key.
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
 <template name="user_account">
   {{#if currentUser}}
     {{> loggedin}}
+    <h3>Thank you for logging in</h3>
+    <p>If you are not automatically redirected to the service you wish to access, please choose below:</p>
+    <p><a href="https://lantern.cottagelabs.com" class="btn btn-primary btn-block btn-lg">CL Lantern</a></p>
+    <p><a href="https://openaccessbutton.org" class="btn btn-primary btn-block btn-lg">Open Access Button</a></p>
+    <p><a href="https://opendatabutton.org" class="btn btn-primary btn-block btn-lg">Open Data Button</a></p>
   {{else}}
   <div id="loginspace" class="well" style="background-color:transparent;border-color:transparent;">
     <div class="row">
@@ -87,66 +158,6 @@
       <i class="fa fa-user fa-5x pull-right"></i>
       {{/if}}
     </div>
-  </div>
-  
-  <div class="row">
-    <div class="col-md-12">
-      <h3>Profile</h3>
-      <p>
-        Profile options here to set or change username (defaults to first email address so that is used in public places).
-        For setting or changing username, a check for uniqueness is required.
-        Also add a bio, URL to profile picture, and any other profile data the user should be able to add and manage.
-      </p>
-      <p>
-        Users should also be able to add email addresses to the account, and set which email is the default one.
-      </p>
-      
-      <h3>Permissions</h3>
-      <p>
-        Show the groups and roles the user is part of. Link groups that are about services we run to those running services, 
-        so that they can be easily navigated to? Provide options to remove self from role and to request access to role?
-        Also could create a group for this user, where roles could be delegated to other users within this user group, so that 
-        responsibility of this user becomes available to multiple other users (turns this account into an "org" account).
-        So also search for and list user accounts that are in the group that matches this user ID, and the roles they have in 
-        that group, so this user can review the other users that have access to their account.
-      </p>
-      <p>
-        {{#each rn in rolenames}}
-        {{rn}}<br>
-        {{/each}}        
-      </p>
-      
-      <h3>Security</h3>
-      <p>
-        Eventually provide two-factor signin. Also provide log of user login activity / status data.
-        Option to login on only one device or mutliple (controlled by setPassword call on server, whether logout option is true or not).
-        Options to logout of "all devices" / "all places". Disable / delete account.
-        Can also do device fingerprinting with https://github.com/Valve/fingerprintjs2.
-        Also have option if settings have API_AUTH_BY_COOKIE_KEY then user can choose if their cookies should be httponly or not
-        If they are not then they can be conveniently picked up to authenticate API requests from the browser 
-        but that also allows XSS. So if they are httponly then the user has more security but can ONLY auth to the API using the ID and API key.
-        Also can have an option to use device fingerprinting, in which case collect a fingerprint from this accounts page and store it. Then 
-        on cookie login or other methods done via web UI, can capture device fingerprint (but of course this only works per device, and can cause 
-        login to become invalid, e.g. if user device / browser / etc is updated or upgraded in certain ways. So provides more security for extra 
-        potential hassle.)
-        A user could also choose how long they want their cookie to last for?
-      </p>
-      
-      <h3>API</h3>
-      <p>
-        The Cottage Labs API is at https://api.cottagelabs.com and provides various features depending on membership 
-        of certain groups. Using the API requires authentication with the account ID and API key, shown below. The 
-        API docs explains more, and how to use the ID and API key.
-      </p>
-      <p>
-        Account ID {{currentUser._id}}
-      </p>
-      <p>
-        API key {{defaultapikey}}
-      </p>
-      <p>
-        Could allow for multiple API keys per account, and re-generation of API key.
-      </p>
-    </div>
-  </div>
+  </div>  
 </template>
+

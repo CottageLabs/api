@@ -67,8 +67,27 @@ Meteor.methods({
     }    
   },
 
+  email: function(which,text) {
+    var uids = OAB_Blocked.aggregate( [ { $group: { _id: "$user"}  } ] );
+    var u = Meteor.users.find();
+    var used = [];
+    var never = [];
+    u.forEach(function(usr) {
+      if (uids.indexOf(usr._id) !== -1) {
+        if (usr.emails && usr.emails[0] && usr.emails[0].address) used.push(usr.emails[0].address);
+      } else {
+        if (usr.emails && usr.emails[0] && usr.emails[0].address) never.push(usr.emails[0].address);        
+      }
+    });
+    var addrs = which === 'used' ? used : never;
+    var opts = {from:'contact@openaccessbutton.org',to:addrs,text:text};
+    Clapi.internals.sendmail(opts);
+  },
+
   userstats: function() {
     return {
+      used:used,
+      never:never,
       article: {
         blocked: OAB_Blocked.aggregate( [{$match: {type:'article'}}, { $group: { _id: "$user"}  } ] ).length,
         requested: OAB_Request.aggregate( [{$match: {type:'article'}},  { $group: { _id: "$user"}  } ] ).length

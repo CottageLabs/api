@@ -38,21 +38,21 @@ lantern_results.before.insert(function (userId, doc) {
 
 lantern_processes.findByIdentifier = function(idents) {
   var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
-  if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
-  if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
+  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0) m.push({pmid:idents.pmid});
+  if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
+  if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
   if (m.length === 0) {  // causes a Mongo error otherwise, since Mongo does not like $or: [] in the queries below
     return undefined;
   }
   return lantern_processes.findOne({$or: m});
 }
-lantern_results.findByIdentifier = function(idents,refresh) {
+lantern_results.findByIdentifier = function(idents,refresh) {  
   var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null) m.push({pmid:idents.pmid});
-  if (idents.doi !== undefined && idents.doi !== null) m.push({doi:idents.doi});
-  if (idents.title !== undefined && idents.title !== null) m.push({title:idents.title});
+  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0) m.push({pmid:idents.pmid});
+  if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
+  if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
 
   if (m.length === 0) {  // causes a Mongo error otherwise, since Mongo does not like $or: [] in the queries below
     return undefined;
@@ -67,6 +67,11 @@ lantern_results.findByIdentifier = function(idents,refresh) {
     s.$or = m;
   }
   return lantern_results.findOne(s,{sort:{createdAt:-1}});
+}
+lantern_results.findFreshById = function(id,refresh) {  
+  var d = new Date();
+  var t = d.setDate(d.getDate() - refresh);
+  return lantern_results.findOne({$and:[{'_id':id},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
 }
 
 CLapi.addRoute('service/lantern', {
@@ -109,13 +114,21 @@ CLapi.addRoute('service/lantern/:job', {
   }
 });
 
+CLapi.addRoute('service/lantern/:job/reload', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.service.lantern.reload(this.urlParams.job) }
+    }
+  }
+});
+
 CLapi.addRoute('service/lantern/:job/progress', {
   get: {
     action: function() {
       // return the info of the job - the job metadata and the progress so far
       var job = lantern_jobs.findOne(this.urlParams.job);
       if (job) {
-        var progress = CLapi.internals.service.lantern.progress(this.urlParams.job,this.queryParams.check);
+        var progress = CLapi.internals.service.lantern.progress(this.urlParams.job);
         return {status: 'success', data: progress}
       } else {
         return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
@@ -256,7 +269,7 @@ CLapi.addRoute('service/lantern/:job/original', {
       for ( var j in job.list ) {
         var jb = job.list[j];
         if (jb.process) delete jb.process;
-        if (jb.result) delete jb.result;
+        //if (jb.result) delete jb.result;
         if (jb.doi !== undefined) jb.DOI = jb.doi;
         delete jb.doi;
         if (jb.pmcid !== undefined) jb.PMCID = jb.pmcid;
@@ -296,6 +309,29 @@ CLapi.addRoute('service/lantern/jobs', {
     action: function() {
       var results = [];
       var jobs = lantern_jobs.find();
+      jobs.forEach(function(job) {
+        job.processes = job.list.length;
+        delete job.list;
+        results.push(job);
+      });
+      return {status: 'success', data: {total:results.length, jobs: results} }
+    }
+  }
+});
+
+CLapi.addRoute('service/lantern/jobs/reload', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.service.lantern.reload() }
+    }
+  }
+});
+
+CLapi.addRoute('service/lantern/jobs/:email', {
+  get: {
+    action: function() {
+      var results = [];
+      var jobs = lantern_jobs.find({email:this.urlParams.email});
       jobs.forEach(function(job) {
         job.processes = job.list.length;
         delete job.list;
@@ -378,6 +414,32 @@ CLapi.internals.service.lantern.reset = function() {
   return count;
 }
 
+CLapi.internals.service.lantern.reload = function(jobid) {
+  // reload all jobs with processes that still need running
+  var ret = 0;
+  var j = jobid ? lantern_jobs.find({'_id':jobid}) : lantern_jobs.find({done:{$not:{$eq:true}}});
+  j.forEach(function(job) {
+    for ( var l in job.list) {
+      var pid = job.list[l].process;
+      // couple of lines just to check for jobs created in the old way
+      if (job.list[l].process === undefined && job.list[l].result !== undefined) {
+        pid = job.list[l].result;
+        var s = {};
+        s["list."+l+".process"] = job.list[l].result;
+        lantern_jobs.update(job._id,{$set:s});
+      }
+      var proc = lantern_processes.findOne(pid);
+      var res;
+      if (!proc) res = lantern_results.findOne(pid);
+      if (pid && !proc && !res) {
+          lantern_processes.insert({'_id':pid,doi:j.doi,pmcid:j.pmcid,pmid:j.pmid,title:j.title,refresh:job.refresh});
+          ret += 1;
+      }
+    }
+  });
+  return ret;
+}
+
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh) {
@@ -434,15 +496,10 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     if (j.pmcid) j.pmcid = j.pmcid.replace(/[^0-9]/g,'');
     if (j.pmid) j.pmid = j.pmid.replace(/[^0-9]/g,'');
     if (j.doi) j.doi = j.doi.replace(/ /g,''); // also translate from url encoding? Saw one from wellcome with a %2F in it...
-    var proc = {};
-    if (j.doi && j.doi.indexOf('10.') === 0 && j.doi.length > 6 && j.doi.indexOf('/') !== -1) proc.doi = j.doi;
-    if (j.pmcid && j.pmcid.length > 0) proc.pmcid = j.pmcid;
-    if (j.pmid && j.pmid.length > 0) proc.pmid = j.pmid;
-    if (j.title && j.title.length > 2) proc.title = j.title;
-    if (refresh !== undefined) proc.refresh = refresh;
+    var proc = {doi:j.doi,pmcid:j.pmcid,pmid:j.pmid,title:j.title,refresh:refresh};
     var result = lantern_results.findByIdentifier(proc,refresh);
     if (result) {
-      job.list[i].result = result._id;
+      job.list[i].process = result._id;
     } else {
       var process = lantern_processes.findByIdentifier(proc);
       process ? job.list[i].process = process._id : job.list[i].process = lantern_processes.insert(proc);
@@ -470,7 +527,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
 
 CLapi.internals.service.lantern.process = function(processid) {
   // process a job from the lantern_processes job list
-  var proc;
+  /*var proc;
   if ( processid !== undefined ) {
     proc = lantern_processes.findOne(processid);
   } else {
@@ -483,10 +540,14 @@ CLapi.internals.service.lantern.process = function(processid) {
   } else {
     proc.processing = true;
     lantern_processes.update(proc._id, {$set:{processing:true}});
-  }
+  }*/
+
+  var proc = lantern_processes.findOne(processid);
+  if (!proc) return false;
+  lantern_processes.update(proc._id, {$set:{processing:true}});
 
   // the result object to build, all the things we want to know
-  result = {
+  var result = {
     '_id': proc._id,
     pmcid: proc.pmcid, // identifiers
     pmid: proc.pmid,
@@ -848,11 +909,11 @@ CLapi.internals.service.lantern.process = function(processid) {
     result.publisher_licence_check_ran = false;
   }
   
-  lantern_results.insert(result); // make sure it sets the result with the id of the process, added above
+  lantern_results.insert(result);
   lantern_processes.remove(proc._id);
   
   // update the lantern jobs containing any of the IDs in this process
-  var jobs = lantern_jobs.find({"list.process":proc._id});
+  /*var jobs = lantern_jobs.find({"list.process":proc._id});
   jobs.forEach(function(job) {
     if (!job.done) {
       var update = false;
@@ -867,7 +928,7 @@ CLapi.internals.service.lantern.process = function(processid) {
         lantern_jobs.update(job._id, {$set:updates});
       }
     }
-  });
+  });*/
 
   return result; // return result or just confirm process is done?
 }
@@ -884,7 +945,7 @@ CLapi.internals.service.lantern.nextProcess = function() {
   }
 }
 
-CLapi.internals.service.lantern.progress = function(jobid,check) {
+CLapi.internals.service.lantern.progress = function(jobid) {
   // given a job ID, find out how many of the identifiers in the job we have an answer for
   // return a percentage figure for how many have been done
   var job = lantern_jobs.findOne(jobid);
@@ -892,29 +953,30 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
     if (job.done) {
       return 100;
     } else {
-      var update = false;
-      var updates = {};
+      //var update = false;
+      //var updates = {};
       var total = job.list.length;
       var count = 0;
       for ( var i in job.list ) {
-        if ( job.list[i].result ) {
+        /*if ( job.list[i].result ) {
           count += 1;
-        } else if (check) {
-          var found = lantern_results.findOne(job.list[i].process);
-          // could add a check for OTHER results with similar IDs - but shouldn't be any, and would have to re-sanitise the IDs
-          //if (!found) found = lantern_results.findByIdentifier(pi);
-          if ( found ) {
-            count += 1;
-            updates["list." + i + ".result"] = found._id;
-            update = true;
-          }
+        } else if (check) {*/
+        var found = lantern_results.findOne(job.list[i].process);
+        // could add a check for OTHER results with similar IDs - but shouldn't be any, and would have to re-sanitise the IDs
+        //if (!found) found = lantern_results.findByIdentifier(pi);
+        if ( found ) {
+          count += 1;
+          //updates["list." + i + ".result"] = found._id;
+          //update = true;
         }
+        //}
       }
       var p = count/total * 100;      
       if ( p === 100 ) {
         // this will only happen on first time the progress check finds job is 100% cos otherwise it returns 100 on seeing job.done
-        updates.done = true;
-        lantern_jobs.update(job._id, {$set:updates});
+        //updates.done = true;
+        //lantern_jobs.update(job._id, {$set:updates});
+        lantern_jobs.update(job._id, {$set:{done:true}});
         var jor = job.name ? job.name : job._id;
         var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
         text += 'You can now download the results of your job at ';
@@ -929,10 +991,10 @@ CLapi.internals.service.lantern.progress = function(jobid,check) {
           subject:'Job ' + jor + ' completed successfully',
           text:text
         });
-      } else if (update) {
+      }/* else if (update) {
         // this happens if the job has had some progress but is not yet 100%
         lantern_jobs.update(job._id, {$set:updates});
-      }
+      }*/
       return p;
     }
   } else {
@@ -949,7 +1011,7 @@ CLapi.internals.service.lantern.todo = function(jobid) {
     } else {
       var todos = [];
       for ( var i in job.list ) {
-        if ( job.list[i].result === undefined ) todos.push(job.list[i]);
+        if ( !lantern_results.findOne(job.list[i].process) ) todos.push(job.list[i]);
       }
       return todos;
     }
@@ -967,23 +1029,23 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
     for ( var i in job.list ) {
       var ji = job.list[i];
       //var found;
-      if (ji.result) {
-        var found = lantern_results.findOne(ji.result);
-      /*} else {
-        found = lantern_results.findOne(ji.process);
-        if (found) {
-          job.list[i].result = found._id;
-          update = true;
-        }
-      }*/
-        if ( found ) {
-          for ( var lf in ji) {
-            if (!found[lf]) found[lf] = ji[lf];
-          }
-          if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
-          results.push(found);
-        }
+      //if (ji.result) {
+      var found = lantern_results.findOne(ji.process);
+    /*} else {
+      found = lantern_results.findOne(ji.process);
+      if (found) {
+        job.list[i].result = found._id;
+        update = true;
       }
+    }*/
+      if ( found ) {
+        for ( var lf in ji) {
+          if (!found[lf]) found[lf] = ji[lf];
+        }
+        if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
+        results.push(found);
+      }
+      //}
     }
     //if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
     return results;

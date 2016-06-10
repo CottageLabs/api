@@ -487,6 +487,8 @@
       <div class="col-md-6">
         <textarea id="text" class="form-control" style="min-height:400px;display:none;" placeholder="Put email content here"></textarea>
         <a class="btn btn-info btn-block" href="#" id="setstatus">Change status</a>
+        <a class="btn btn-info btn-block" href="#" id="emailusers">Email users who requested this</a>
+        <a class="btn btn-info btn-block" href="#" id="emailauthor">Email the author this request is targeted at</a>
         {{#if request.test}}{{else}}<a class="btn btn-warning btn-block" href="#" id="maketestrequest">Set as a test request</a>{{/if}}
         <a class="btn btn-danger btn-block" href="#" id="deleterequest">Delete request</a>
         <p id="statuschanged" style="display:none;">Status has been changed, see below.</p>
@@ -495,6 +497,20 @@
   </div>
   {{/if}}
   
+  {{# if equals request.status 'received'}}
+  <div class="container-fluid" style="margin-top:50px;">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron" style="min-height:300px;">
+          <h1>Success!</h1>
+          <h2>This request has resulted in the content being made available.</h2>
+          <h2><a target="_blank" href="/response/{{request.receiver}}" class="btn btn-primary btn-block btn-lg">Access the received content</a></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
   <div class="container-fluid" style="margin-top:100px;">
     <div class="row">
       <div class="col-md-8">

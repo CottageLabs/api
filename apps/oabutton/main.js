@@ -79,6 +79,37 @@ Router.map( function () {
       }
     }
   });
+  this.route('oabuttonupload', {
+    path: '/response/:rid',
+    waitOn : function() {
+      return Meteor.subscribe('request',undefined,this.params.rid);
+    },
+    action: function() {
+      //var resp = store_receiver.find(this.params.rid);
+      var req = OAB_Request.findOne({receiver:this.params.rid});
+      Session.set('respid',this.params.rid);
+      if (req) {
+        if (req.received) {
+          Session.set('reqid',req._id);
+          Session.set('validated',req.received.validated);
+          Meteor.call('listreceivedfiles',Session.get('respid'),function(err,resp) { Session.set('files',resp); });
+          this.render('oabuttonuploadreceived');
+        } else if (this.params.query.refuse) {
+          CLapi.internals.service.oabutton.refuse(req._id); // can pass a reason here, if the page asks for one
+          this.render('oabuttonuploadrefuse');
+        } else if (this.params.query.hold) {
+          CLapi.internals.service.oabutton.hold(req._id,this.params.query.hold);
+          Session.set('holdlength',this.params.query.hold);
+          this.render('oabuttonuploadhold');
+        } else {
+          Session.set('reqid',req._id);
+          this.render();
+        }
+      } else {
+        this.render('oabuttonuploadinvalid');
+      }
+    }
+  });
   this.route('oabuttonrequests', {
     path: '/request',
     waitOn : function() {

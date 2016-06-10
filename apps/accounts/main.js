@@ -14,6 +14,15 @@ Router.map( function () {
       this.render(page); 
     }
   });
+  this.route('profile', {
+    path: '/profile',
+    waitOn : function() {
+      return Meteor.subscribe('userData');
+    },
+    action: function() {
+      this.render('profile'); 
+    }
+  });
   this.route('groups', {
     waitOn : function() {
       return Meteor.subscribe('groups');
@@ -31,7 +40,7 @@ Router.map( function () {
       }
     },
     waitOn : function() {
-      var subs = [Meteor.subscribe('groupusers',this.params.gid)];
+      var subs = [Meteor.subscribe('groupusers',this.params.gid),Meteor.subscribe('userData')];
       if ( this.params.gid === 'openaccessbutton' ) {
         subs.push(Meteor.subscribe('requests'));
         subs.push(Meteor.subscribe('blocks'));

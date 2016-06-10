@@ -195,7 +195,7 @@ CLapi.addRoute('service/oabutton/blocked', {
     }
   },
   delete: {
-    authRequired: true,
+    roleRequired: 'openaccessbutton.admin',
     action: function() {
       if ( CLapi.cauth('root',this.user ) ) {
         return CLapi.internals.mongo.delete(OAB_Blocked);
@@ -229,7 +229,7 @@ CLapi.addRoute('service/oabutton/blocked/:bid', {
     }
   },
   delete: {
-    authRequired: true,
+    roleRequired: 'openaccessbutton.admin',
     action: function() {
       if ( CLapi.cauth('root',this.user ) ) {
         return CLapi.internals.mongo.delete(OAB_Blocked,this.urlParams.bid);
@@ -329,6 +329,29 @@ CLapi.addRoute('service/oabutton/status', {
   get: {
     action: function () {
       return CLapi.internals.service.oabutton.status(this.request.body.url,this.request.body.type);
+    }
+  }
+});
+
+CLapi.addRoute('service/oabutton/export/:what', {
+  roleRequired:'openaccessbutton.admin',
+  get: {
+    action: function () {
+      var records;
+      if (this.urlParams.what === 'users') records = Meteor.users.find({'roles.openaccessbutton':{$exists:true}}, {fields: {emails:1,profile:1,roles:1,'service.openaccessbutton':1} }).fetch();
+      if (this.urlParams.what === 'blocked') records = OAB_Blocked.find().fetch();
+      if (this.urlParams.what === 'request') records = OAB_Request.find().fetch();
+      if (this.queryParams.format === 'csv') {
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'text/csv'
+          },
+          body: CLapi.internals.convert.json2csv(undefined,undefined,records)
+        }
+      } else {
+        return records;
+      }
     }
   }
 });
@@ -486,6 +509,7 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
   received: {
     date: "date the item was received",
     from: "email of who it was received from",
+    description: "description of provided content, if available".
     url: "url to where it is (remote if provided, or on our system if uploaded)"
   }
 }
@@ -611,10 +635,10 @@ CLapi.internals.service.oabutton.followup = function(rid) {
 
 CLapi.internals.service.oabutton.receive = function(rid,content) {
   var saved = CLapi.internals.store.receive(rid,content); // put it in the store, unless it is a URL, then what?
-  var url = ''; // a provided url, or a url to the item in store?
+  var url, description; // a provided url, or a url to the item in store? and some sort of description?
   var r = OAB_Request.findOne({receiver:rid});
   var today = new Date().getTime();
-  r.received = {date:today,from:r.email,url:url};
+  r.received = {date:today,from:r.email,url:url,description:description};
   if (r.hold) delete r.hold;
   r.status = 'received'
   OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});

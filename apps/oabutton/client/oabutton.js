@@ -101,12 +101,13 @@ Template.oabuttonrequest.events({
     $('#statuschanged').hide();
     var s = $('#status').val();
     if (s === 'progress') {
-      var r = OAB_Request.findOne(Session.get("requestid"))
+      var r = OAB_Request.findOne(Session.get("requestid"));
       var email = r.email;
       if (email.constructor === Array) email = email[0];
       if (email.indexOf(',') !== -1) email = email.split(',')[0];
       var blocks = OAB_Blocked.find({url:Session.get('url')}).count();
-      var text = oab_mail_templates.author_request.text;
+      var type = r.type ? r.type : 'article';
+      var text = mail_templates[type].author_request.text;
       var b = OAB_Blocked.find({url:Session.get('url')}).count();
       text = text.replace(/\{\{blocks\}\}/g,b);
       text = text.replace(/\{\{rid\}\}/g,r._id);
@@ -120,10 +121,12 @@ Template.oabuttonrequest.events({
   },
   'click #setstatus': function(e) {
     var reqid = Session.get("requestid");
+    var r = OAB_Request.findOne(reqid);
+    var type = r.type ? r.type : 'article';
     var status = $('#status').val();
     var msg = {
       text: $('#text').val(),
-      subject: oab_mail_templates.author_request.subject
+      subject: mail_templates[type].author_request.subject
     }
     $('#text').val("").hide();
     $('#statuschanged').show();
@@ -222,4 +225,43 @@ Template.oabuttonaccount.moreResults = function() {
 Template.oabuttonaccount.rendered = function() {
   if ( blockedsub && blockedsub.ready() ) showMoreVisible();
 }
+
+Meteor.startup(function () {
+  Session.set("uploadcount",0);
+  Session.set("urlprovided",false);
+});
+Template.oabuttonupload.helpers({
+  oabuploadactions: function() {
+    return {
+      formData: function() { return { service: 'openaccessbutton', dirId: Session.get("respid") } },
+      finished: function(index, fileInfo, context) { 
+        Session.set("uploadcount",Session.get("uploadcount")+1);
+      }
+    }
+  }
+});
+Template.oabuttonupload.events({
+  'click #submitfiles': function (e) {
+    e.preventDefault();
+    var url = $('#provideurl').val();
+    if (url.length > 0 && url.indexOf('http') !== 0) url = 'http://' + url;
+    Meteor.call('setreceived',Session.get("respid"),$('#oabuploaddesc').val(),url);
+  }
+});
+
+Template.oabuttonuploadreceived.request = function() {
+  return OAB_Request.findOne({receiver:Session.get('respid')});
+}
+
+Template.oabuttonuploadreceived.helpers({
+  availablefiles: function() {
+    return Session.get('files');
+  }
+});
+Template.oabuttonuploadreceived.events({
+  'click #setvalidated': function (e) {
+    e.preventDefault();
+    Meteor.call('setvalidated',Session.get("respid"),Meteor.userId());
+  }
+});  
 

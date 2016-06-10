@@ -1,8 +1,9 @@
 
-oab_mail_templates = {
-  author_request: {
-    subject: 'A request to share the data behind your article',
-    text: "Dear colleague,\n\n \
+mail_templates = {
+  data: {
+    author_request: {
+      subject: 'A request to share the data behind your article',
+      text: "Dear colleague,\n\n \
 We are writing from the Open Data Button, a tool helping connect people with the data behind research papers they're interested in.\n\n \
 {{blocks}} of our users are interested in the data behind one of your papers:\n\n \
 {{article}}\n\n \
@@ -13,15 +14,15 @@ https://opendatabutton.org/request/{{rid}}\n\n \
 Sharing data could lead to increased citations for your paper, people citing your dataset, and the acceleration of research in your area.\n\n \
 You can make easily make your data publicly available by simply uploading your data and notes in your preferred format, \
 or if it is already publicly available by just providing a URL where we can find it. Just go to our upload page by following the link below:\n\n \
-https://opendatabutton.org/respond/{{respond}}\n\n \
+https://opendatabutton.org/response/{{respond}}\n\n \
 We'll use the Open Science Framework to host, preserve, and identify your data. We'll use the paper title and abstract to provide \
 initial metadata and licence the data CC0 (the recommended licence for sharing data).\n\n \
 We know preparing to share your data can take some time, and you're probably extremely busy, so you can put this request on hold if necessary. \
 You can tell us how long you need by just visiting the corresponding link below:\n\n \
-https://opendatabutton.org/respond/{{respond}}?hold=7days\n \
-https://opendatabutton.org/respond/{{respond}}?hold=14days\n \
-https://opendatabutton.org/respond/{{respond}}?hold=28days\n \
-https://opendatabutton.org/respond/{{respond}}?hold=refuse\n\n \
+https://opendatabutton.org/response/{{respond}}?hold=7days\n \
+https://opendatabutton.org/response/{{respond}}?hold=14days\n \
+https://opendatabutton.org/response/{{respond}}?hold=28days\n \
+https://opendatabutton.org/response/{{respond}}?refuse=true\n\n \
 Once you've uploaded or provided a link, our community will confirm it and then you'll receive an open data badge to recognise your efforts.\n\n \
 If you have any other issues, email us at data@openaccessbutton.org.\n\n \
 Kind Regards,\n\n\n \
@@ -29,6 +30,37 @@ The Open Data Button Robot\n\n \
 P.S The Open Data Button just launched, we'd love your feedback - just email us at data@openaccessbutton.org.\n\n \
 You're receiving this email because an Open Data Button user requested access to data supporting a paper you're an author of. \
 If you'd like to stop receiving emails from Open Data Button, you can let us know by visiting this link: https://opendatabutton.org/dnr/{{email}}."
+    }
+  },
+  article: {
+    author_request: {
+      subject: 'A request to share your article',
+      text: "Dear colleague,\n\n \
+We are writing from the Open Access Button, a tool helping connect people with the research papers they're interested in.\n\n \
+{{blocks}} of our users are interested in one of your papers:\n\n \
+{{article}}\n\n \
+and have publicly requested that you share it.\n\n \
+Our users are just some of many who would benefit if you shared this paper, and you can read about why our users \
+would like access to it on the public request page at:\n\n \
+https://openaccessbutton.org/request/{{rid}}\n\n \
+Sharing your research could lead to increased citations for your paper and the acceleration of research in your area.\n\n \
+You can make easily make your paper publicly available by simply uploading it to our site, \
+or if it is already publicly available by just providing a URL where we can find it. Just go to our upload page by following the link below:\n\n \
+https://openaccessbutton.org/response/{{respond}}\n\n \
+We'll use Zenodo to store and preserve your research for you.\n\n \
+We know sharing your work can take some time, and you're probably extremely busy, so you can put this request on hold if necessary. \
+You can tell us how long you need by just visiting the corresponding link below:\n\n \
+https://openaccessbutton.org/response/{{respond}}?hold=7days\n \
+https://openaccessbutton.org/response/{{respond}}?hold=14days\n \
+https://openaccessbutton.org/response/{{respond}}?hold=28days\n \
+https://openaccessbutton.org/response/{{respond}}?refuse=true\n\n \
+If you have any other issues, email us at contact@openaccessbutton.org.\n\n \
+Kind Regards,\n\n\n \
+The Open Access Button Robot\n\n \
+P.S We'd love your feedback - just email us at data@openaccessbutton.org.\n\n \
+You're receiving this email because an Open Access Button user requested access to a paper you're an author of. \
+If you'd like to stop receiving emails from Open Access Button, you can let us know by visiting this link: https://openaccessbutton.org/dnr/{{email}}."
+    }    
   }
 }
 

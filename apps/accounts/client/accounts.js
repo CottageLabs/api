@@ -152,14 +152,14 @@ Template.loggedin.username = function() {
   }
 };
 
-Template.loggedin.defaultapikey = function() {
+Template.profile.defaultapikey = function() {
   for ( var k in Meteor.user().api.keys ) {
     var dk = Meteor.user().api.keys[k];
     if ( dk.name === 'default' ) return dk.key;
   }
 };
 
-Template.loggedin.rolenames = function() {
+Template.profile.rolenames = function() {
   var keys = [];
   for ( var k in Meteor.user().roles ) {
     keys.push(k + ': ' + Meteor.user().roles[k]);

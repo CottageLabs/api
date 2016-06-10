@@ -1,0 +1,162 @@
+<template name="oabuttonupload">
+  {{> oabuttonheader}}
+
+  <style>
+  .jqDropZone {
+    background: transparent;
+    width: 100%;
+    min-height: 200px;
+    line-height: 50px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .jqDropZone.in {
+    width: 600px;
+    height: 200px;
+    line-height: 200px;
+    font-size: larger;
+  }
+  .jqDropZone.hover {
+    background: lawngreen;
+  }
+  .jqDropZone.fade {
+    -webkit-transition: all 0.3s ease-out;
+    -moz-transition: all 0.3s ease-out;
+    -ms-transition: all 0.3s ease-out;
+    -o-transition: all 0.3s ease-out;
+    transition: all 0.3s ease-out;
+    opacity: 1;
+  }
+  </style>
+  
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <p>Thank you very much for uploading your files to us! Please use the file browser or dropzone below to upload all the relevant 
+        files you wish to provide, then provide a short description of the content you have provided, then click the submit files button 
+        at the bottom to complete your submission.</p>
+        
+        <p>You can review the request for the content that you have been requested to provide <a target="_blank" href="/request/{{session "reqid"}}">here</a>.</p>
+
+        {{> upload_bootstrap multiple=true callbacks=oabuploadactions}}
+        <div class="well" style="margin-top:10px;padding:0px;">
+        {{> dropzone multiple=true callbacks=oabuploadactions}}
+        </div>
+        <p>{{session "uploadcount"}} files successfully uploaded.</p>
+        {{#if session "uploadcount"}}
+        <p>
+          Thank you very much! You can upload more files if necessary, but once you leave this page this response will be closed.
+          Please ensure you provide a description below, and click the "submit files" button when you are done.
+        </p>
+        {{/if}}
+        <p>
+          Alternatively, or in addition, if the required files are already available on the web at a public URL, please provide that URL below:
+        </p>
+        <input id="provideurl" type="text" class="form-control" placeholder="Type your URL here">
+        <textarea id="oabuploaddesc" class="form-control" style="min-height:80px;margin-top:15px;" placeholder="Please provide a brief description here"></textarea>
+        <a href="#" class="btn btn-primary btn-block" id="submitfiles">Submit files</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+<template name="oabuttonuploadinvalid">
+  {{> oabuttonheader}}
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <p>Sorry, we have no record of expecting to receive any items for that ID.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+<template name="oabuttonuploadrefuse">
+  {{> oabuttonheader}}
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <p>Thank you for your response. We are sorry to hear that you are unable to provide the content our community has requested.
+          We will let them know it cannot be made available.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+<template name="oabuttonuploadhold">
+  {{> oabuttonheader}}
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <p>Thank you for letting us know you will get back to us. We will put this request on hold for {{session "holdlength"}} days.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+<template name="oabuttonuploadreceived">
+  {{> oabuttonheader}}
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h2>This content has been received!</h2>
+          <h3 style="margin-bottom:20px;">In response to request <a target="_blank" href="/request/{{session 'reqid'}}">{{session "reqid"}}</a></h3>
+          {{#if request.received.description}}
+          <hr style="border-color:white;">
+          <p>A description of the content has been provided:</p>
+          <p>{{request.received.description}}</p>
+          {{/if}}
+          {{#if request.received.url}}
+          <hr style="border-color:white;">
+          <p>A public URL to the content has been provided:</p>
+          <p><a href="{{request.received.url}}">{{request.received.url}}</a></p>
+          {{/if}}
+          {{#if availablefiles}}
+          <hr style="border-color:white;">
+          <p>{{availablefiles.length}} files have been provided:</p>
+          {{#each availablefiles}}
+          <p><a href="/openaccessbutton/{{session 'respid'}}/{{this}}" class="btn btn-block btn-info">Download {{this}}</a></p>
+          {{/each}}
+          {{/if}}
+          {{#if session "validated"}}
+          <hr style="border-color:white;">
+          <p>
+            This content has been validated! It is the content our community expected to receive access to when making the request. 
+            We are thankful to the author for providing this content to our community, and helping all those who want to use it for 
+            further work and research.
+          </p>
+          {{/if}}
+        </div>
+        {{#if session "validated"}}
+        {{else}}
+        <p>
+          Although we have received this content, our community has not yet validated it. Can you validate it for us?
+          If it looks like the files available above are the correct content related to the request, then just let us know 
+          now:
+        </p>
+        <a href="#" id="setvalidated" class="btn btn-primary btn-block">Yes, this is the correct content - validate it!</a>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+</template>
+

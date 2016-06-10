@@ -195,9 +195,14 @@
   and {{requestscount undefined 'article'}} requests have been submitted by {{userstats.article.requested}} users.</p>
   <p>{{requestscount 'moderate' 'article'}} article requests are in moderation, {{requestscount 'progress' 'article'}} in progress, 
     {{requestscount 'hold' 'article'}} on hold, {{requestscount 'refused' 'article'}} refused, and {{requestscount 'provided' 'article'}} provided</p>
-
-  <p>Filter users: </p>
-  <p>Option to email or export filtered set</p>
+  
+  <p>
+    <a class="btn btn-default" target="_blank" href="https://dev.api.cottagelabs.com/service/oabutton/export/users?format=csv&apikey={{defaultapikey}}">Export users</a> 
+    <a id="emailusers" class="btn btn-default" href="#">Email users</a>
+  </p>
+  <textarea style="display:none;min-height:200px;" id="usersemail" class="form-control" placeholder="Enter your email content here">
+  </textarea>
+  <a style="display:none;" id="sendemail" class="btn btn-default btn-block" href="#">Send this email to all users</a>
 </template>
 
 <template name="manage_cottagelabs">
