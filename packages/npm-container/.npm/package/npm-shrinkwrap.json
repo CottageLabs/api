@@ -219,7 +219,7 @@
     "node-uuid": {
       "version": "1.4.7",
       "resolved": "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.7.tgz",
-      "from": "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.7.tgz"
+      "from": "node-uuid@1.4.7"
     },
     "request": {
       "version": "2.61.0",
@@ -488,6 +488,11 @@
               "from": "https://registry.npmjs.org/mime-db/-/mime-db-1.21.0.tgz"
             }
           }
+        },
+        "node-uuid": {
+          "version": "1.4.7",
+          "resolved": "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.7.tgz",
+          "from": "https://registry.npmjs.org/node-uuid/-/node-uuid-1.4.7.tgz"
         },
         "oauth-sign": {
           "version": "0.8.1",

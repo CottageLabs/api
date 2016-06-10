@@ -1303,7 +1303,7 @@ var _formatlantern = function(result) {
     var grants = [];
     for ( var w in result.grants) {
       var g = result.grants[w];
-      if (g.agency.toLowerCase().indexOf('wellcome') !== -1) {
+      if (g.agency && g.agency.toLowerCase().indexOf('wellcome') !== -1) {
         grants.unshift(g);
       } else {
         grants.push(g);
