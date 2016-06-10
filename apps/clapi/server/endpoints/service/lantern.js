@@ -243,7 +243,7 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
         var name = 'results';
-        if (job.name) name = job.name.split('.')[0] + '_results';
+        if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
         this.response.writeHead(200, {
           'Content-disposition': "attachment; filename="+name+".csv",
           'Content-type': 'text/csv',
@@ -284,7 +284,7 @@ CLapi.addRoute('service/lantern/:job/original', {
       //return fl;
       var ret = CLapi.internals.convert.json2csv(undefined,undefined,fl);
       var name = 'original';
-      if (job.name) name = job.name.split('.')[0];
+      if (job.name) name = job.name.split('.')[0].replace(/ /g,'_');
       this.response.writeHead(200, {
         'Content-disposition': "attachment; filename="+name+"_original.csv",
         'Content-type': 'text/csv',
