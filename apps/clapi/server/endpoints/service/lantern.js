@@ -90,11 +90,17 @@ CLapi.addRoute('service/lantern', {
     // cannot receive files to meteor restivus! Another ridiculous thing!!!
     var maxallowedlength = 3000; // this could be in config or a per user setting...
     var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
+    var email = this.request.body.email ? this.request.body.email : '';
+    var quota = Clapi.internals.service.lantern.quota(email);
+    // TODO should partial jobs be accepted, up to remaining quota available / max length?
+    // for now jobs that are too big are refused
     if (checklength > maxallowedlength) {
-      return {statusCode: 413, body: {status: 'error', data: checklength + ' too long, max rows allowed is ' + maxallowedlength}}
+      return {statusCode: 413, body: {status: 'error', data: {length: checklength, max: maxallowedlength, info: checklength + ' too long, max rows allowed is ' + maxallowedlength}}}
+    } else if (checklength > quota.available) {
+      return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
     } else {
       var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh);
-      return {status: 'success', data: {job:j}};
+      return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
     }
   }
 });
@@ -387,7 +393,40 @@ CLapi.addRoute('service/lantern/status', {
   }
 });
 
+CLapi.addRoute('service/lantern/quota/:email', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
+    }
+  }
+});
+
 CLapi.internals.service.lantern = {};
+
+CLapi.internals.service.lantern.quota = function(email) {
+  var count = 0;
+  var acc = Meteor.users.findOne({'emails.address':email});
+  var max = 100;
+  // for now if no acc assume wellcome user and set max huge
+  if (!acc) max = 100000;
+  // TODO increase max if user is in premium, or what if on wellcome and has no user account?
+  if (acc && acc.service && acc.service.lantern && acc.service.lantern.premium) max = 5000;
+  // TODO a user may buy an extra X for a given month, in which case we would record it in the service section of the user account
+  // if there is a batch still live, then increase the available max count for now. Should probably indicate it is a boost
+  var d = new Date();
+  var t = d.setDate(d.getDate() - 30);
+  var j = lantern_jobs.find({$and:[{email:email},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
+  j.forEach(function(job) {
+    count += job.list.length;
+  });
+  return {
+    email: email,
+    count: count,
+    max: max,
+    available: max-count,
+    allowed: (max-count)>0
+  }
+}
 
 CLapi.internals.service.lantern.status = function() {
   return {
