@@ -85,6 +85,12 @@ Template.managegroup.events({
   "click #removeadmin": function(event) {
     Meteor.call('removeuserfromgroup',event.target.getAttribute('user'),Session.get("gid"),'admin');
   },
+  "click #makepremium": function(event) {
+    Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),'premium');
+  },
+  "click #removepremium": function(event) {
+    Meteor.call('removeuserfromgroup',event.target.getAttribute('user'),Session.get("gid"),'premium');
+  },
   "change .addrole": function(event) {
     Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),event.target.val());
   }
@@ -113,9 +119,14 @@ UI.registerHelper('usergroups', function(uacc,filter) {
   return u;
 });
 
+UI.registerHelper('isX', function(uacc,role,group) {
+  if (typeof group === 'object') group = Session.get("gid");
+  return group && role && uacc && uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf(role) !== -1;
+});
+
 UI.registerHelper('isadmin', function(uacc,group) {
-  if (group === undefined) group = Session.get("gid");
-  return (group && uacc && uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1);
+  if (typeof group === 'object') group = Session.get("gid");
+  return ( (group && uacc && uacc.roles && uacc.roles[group] && uacc.roles[group].indexOf('admin') !== -1) || (uacc.roles && uacc.roles.__global_roles__ && uacc.roles.__global_roles__.indexOf('root') !== -1) );
 });
 
 UI.registerHelper('isroot', function(uacc) {
@@ -170,7 +181,6 @@ Template.manage_openaccessbutton.userrequested = function(uid) {
 }
 
 Template.manage_openaccessbutton.defaultapikey = function() {
-  console.log(Meteor.user());
   for ( var k in Meteor.user().api.keys ) {
     var dk = Meteor.user().api.keys[k];
     if ( dk.name === 'default' ) return dk.key;

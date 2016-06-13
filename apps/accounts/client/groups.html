@@ -44,6 +44,7 @@
     <option></option>
     <option>cottagelabs</option>
     <option>openaccessbutton</option>
+    <option>lantern</option>
   </select>
 </template>
 
@@ -143,6 +144,10 @@
         {{> manage_openaccessbutton}}
         {{/if}}
 
+        {{#if equals group._id 'lantern' }}
+        {{> manage_lantern}}
+        {{/if}}
+
         <h2>{{userscount}} users</h2>
         {{#if isroot currentUser}}
         <p>
@@ -162,9 +167,18 @@
           <p><a class="btn btn-default" href="#" id="makeadmin" user="{{userhandle founduser}}">Add admin role</a></p>
           {{/if}}
           <p><a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle founduser}}">Remove user</a></p>
+          {{#if equals group._id 'lantern' }}
+          {{#if isX founduser 'premium' 'lantern'}}
+          <p><a class="btn btn-info" href="#" id="removepremium" user="{{userhandle founduser}}">Remove premium role</a></p>
+          {{else}}
+          <p><a class="btn btn-default" href="#" id="makepremium" user="{{userhandle founduser}}">Add premium role</a></p>
+          {{/if}}
+          {{/if}}
+          {{#if equals group._id 'openaccessbutton' }}
           <p>
             Blocked {{userblocks founduser}} times and submitted {{userrequests founduser}} requests.
           </p>
+          {{/if}}
         </div>
         {{else}}
         {{#if searchedemail}}
@@ -209,6 +223,9 @@
   <p>Custom CL management goes here...</p>
 </template>
 
+<template name="manage_lantern">
+  <p>Custom lantern management goes here...</p>
+</template>
 
 
 

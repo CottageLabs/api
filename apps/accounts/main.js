@@ -16,6 +16,14 @@ Router.map( function () {
   });
   this.route('profile', {
     path: '/profile',
+    onBeforeAction : function() {
+      if (!Meteor.userId()) {
+        this.render('accounts');
+      } else {
+        // TODO should add a check for group membership here, but CLapi.cauth is not defined at this point...
+        this.next();
+      }
+    },
     waitOn : function() {
       return Meteor.subscribe('userData');
     },
@@ -33,10 +41,11 @@ Router.map( function () {
     path: '/admin/:gid',
     onBeforeAction : function() {
       if (!Meteor.userId()) {
-        this.render('home');
-      } else {
-        // TODO should add a check for group membership here, but CLapi.cauth is not defined at this point...
+        this.render('accounts');
+      } else if ( ( Meteor.user().roles && Meteor.user().roles[this.params.gid] && Meteor.user().roles[this.params.gid].indexOf('admin') !== -1 ) || (Meteor.user().roles && Meteor.user().roles.__global_roles__ && Meteor.user().roles.__global_roles__.indexOf('root') !== -1) ) {
         this.next();
+      } else {
+        this.render('accounts');
       }
     },
     waitOn : function() {

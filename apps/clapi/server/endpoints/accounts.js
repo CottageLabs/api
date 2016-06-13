@@ -42,6 +42,7 @@ CLapi.addRoute('accounts/:id', {
     authRequired: true,
     action: function() {
       var u = CLapi.getuser(this.urlParams.id);
+      if (!u) return {statusCode:404, body:{info: '404 not found'}}
       var rls = u.roles;
       if (rls && rls.__global_roles__) delete rls.__global_roles__;
       if ( CLapi.cauth('root', this.user) ) {

@@ -86,8 +86,8 @@ Meteor.methods({
 
   userstats: function() {
     return {
-      used:used,
-      never:never,
+      //used:used,
+      //never:never,
       article: {
         blocked: OAB_Blocked.aggregate( [{$match: {type:'article'}}, { $group: { _id: "$user"}  } ] ).length,
         requested: OAB_Request.aggregate( [{$match: {type:'article'}},  { $group: { _id: "$user"}  } ] ).length
