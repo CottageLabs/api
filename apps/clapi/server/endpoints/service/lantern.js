@@ -408,9 +408,13 @@ CLapi.internals.service.lantern.quota = function(email) {
   var acc = Meteor.users.findOne({'emails.address':email});
   var max = 100;
   // for now if no acc assume wellcome user and set max huge
-  if (!acc) max = 100000;
-  if (CLapi.cauth('lantern.premium'),acc,false) max = 5000;
-  if (CLapi.cauth('lantern.admin'),acc) max = 100000;
+  if (!acc) {
+    max = 100000;
+  } else if ( CLapi.cauth('lantern.admin',acc) ) {
+    max = 100000;
+  } else if ( CLapi.cauth('lantern.premium',acc,false ) ) {
+    max = 5000;
+  }
   // TODO a user may buy an extra X for a given month, in which case we would record it in the service section of the user account
   // if there is a batch still live, then increase the available max count for now. Should probably indicate it is a boost
   var d = new Date();
