@@ -149,14 +149,12 @@
         {{/if}}
 
         <h2>{{userscount}} users</h2>
-        {{#if isroot currentUser}}
         <p>
-          <input class="form-control typeahead" name="usersearch" id="usersearch" type="text"
-            placeholder="search users" autocomplete="on" spellcheck="off" data-source="usersearch">
+          <input class="form-control typeahead" name="usersearch" id="usersearch" type="text" data-limit="100"
+            placeholder="search users" autocomplete="on" spellcheck="off" data-source="usersearch" data-min-length="0" data-autoselect="true">
           <!--<input class="form-control" id="newuser" style="width:200px;display:inline;margin-top:2px;" placeholder="search users">-->
           <a href="#" class="btn btn-default" id="finduser">Find user</a>
         </p>
-        {{/if}}
         {{#if founduser}}
         <div class="well">
           <p>{{userhandle founduser}}</p>
@@ -224,7 +222,7 @@
 </template>
 
 <template name="manage_lantern">
-  <p>Custom lantern management goes here...</p>
+  <p>Welcome to Lantern admin</p>
 </template>
 
 

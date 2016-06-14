@@ -406,13 +406,16 @@ CLapi.internals.service.lantern = {};
 CLapi.internals.service.lantern.quota = function(email) {
   var count = 0;
   var acc = Meteor.users.findOne({'emails.address':email});
+  console.log(acc);
   var max = 100;
+  var admin = acc !== undefined ? CLapi.cauth('lantern.admin',acc) : false;
+  var premium = acc !== undefined ? CLapi.cauth('lantern.premium',acc,false ) : false;
   // for now if no acc assume wellcome user and set max huge
-  if (!acc) {
+  if (acc === undefined) {
     max = 100000;
-  } else if ( CLapi.cauth('lantern.admin',acc) ) {
-    max = 100000;
-  } else if ( CLapi.cauth('lantern.premium',acc,false ) ) {
+  } else if ( admin ) {
+    max = 500000;
+  } else if ( premium ) {
     max = 5000;
   }
   // TODO a user may buy an extra X for a given month, in which case we would record it in the service section of the user account
@@ -424,6 +427,8 @@ CLapi.internals.service.lantern.quota = function(email) {
     count += job.list.length;
   });
   return {
+    admin:admin,
+    premium:premium,
     email: email,
     count: count,
     max: max,
