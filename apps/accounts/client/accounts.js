@@ -6,43 +6,44 @@ $.urlParam = function(name) {
 }
 
 Handlebars.registerHelper('session', function(name) {
-    return Session.get(name);
+  return Session.get(name);
 });
 
 Template.enter_email.events({
-    'submit #enter-email-form': function (e, tmpl) {
-        // Don't postback
-        e.preventDefault();
+  'submit #enter-email-form': function (e, tmpl) {
+    // Don't postback
+    e.preventDefault();
 
-        var email = $('#enter-email').val().trim();
-        if ( email.length === 0 ) {
-            $('#enter-email').focus();
+    var email = $('#enter-email').val().trim();
+    if ( email.length === 0 ) {
+      $('#enter-email').focus();
+    } else {
+      var loc = $.urlParam('for');
+      if (loc === null) {
+        loc = window.location.href;
+        loc = loc.split('?')[0];
+      }
+      if (loc.substring(loc.length-1) === '/') loc = loc.substring(0,loc.length-1);
+      Meteor.call("enter_email",
+        email,
+        loc,
+        function(error,result){
+        if ( error ) {
+          alert("Error with that email address. Please try again.");
+          $('#enter-email').focus();
         } else {
-            var loc = $.urlParam('for');
-            if (loc === null) {
-              loc = window.location.href;
-              loc = loc.split('?')[0];
-            }
-            if (loc.substring(loc.length-1) === '/') loc = loc.substring(0,loc.length-1);
-            Meteor.call("enter_email",
-                email,
-                loc,
-                function(error,result){
-                if ( error ) {
-                    alert("Error with that email address. Please try again.");
-                    $('#enter-email').focus();
-                } else {
-                    Session.set("email",email);
-                    Session.set("known",result.known);
-                }
-            });
+          Session.set("email",email);
+          Session.set("known",result.known);
+          Session.set("qr_hash",result.qr_hash);
         }
+      });
     }
+  }
 });
 
 Template.enter_email.rendered = function() {
-    $('#enter-email').focus();
-    watch_for_login_hashcode();
+  $('#enter-email').focus();
+  watch_for_login_hashcode();
 };
 
 Template.enter_security_code.events({
@@ -140,8 +141,8 @@ Template.enter_email.rendered = function() {
 };
 
 Template.enter_security_code.rendered = function() {
-    $('#enter-security-code').focus();
-    watch_for_login_hashcode();
+  $('#enter-security-code').focus();
+  watch_for_login_hashcode();
 };
 
 Template.loggedin.username = function() {
@@ -167,32 +168,54 @@ Template.profile.rolenames = function() {
   return keys;
 };
 
+Template.profile.events({
+  'click #regdevice': function (e) {
+    e.preventDefault();
+    new Fingerprint2().get(function(result, components) {
+      Meteor.call('regdevice',result);
+    });
+  },
+  'click #unregdevice': function (e) {
+    e.preventDefault();
+    Meteor.call('unregdevice');
+  }
+});
+
 Template.loggedin.events({
-    'click #logout-btn': function (e, tmpl) {
-        try {
-          e.preventDefault();
-        } catch(err) {}
-        Meteor.logout();
-        Session.set("email",null);
-    }
+  'click #logout-btn': function (e, tmpl) {
+    try {
+      e.preventDefault();
+    } catch(err) {}
+    Meteor.logout();
+    Session.set("email",null);
+  }
 });
 
 Template.loggedin.rendered = function() {
-    watch_for_login_hashcode(true); // this will cause us to stop checking
+  watch_for_login_hashcode(true); // this will cause us to stop checking
+  new Fingerprint2().get(function(result, components){
+    console.log(result); //a hash, representing device fingerprint
+    Meteor.call("getcode",
+      result,
+      function(error,result){
+      console.log("getcode returned");
+      if ( !error && result ) Session.set("logincode",result);
+    });
+  });
 };
 
 Meteor.startup(function() {
-    watch_for_login_hashcode(true); // in case there's a hashcode at startup    
+  watch_for_login_hashcode(true); // in case there's a hashcode at startup    
 });
 
 // check for login cookie from other CL domain
 // more info including checking from non-meteor app: https://github.com/kadirahq/meteor-login-state
 var logged = LoginState.get('clogins');
 if ( logged && !Meteor.userId() ) {
-    console.log('logging back in via cookie for user ' + logged.email);
-    Meteor.call("login_via_cookie",logged.email.toLowerCase(),function(error,pwd){
-        if ( !error ) {
-            Meteor.loginWithPassword({email:logged.email.toLowerCase()},pwd);
-        }
-    });
+  console.log('logging back in via cookie for user ' + logged.email);
+  Meteor.call("login_via_cookie",logged.email.toLowerCase(),function(error,pwd){
+    if ( !error ) {
+      Meteor.loginWithPassword({email:logged.email.toLowerCase()},pwd);
+    }
+  });
 }

@@ -17,10 +17,9 @@ Router.map( function () {
   this.route('profile', {
     path: '/profile',
     onBeforeAction : function() {
-      if (!Meteor.userId()) {
-        this.render('accounts');
+      if (!Meteor.userId() && !Meteor.loggingIn()) {
+        window.location = '/';
       } else {
-        // TODO should add a check for group membership here, but CLapi.cauth is not defined at this point...
         this.next();
       }
     },
@@ -40,12 +39,12 @@ Router.map( function () {
   this.route('managegroup', {
     path: '/admin/:gid',
     onBeforeAction : function() {
-      if (!Meteor.userId()) {
-        this.render('accounts');
+      if (!Meteor.userId() && !Meteor.loggingIn()) {
+        window.location = '/';
       } else if ( ( Meteor.user().roles && Meteor.user().roles[this.params.gid] && Meteor.user().roles[this.params.gid].indexOf('admin') !== -1 ) || (Meteor.user().roles && Meteor.user().roles.__global_roles__ && Meteor.user().roles.__global_roles__.indexOf('root') !== -1) ) {
         this.next();
       } else {
-        this.render('accounts');
+        window.location = '/';
       }
     },
     waitOn : function() {

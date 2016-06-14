@@ -36,6 +36,24 @@
         </p>
 
         <h3>Security</h3>
+        {{#if currentUser.security.regdevice}}
+        {{#if session "logincode"}}
+        <p>
+          Login code {{session "logincode"}} is currently available for use.
+        </p>
+        {{/if}}
+        <p>
+          You have a registered device with ID {{currentUser.security.regdevice}}
+        </p>
+        <p><a class="btn btn-primary btn-block" href="#" id="unregdevice">Unregister this device</a></p>
+        {{else}}
+        <p>
+          You can register one device to your account for security purposes.
+          Do you want to register this device to your account? If you do, you will be able to login from this device, 
+          by capturing the qr code displayed on the login page with the camera of this device.
+        </p>
+        <p><a class="btn btn-primary btn-block" href="#" id="regdevice">Register this device</a></p>
+        {{/if}}
         <p>
           Eventually provide two-factor signin. Also provide log of user login activity / status data.
           Option to login on only one device or mutliple (controlled by setPassword call on server, whether logout option is true or not).
@@ -105,6 +123,15 @@
         <p style="font-size:0.9em;color:#999;">( Your e-mail address will be used as your account username until you choose a username of your own, but otherwise it will NOT be publicised or shared with third parties. )</p>
       </div>
       <div class="col-md-6" id="extralogininfo">
+        {{#if session "qr_hash"}}
+        <div id="qrspace"></div>
+        <script>
+          var qr = qrcode(8,'M');
+          qr.addData('https://accounts.cottagelabs.com#{{session "qr_hash"}}');
+          qr.make();
+          //$('#qrspace').html(qr.createImgTag());
+        </script>
+        {{/if}}
       </div>
     </div>
   </div>
@@ -113,28 +140,28 @@
 
 <!-- if not logged in, show this  -->
 <template name="enter_email">
-    <form id="enter-email-form" role="form">
-        <p><input type="email" class="form-control" id="enter-email" placeholder="Enter your email address"></p>
-        <p><button type="submit" class="btn btn-primary btn-block">Authenticate</button></p>
-    </form>
+  <form id="enter-email-form" role="form">
+    <p><input type="email" class="form-control" id="enter-email" placeholder="Enter your email address"></p>
+    <p><button type="submit" class="btn btn-primary btn-block">Authenticate</button></p>
+  </form>
 </template>
 
 <!-- if we have the email address, but not yet the security code -->
 <template name="enter_security_code">
-    <p>Now check your email. Follow the link in the email to authenticate your account. If you don't get an email within a couple 
-    of minutes, check your spam folder. If still no email, contact us@cottagelabs.com.</p>
-    <form id="enter-security-code-form" class="form-inline" role="form">
-        <label>Security code:</label>
-        <input type="text" class="form-control" id="enter-security-code" placeholder="see {{session "email"}}">
-        <button type="submit" class="btn btn-primary btn-block">
-        {{#if session "known"}}
-        Login
-        {{else}}
-        Register
-        {{/if}}
-        </button>
-        <button id="reset-email" type="button" class="btn btn-danger btn-block">Cancel</button>
-    </form>
+  <p>Now check your email. Follow the link in the email to authenticate your account. If you don't get an email within a couple 
+  of minutes, check your spam folder. If still no email, contact us@cottagelabs.com.</p>
+  <form id="enter-security-code-form" class="form-inline" role="form">
+    <label>Security code:</label>
+    <input type="text" class="form-control" id="enter-security-code" placeholder="see {{session "email"}}">
+    <button type="submit" class="btn btn-primary btn-block">
+    {{#if session "known"}}
+    Login
+    {{else}}
+    Register
+    {{/if}}
+    </button>
+    <button id="reset-email" type="button" class="btn btn-danger btn-block">Cancel</button>
+  </form>
 </template>
 
 <!-- if logged in, show account info-->
