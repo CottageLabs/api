@@ -91,7 +91,7 @@ CLapi.addRoute('service/lantern', {
     var maxallowedlength = 3000; // this could be in config or a per user setting...
     var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
     var email = this.request.body.email ? this.request.body.email : '';
-    var quota = Clapi.internals.service.lantern.quota(email);
+    var quota = CLapi.internals.service.lantern.quota(email);
     // TODO should partial jobs be accepted, up to remaining quota available / max length?
     // for now jobs that are too big are refused
     if (checklength > maxallowedlength) {
