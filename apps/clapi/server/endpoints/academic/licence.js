@@ -80,30 +80,35 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     }
     if (end !== undefined) content = content.split(end)[0];
     console.log('Academic licence reduced content length to ' + content.length);
-    var text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');
-    for ( var i in licences ) {
-      var l = licences[i].gsx$licencetype ? licences[i].gsx$licencetype.$t : undefined;
-      var d = licences[i].gsx$matchesondomains ? licences[i].gsx$matchesondomains.$t : undefined;
-      var m = licences[i].gsx$matchtext ? licences[i].gsx$matchtext.$t : undefined;
-      if ( l !== undefined && d !== undefined && m !== undefined && ( d === '*' || source && source.indexOf(d) !== -1 || source === undefined ) ) {
-        // example match, line 39 of spreadsheet, cc by 2.0 statement
-        // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/licenses/by/2.0), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly credited.
-        // should match http://europepmc.org/articles/PMC3206455
-        // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (<a href="http://creativecommons.org/licenses/by/2.0" ref="reftype=extlink&amp;article-id=2210051&amp;issue-id=73721&amp;journal-id=906&amp;FROM=Article%7CFront%20Matter&amp;TO=External%7CLink%7CURI&amp;rendering-type=normal" target="pmc_ext">http://creativecommons.org/licenses/by/2.0</a>), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
-        var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
-        var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
-        if ( urlmatch && content.indexOf(urlmatch) !== -1 ) {
-          console.log('academic licence matched on url ' + urlmatch);
-          lic.licence = l;
-          lic.matched = urlmatch;
-          lic.matcher = m;
-          break;
-        } else if ( text.indexOf(match) !== -1 ) {
-          console.log('academic licence matched on text ' + match);
-          lic.licence = l;
-          lic.matched = match;
-          lic.matcher = m;
-          break;
+    var text;
+    try {
+      text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');
+    } catch(err) {}
+    if (text) {
+      for ( var i in licences ) {
+        var l = licences[i].gsx$licencetype ? licences[i].gsx$licencetype.$t : undefined;
+        var d = licences[i].gsx$matchesondomains ? licences[i].gsx$matchesondomains.$t : undefined;
+        var m = licences[i].gsx$matchtext ? licences[i].gsx$matchtext.$t : undefined;
+        if ( l !== undefined && d !== undefined && m !== undefined && ( d === '*' || source && source.indexOf(d) !== -1 || source === undefined ) ) {
+          // example match, line 39 of spreadsheet, cc by 2.0 statement
+          // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/licenses/by/2.0), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly credited.
+          // should match http://europepmc.org/articles/PMC3206455
+          // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (<a href="http://creativecommons.org/licenses/by/2.0" ref="reftype=extlink&amp;article-id=2210051&amp;issue-id=73721&amp;journal-id=906&amp;FROM=Article%7CFront%20Matter&amp;TO=External%7CLink%7CURI&amp;rendering-type=normal" target="pmc_ext">http://creativecommons.org/licenses/by/2.0</a>), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
+          var match = m.toLowerCase().replace(/[^a-z0-9]/g,'');
+          var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
+          if ( urlmatch && content.indexOf(urlmatch) !== -1 ) {
+            console.log('academic licence matched on url ' + urlmatch);
+            lic.licence = l;
+            lic.matched = urlmatch;
+            lic.matcher = m;
+            break;
+          } else if ( text.indexOf(match) !== -1 ) {
+            console.log('academic licence matched on text ' + match);
+            lic.licence = l;
+            lic.matched = match;
+            lic.matcher = m;
+            break;
+          }
         }
       }
     }

@@ -130,7 +130,7 @@ CLapi.internals.use.europepmc.doi = function(doi) {
 }
 
 CLapi.internals.use.europepmc.pmid = function(ident) {
-  var res = CLapi.internals.use.europepmc.search(ident);
+  var res = CLapi.internals.use.europepmc.search('EXT_ID:' + ident + ' AND SRC:MED');
   if (res.total > 0) {
     return {status: 'success', data: res.data[0] }
   } else {
@@ -139,7 +139,7 @@ CLapi.internals.use.europepmc.pmid = function(ident) {
 }
 
 CLapi.internals.use.europepmc.pmc = function(ident) {
-  var res = CLapi.internals.use.europepmc.search('PMC' + ident.toLowerCase().replace('pmc',''));
+  var res = CLapi.internals.use.europepmc.search('PMCID:PMC' + ident.toLowerCase().replace('pmc',''));
   if (res.total > 0) {
     return {status: 'success', data: res.data[0] }
   } else {

@@ -8,6 +8,10 @@ upstream clapi {
     ip_hash;
     server 10.131.20.129:3000;
     server 10.131.11.72:3000;
+    server 10.131.16.233:3000;
+    server 10.131.19.235:3000;
+    server 10.131.23.232:3000;
+    server 10.131.24.38:3000;
 }
 # ALLOW CONNECTS TO NON-HTTPS API FOR NOW, TO ALLOW WELLCOME.TEST.COTTAGELABS.COM TO CONTINUE TO EXIST FOR A WHILE
 #server {
