@@ -169,7 +169,7 @@ Meteor.methods({
     });
 
     var ret = { known:(user !== undefined) };
-    if ( user.security && user.security.regddevice ) ret.qr_hash = qr_hash;
+    if ( user && user.security && user.security.regddevice ) ret.qr_hash = qr_hash;
     return ret;
   },
 
