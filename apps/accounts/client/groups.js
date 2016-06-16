@@ -93,7 +93,14 @@ Template.managegroup.events({
   },
   "change .addrole": function(event) {
     Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),event.target.val());
-  }
+  },
+  "click #lanternaddquota": function(event) {
+    if ( $('#lanternaddamount').val() && $('#lanternadddays').val() ) {
+      Meteor.call('lanternaddquota',event.target.getAttribute('user'),parseInt($('#lanternaddamount').val()),parseInt($('#lanternadddays').val()));
+      $('#lanternaddamount').val("");
+      $('#lanternadddays').val("");
+    }
+  },
 });
 
 Template.joingroup.events({

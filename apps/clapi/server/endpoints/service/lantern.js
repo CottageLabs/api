@@ -404,9 +404,7 @@ CLapi.addRoute('service/lantern/quota/:email', {
 CLapi.internals.service.lantern = {};
 
 CLapi.internals.service.lantern.quota = function(email) {
-  var count = 0;
   var acc = Meteor.users.findOne({'emails.address':email});
-  console.log(acc);
   var max = 100;
   var admin = acc !== undefined ? CLapi.cauth('lantern.admin',acc) : false;
   var premium = acc !== undefined ? CLapi.cauth('lantern.premium',acc,false ) : false;
@@ -418,22 +416,45 @@ CLapi.internals.service.lantern.quota = function(email) {
   } else if ( premium ) {
     max = 5000;
   }
-  // TODO a user may buy an extra X for a given month, in which case we would record it in the service section of the user account
-  // if there is a batch still live, then increase the available max count for now. Should probably indicate it is a boost
+  var backtrack = 30;
+  var additional = 0;
+  var today = Date.now();
+  var until = false;
+  var display = false;
+  if (acc && acc.service && acc.service.lantern && acc.service.lantern.additional) {
+    var ad = acc.service.lantern.additional[acc.service.lantern.additional.length-1];
+    if ( ad.until > today ) {
+      additional = ad.quota;
+      display = ad.display;
+      until = ad.until;
+    } else {
+      for ( var a in acc.service.lantern.additional ) {
+        var add = acc.service.lantern.additional[a];
+        // set the backtrack date, so only counts old jobs run after the last additional quota expired
+        // essentially provides a reset on job quota max after an additional quota is purchased and runs out, 
+        // even if the standard quota max was used as well as the additional quota, within the last 30 days.
+        // so a wee bit of a bonus - but then, if someone pays for an additional quota one assumes they intend to use all the standard max anyway
+        if ( ((add.until/1000)+30)*1000 > today ) backtrack = (30 - (add.until/1000) - (today/1000));
+      }
+    }
+  }
+  var count = 0;
   var d = new Date();
-  var t = d.setDate(d.getDate() - 30);
+  var t = d.setDate(d.getDate() - backtrack);
   var j = lantern_jobs.find({$and:[{email:email},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
-  j.forEach(function(job) {
-    count += job.list.length;
-  });
+  j.forEach(function(job) { count += job.list.length; });
+  var available = max - count + additional;
   return {
-    admin:admin,
-    premium:premium,
+    admin: admin,
+    premium: premium,
+    additional: additional,
+    until: until,
+    display: display,
     email: email,
     count: count,
     max: max,
-    available: max-count,
-    allowed: (max-count)>0
+    available: available,
+    allowed: available>0
   }
 }
 

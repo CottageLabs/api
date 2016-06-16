@@ -67,6 +67,23 @@ Meteor.methods({
     }    
   },
 
+  lanternaddquota: function(u,amount,days) {
+    console.log('attempt to add extra ' + amount + ' to user ' + u + ' for ' + days + ' days');
+    var user = Meteor.users.findOne(u);
+    if (!user) user = Meteor.users.findOne({username:u});
+    if (!user) user = Meteor.users.findOne({'profile.username':u});
+    if (!user) user = Meteor.users.findOne({'emails.address':u});
+    if (user) {
+      var from = new Date();
+      var until = from.setDate(from.getDate() + days);
+      var duntil = new Date(until);
+      var display = duntil.getDate() + '/' + (duntil.getMonth() + 1) + '/' + duntil.getFullYear();
+      var adds = user.service.lantern.additional ? user.service.lantern.additional : [];
+      adds.push({quota:amount,days:days,from:Date.now(),until:until,display:display});
+      Meteor.users.update(user._id,{$set:{'service.lantern.additional':adds}});
+    }
+  },
+
   email: function(which,text) {
     var uids = OAB_Blocked.aggregate( [ { $group: { _id: "$user"}  } ] );
     var u = Meteor.users.find();

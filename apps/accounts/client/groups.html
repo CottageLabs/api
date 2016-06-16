@@ -164,14 +164,29 @@
           {{else}}
           <p><a class="btn btn-default" href="#" id="makeadmin" user="{{userhandle founduser}}">Add admin role</a></p>
           {{/if}}
-          <p><a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle founduser}}">Remove user</a></p>
           {{#if equals group._id 'lantern' }}
           {{#if isX founduser 'premium' 'lantern'}}
           <p><a class="btn btn-info" href="#" id="removepremium" user="{{userhandle founduser}}">Remove premium role</a></p>
           {{else}}
           <p><a class="btn btn-default" href="#" id="makepremium" user="{{userhandle founduser}}">Add premium role</a></p>
           {{/if}}
+          {{#if founduser.service.lantern.additional }}
+          {{#each founduser.service.lantern.additional}}
+          <p>
+            Additional {{this.quota}} quota applied until {{this.display}}
+          </p>
+          {{/each}}
+          <p>
+            (If more than one quota is current, only the most recent one takes effect.)
+          </p>
           {{/if}}
+          <p>
+            <input type="text" id="lanternaddamount" class="form-control" style="width:200px;display:inline;" placeholder="Add extra X to quota"> 
+            <input type="text" id="lanternadddays" class="form-control" style="width:200px;display:inline;" placeholder="to expire in X days">
+            <a id="lanternaddquota" class="btn btn-info" user="{{userhandle founduser}}" href="#" style="margin-top:-2px;">Add</a>
+          </p>
+          {{/if}}
+          <p><a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle founduser}}">Remove user from {{session "gid"}}</a></p>
           {{#if equals group._id 'openaccessbutton' }}
           <p>
             Blocked {{userblocks founduser}} times and submitted {{userrequests founduser}} requests.
