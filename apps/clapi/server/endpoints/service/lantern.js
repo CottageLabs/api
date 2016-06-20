@@ -968,7 +968,7 @@ CLapi.internals.service.lantern.process = function(processid) {
         var extrainfo = '';
         if (lic.matched) {extrainfo += ' The bit that let us determine the licence was: ' + lic.matched + ' .';}
         if (lic.matcher) {extrainfo += ' If licence statements contain URLs we will try to find those in addition to ' +
-          'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matched + ' .';}
+          'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matcher + ' .';}
         result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG).' + extrainfo);
       } else {
         result.publisher_licence = 'unknown';
