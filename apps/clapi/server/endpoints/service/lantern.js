@@ -1188,7 +1188,6 @@ var _formatwellcome = function(result) {
   } else {
     result['Author Manuscript?'] = "FALSE";
   }
-  delete result.is_aam;
   if (result.aheadofprint === false) {
     result['Ahead of Print?'] = 'FALSE';
   } else if (result.aheadofprint) {
@@ -1206,6 +1205,8 @@ var _formatwellcome = function(result) {
   if (result.in_epmc && (result.is_aam || epmc_lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
   if (result.in_epmc && epmc_lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
+  delete result.is_aam;
+
   if ( result.provenance ) {
     result['Compliance Processing Output'] = '';
     var fst = true;
