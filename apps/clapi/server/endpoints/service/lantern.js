@@ -1201,11 +1201,11 @@ var _formatwellcome = function(result) {
   delete result.aheadofprint;
   result['Standard Compliance?'] = 'FALSE';
   result['Deluxe Compliance?'] = 'FALSE';
-  var compliance_lic = result.licence ? result.licence.toLowerCase().replace(/ /g,'') : '';
-  var lics = compliance_lic === 'cc-by' || compliance_lic === 'cc0' || compliance_lic === 'cc-zero' ? true : false;
-  if (result.in_epmc === true && (result.is_aam || lics)) result['Standard Compliance?'] = 'TRUE';
+  var epmc_compliance_lic = result.epmc_licence ? result.epmc_licence.toLowerCase().replace(/ /g,'') : '';
+  var epmc_lics = epmc_compliance_lic === 'cc-by' || epmc_compliance_lic === 'cc0' || epmc_compliance_lic === 'cc-zero' ? true : false;
+  if (result.in_epmc && (result.is_aam || epmc_lics)) result['Standard Compliance?'] = 'TRUE';
   if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
-  if (result.in_epmc && result.licence_source.indexOf('epmc') === 0 && lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
+  if (result.in_epmc && epmc_lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
   if ( result.provenance ) {
     result['Compliance Processing Output'] = '';
     var fst = true;
