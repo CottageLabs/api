@@ -185,12 +185,13 @@ CLapi.addRoute('service/lantern/:job/results', {
         }
         var fields = [
           'PMCID','PMID','DOI','Publisher','Journal title','ISSN',
-          'Article title','Publication Date','Electronic Publication Date'
+          'Article title','Publication Date','Electronic Publication Date',
+          'Author(s)'
         ];
         if (job.list && job.list.length > 0) {
           if (job.list[0].University !== undefined) fields.unshift('University');
           var ffields = [
-            'Title of paper (shortened)','Author(s)',
+            'Title of paper (shortened)',
             'Grant References','Total cost of Article Processing Charge (APC), in £',
             'Amount of APC charged to Wellcome OA grant, in £ (see comment)','VAT charged',
             'COST (£)','Wellcome grant','licence info','Notes'
@@ -1237,7 +1238,7 @@ var _formatwellcome = function(result) {
     }
     delete result.journal;
   }
-  if ( result.author ) {
+  if ( result.author.length > 0) {
     result['Author(s)'] = '';
     var first = true;
     for ( var r in result.author ) {
