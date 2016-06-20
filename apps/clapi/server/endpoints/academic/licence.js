@@ -101,7 +101,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
           // This is an Open Access article distributed under the terms of the Creative Commons Attribution License (<a href="http://creativecommons.org/licenses/by/2.0" ref="reftype=extlink&amp;article-id=2210051&amp;issue-id=73721&amp;journal-id=906&amp;FROM=Article%7CFront%20Matter&amp;TO=External%7CLink%7CURI&amp;rendering-type=normal" target="pmc_ext">http://creativecommons.org/licenses/by/2.0</a>), which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
           var match = m.toLowerCase().replace(/[^a-z0-9]/g, '');
           var urlmatch = m.indexOf('://') !== -1 ? m.toLowerCase().split('://')[1].split('"')[0].split(' ')[0] : false;
-          if (urlmatch && content.indexOf(urlmatch) !== -1) {
+          if (urlmatch && content.toLowerCase().indexOf(urlmatch) !== -1) {
             console.log('academic licence matched on url ' + urlmatch);
             lic.licence = l;
             lic.matched = urlmatch;
@@ -147,6 +147,7 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
       // yes, there is a meteor call that is sync, but it is not returning here properly for some reason
       Meteor.http.call('GET',resolved, function(err,res) { // this shuold perhaps become a phantomjs render
         if (err) {
+          console.log('Error while fetching ' + resolved + ' for academic licence check.');
           return callback(null,{retrievable:false});
         } else {
           var lic = findlicences(res.content,resolved);
