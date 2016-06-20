@@ -236,9 +236,10 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
     if (pmcid) {
       var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
       var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
-      // console.log(pmcid + ' licsplash HTML check' + licsplash);
+      // console.log(pmcid + ' licsplash HTML check on http://europepmc.org/articles/' + normalised_pmcid);
+      // console.log(licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
-        // console.log(pmcid + ' licsplash HTML check success' + licsplash.licence);
+        // console.log(pmcid + ' licsplash HTML check success ' + licsplash.licence);
         return {licence:licsplash.licence,source:'epmc_html',
           matcher: licsplash.matcher ? licsplash.matcher : undefined,
           matched: licsplash.matched ? licsplash.matched : undefined
