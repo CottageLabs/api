@@ -647,6 +647,12 @@ CLapi.internals.service.oabutton.receive = function(rid,content) {
   //CLapi.internals.sendmail(); //email the address that provided the content with confirmation and thanks
   //CLapi.internals.sendmail(); //email an oabutton admin user?
   // tweet about the discovery?
+  // send to the OSF by emailing it to their system using the oabutton project email test-osfm2015-talk@osf.io
+  // by setting the from address as the author that submitted, it will create an account for them and follow up with them
+  // see http://help.osf.io/m/58281/l/546443-upload-your-research
+  // and an example https://osf.io/view/SPSP2016/
+  // but there appears no way to get back the details about this saved item - should we bother linking to it from our own content?
+  //CLapi.internals.sendmail({from:r.email,to:'test-osfm2015-talk@osf.io',subject:''});
   return {status: 'success', data: r};
 }
 

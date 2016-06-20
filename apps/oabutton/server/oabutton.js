@@ -94,7 +94,7 @@ Meteor.methods({
       OAB_Request.update(req._id,{$set:{received:{date:today,from:req.email,url:url,description:description},status:'received'}});
       // TODO email everyone waiting for it, email author providing it to confirm, email the first requestee, ask people to validate it
     }
-    // TODO forward content to OSF if data, and zenodo if article
+    // TODO forward content to OSF if data (info on how to do so added to the oabutton service API route), and zenodo if article
   },
   setvalidated: function(respid,uid) {
     var req = OAB_Request.findOne({receiver:respid});

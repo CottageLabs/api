@@ -38,24 +38,28 @@ CLapi.internals.use.core = {articles:{}};
 CLapi.internals.use.core.articles.doi = function(doi) {
   var apikey = Meteor.settings.CORE_apikey;
   if ( !apikey ) return { status: 'error', data: 'NO CORE API KEY PRESENT!'}
-  var url = 'http://core.ac.uk/api-v2/articles/search/doi:"' + doi + '"?urls=true&apiKey=' + apikey;
+  var url = 'https://core.ac.uk/api-v2/articles/search/doi:"' + doi + '"?urls=true&apiKey=' + apikey;
   console.log(url);
-  var res = Meteor.http.call('GET', url);
-  if ( res.statusCode === 200 ) {
-    if ( res.data.totalHits === 0 ) {
-      return { status: 'success', data: res.data}
-    } else {
-      var ret = res.data.data[0];
-      for ( var i in res.data.data ) {
-        if ( res.data.data[i].hasFullText === "true" ) {
-          ret = res.data.data[i];
-          break;
+  try {
+    var res = Meteor.http.call('GET', url);
+    if ( res.statusCode === 200 ) {
+      if ( res.data.totalHits === 0 ) {
+        return { status: 'success', data: res.data}
+      } else {
+        var ret = res.data.data[0];
+        for ( var i in res.data.data ) {
+          if ( res.data.data[i].hasFullText === "true" ) {
+            ret = res.data.data[i];
+            break;
+          }
         }
+        return { status: 'success', data: ret}
       }
-      return { status: 'success', data: ret}
+    } else {
+      return { status: 'error', data: res}
     }
-  } else {
-    return { status: 'error', data: res}
+  } catch(err) {
+    return { status: 'error', data: 'CORE API error'}
   }
 }
 

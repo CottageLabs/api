@@ -422,19 +422,18 @@ CLapi.internals.service.lantern.quota = function(email) {
   var until = false;
   var display = false;
   if (acc && acc.service && acc.service.lantern && acc.service.lantern.additional) {
-    var ad = acc.service.lantern.additional[acc.service.lantern.additional.length-1];
-    if ( ad.until > today ) {
-      additional = ad.quota;
-      display = ad.display;
-      until = ad.until;
-    } else {
-      for ( var a in acc.service.lantern.additional ) {
-        var add = acc.service.lantern.additional[a];
+    for ( var a in acc.service.lantern.additional ) {
+      var ad = acc.service.lantern.additional[a];
+      if ( ad.until > today ) {
+        additional = ad.quota;
+        display = ad.display;
+        until = ad.until;
+      } else if ( ((ad.until/1000)+30)*1000 > today ) {
         // set the backtrack date, so only counts old jobs run after the last additional quota expired
         // essentially provides a reset on job quota max after an additional quota is purchased and runs out, 
         // even if the standard quota max was used as well as the additional quota, within the last 30 days.
         // so a wee bit of a bonus - but then, if someone pays for an additional quota one assumes they intend to use all the standard max anyway
-        if ( ((add.until/1000)+30)*1000 > today ) backtrack = (30 - (add.until/1000) - (today/1000));
+        backtrack = (30 - (ad.until/1000) - (today/1000));
       }
     }
   }

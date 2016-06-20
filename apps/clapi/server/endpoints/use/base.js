@@ -19,10 +19,10 @@ CLapi.addRoute('use/base', {
   }
 });
 
-CLapi.addRoute('use/base/:qry', {
+CLapi.addRoute('use/base/search', {
   get: {
     action: function() {
-			return CLapi.internals.use.base.search(this.urlParams.qry);
+			return CLapi.internals.use.base.search(this.queryParams.q,this.queryParams.from,this.queryParams.size);
     }
   }
 });
@@ -30,15 +30,26 @@ CLapi.addRoute('use/base/:qry', {
 CLapi.internals.use.base = {};
 CLapi.internals.use.base.search = function(qry,from,size) { 
 	// base requires IP registration - my machine IP has been registered, but change if machine changes
-	// in order to run this API code in a cluster, these requests should also be proxied to the squid on the registered server...
-	// Meteor.http.call() in the options can accept npmRequestOptions, and that can accept a "proxy" key
-	// the proxy key should be like http://username:password@ip:port (use the un and pw for our squid, and ip/port of reg'd machine) (put this in settings file)
-	
 	// limited to non-commercial and 1 query per second, contact them for more options
-	// how does BASE do from and size - it uses offset and hits (default 10)
-	// it accepts solr query syntax
-	// https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi?func=PerformSearch&format=json&query=
-  return {status: 'error', data: 'still in dev, sorry'}
+	// it uses offset and hits (default 10) for from and size, and accepts solr query syntax
+	if (qry === undefined) qry = '*';
+  var proxy = Meteor.settings.clapi_proxy; // need to route through the proxy so requests come from registered IP
+  if ( !proxy ) return { status: 'error', data: 'NO BASE PROXY SETTING PRESENT!'}
+  var url = 'http://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi?func=PerformSearch&format=json&query="' + qry + '"';
+	if (from) url += '&offset=' + from;
+	if (size) url += '&hits=' + size;
+  console.log(url);
+  try {
+		var opts = {npmRequestOptions:{proxy:proxy}};
+    var res = Meteor.http.call('GET', url, opts);
+    if ( res.statusCode === 200 ) {
+			return { status: 'success', data: JSON.parse(res.content).response}
+    } else {
+      return { status: 'error', data: res}
+    }
+  } catch(err) {
+    return { status: 'error', data: 'BASE API error', error: err}
+  }
 }
 
 
