@@ -188,9 +188,12 @@
           {{/if}}
           <p><a class="btn btn-danger" href="#" id="removeuser" user="{{userhandle founduser}}">Remove user from {{session "gid"}}</a></p>
           {{#if equals group._id 'openaccessbutton' }}
-          <p>
-            Blocked {{userblocks founduser}} times and submitted {{userrequests founduser}} requests.
-          </p>
+          {{#if founduser.service.openaccessbutton.test }}
+          <p><a class="btn btn-info" href="#" id="unmakeoabtestacc" user="{{userhandle founduser}}">Unset as test account</a></p>
+          {{else}}
+          <p><a class="btn btn-default" href="#" id="makeoabtestacc" user="{{userhandle founduser}}">Set as test account</a></p>
+          {{/if}}
+          <p>Blocked {{userblocks founduser}} times and submitted {{userrequests founduser}} requests.</p>
           {{/if}}
         </div>
         {{else}}

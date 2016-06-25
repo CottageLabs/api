@@ -110,12 +110,6 @@ Router.map( function () {
       }
     }
   });
-  this.route('oabuttonrequests', {
-    path: '/request',
-    waitOn : function() {
-      return Meteor.subscribe('requests')
-    }
-  });
   this.route('oabuttonrequest', {
     path: '/request/:rid',
     waitOn : function() {
@@ -141,9 +135,6 @@ Router.map( function () {
       Session.set('blockedid', this.params.sid);
       this.render();                
     }
-  });
-  this.route('oabuttonstories', {
-    path: ['/story','/action']
   });
   
 });

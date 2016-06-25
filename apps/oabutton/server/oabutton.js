@@ -88,13 +88,7 @@ Meteor.methods({
   },
   setreceived: function(respid,description,url) {
     var req = OAB_Request.findOne({receiver:respid});
-    var today = new Date().getTime();
-    if (req && req.received === undefined) {
-      // TODO this should perhaps call CLapi.internals.service.oabutton.receive
-      OAB_Request.update(req._id,{$set:{received:{date:today,from:req.email,url:url,description:description},status:'received'}});
-      // TODO email everyone waiting for it, email author providing it to confirm, email the first requestee, ask people to validate it
-    }
-    // TODO forward content to OSF if data (info on how to do so added to the oabutton service API route), and zenodo if article
+    if (req && req.received === undefined) CLapi.internals.service.oabutton.receive(respid,undefined,url,description);
   },
   setvalidated: function(respid,uid) {
     var req = OAB_Request.findOne({receiver:respid});

@@ -67,6 +67,23 @@ Meteor.methods({
     }    
   },
 
+  makeoabtestacc: function(u) {
+    console.log('attempt to make user ' + u + ' an oabutton test user');
+    var user = Meteor.users.findOne(u);
+    if (!user) user = Meteor.users.findOne({username:u});
+    if (!user) user = Meteor.users.findOne({'profile.username':u});
+    if (!user) user = Meteor.users.findOne({'emails.address':u});
+    if (user) Meteor.users.update(user._id,{$set:{'service.openaccessbutton.test':true}});
+  },
+  unmakeoabtestacc: function(u) {
+    console.log('attempt to stop user ' + u + ' being an oabutton test user');
+    var user = Meteor.users.findOne(u);
+    if (!user) user = Meteor.users.findOne({username:u});
+    if (!user) user = Meteor.users.findOne({'profile.username':u});
+    if (!user) user = Meteor.users.findOne({'emails.address':u});
+    if (user) Meteor.users.update(user._id,{$set:{'service.openaccessbutton.test':false}});
+  },
+
   lanternaddquota: function(u,amount,days) {
     console.log('attempt to add extra ' + amount + ' to user ' + u + ' for ' + days + ' days');
     var user = Meteor.users.findOne(u);

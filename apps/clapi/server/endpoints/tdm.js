@@ -29,16 +29,18 @@ CLapi.addRoute('tdm/keywords', {
       if ( this.queryParams.content ) {
         content = this.queryParams.content;
       } else if (this.queryParams.url) {
+				var url = this.queryParams.url;
+				if (url.indexOf('http') === -1) url = 'http://' + url;
         // resolve the URL
         if ( false ) { // check if we have seen this url before - if so the content should be in our index
         } else {
           // could just get whatever the URL is and save it as attachment into ES...
           if ( this.queryParams.format === 'text' ) {
-            content = Meteor.http.call('GET',this.queryParams.url).content;
+            content = Meteor.http.call('GET',url).content;
           } else if ( this.queryParams.format === 'pdf' ) {
-            content = CLapi.internals.convert.file2txt(this.queryParams.url);
+            content = CLapi.internals.convert.file2txt(url);
           } else {
-            content = CLapi.internals.convert.xml2txt(this.queryParams.url);          
+            content = CLapi.internals.convert.xml2txt(url);
           }
           // save the content to the contentmine index. Save as attachment too?
         }
@@ -50,7 +52,26 @@ CLapi.addRoute('tdm/keywords', {
       }
     }
   }
-})
+});
+
+CLapi.addRoute('tdm/extract', {
+  get: {
+    action: function() {
+			var params = this.bodyParams;
+			if (this.queryParams.url) params.url = this.queryParams.url;
+			if (params.url.indexOf('http') === -1) params.url = 'http://' + params.url;
+			if (this.queryParams.match && this.queryParams.match.indexOf(',') !== -1) {
+				 params.matchers = decodeURIComponent(this.queryParams.match).split(',');
+			} else if (this.queryParams.match) {
+				params.matchers = [decodeURIComponent(this.queryParams.match)];
+			}
+			if (this.queryParams.lowercase) params.lowercase = true;
+			if (this.queryParams.ascii) params.ascii = true;
+			if (this.queryParams.convert) params.convert = this.queryParams.convert;
+			return {status: 'success', data: CLapi.internals.tdm.extract(params)}
+    }
+  }
+});
 
 CLapi.addRoute('tdm/match', {
   get: {
@@ -119,4 +140,57 @@ CLapi.internals.tdm.keywords = function(content,opts) {
   var gramophone = Meteor.npmRequire('gramophone');
   var keywords = gramophone.extract(content, opts);
   return keywords;
+}
+
+CLapi.internals.tdm.extract = function(opts) {
+	// opts expects url,content,matchers,start,end,convert,format,lowercase,ascii
+
+	var resolved = opts.url;
+	if (opts.url && opts.resolve) {
+		opts.url = opts.url.replace(/(^\s*)|(\s*$)/g,'');
+		var tr = CLapi.internals.academic.resolve(opts.url); // what sort of resolving would be suitable here?
+		tr.url ? resolved = tr.url : resolved = tr.source;
+	}
+	
+	if (resolved) {
+		opts.content = Meteor.http.call('GET',resolved).content;
+	}
+
+	var text;
+	try {
+		if (opts.convert) {
+			text = CLapi.internals.convert.run(resolved,opts.convert,'txt',opts.content);
+		} else {
+			text = opts.content;
+		}
+	} catch(err) {
+		text = opts.content;
+	}
+	
+	if (opts.start !== undefined) {
+		var parts = text.split(opts.start);
+		parts[1] !== undefined ? text = parts[1] : text = parts[0];
+	}
+	if (opts.end !== undefined) text = text.split(opts.end)[0];
+
+	if (opts.lowercase) text = text.toLowerCase();
+	if (opts.ascii) text = text.replace(/[^a-z0-9]/g,'');
+	
+	var res = {matched:0,matches:[],matchers:opts.matchers};
+	if (text) {
+		for ( var i in opts.matchers ) {
+			var match = opts.lowercase ? opts.matchers[i].toLowerCase() : opts.matchers[i]; // could be strings, objects, regex matches?
+			// should we get +- 100 chars context?
+			if (match.indexOf('/') !== 0 && text.indexOf(match) !== -1) {
+				res.matched += 1;
+				res.matches.push({matched:match});
+				// TODO what about counting number of same matches?
+			} else if (text.search(match) !== -1) {
+				res.matched += 1;
+				res.matches.push({matched:match});
+			}
+		}
+	}
+	return res;
+
 }

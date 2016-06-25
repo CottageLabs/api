@@ -13,34 +13,6 @@
       "pem": "~/.ssh/id_dsa",
       "env": {
       }
-    },
-    {
-      "host": "10.131.16.233",
-      "username": "cloo",
-      "pem": "~/.ssh/id_dsa",
-      "env": {
-      }
-    },
-    {
-      "host": "10.131.19.235",
-      "username": "cloo",
-      "pem": "~/.ssh/id_dsa",
-      "env": {
-      }
-    },
-    {
-      "host": "10.131.23.232",
-      "username": "cloo",
-      "pem": "~/.ssh/id_dsa",
-      "env": {
-      }
-    },
-    {
-      "host": "10.131.24.38",
-      "username": "cloo",
-      "pem": "~/.ssh/id_dsa",
-      "env": {
-      }
     }
   ],
   "setupMongo": false,

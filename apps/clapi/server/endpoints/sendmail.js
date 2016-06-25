@@ -19,6 +19,15 @@ CLapi.addRoute('sendmail', {
   }
 });
 
+CLapi.addRoute('sendmail/test', {
+  get: {
+    action: function() {
+      //CLapi.internals.sendmail_test();
+      return {status: 'success', data: {} };
+    }
+  }
+});
+
 CLapi.internals.sendmail = function(opts,mail_url) {
   console.log('Sending an email');
   // should change this to use mailgun API instead of smtp
@@ -37,6 +46,17 @@ CLapi.internals.sendmail = function(opts,mail_url) {
   if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
 }
 
-
+CLapi.internals.sendmail_test = function() {
+  CLapi.internals.sendmail({
+    from: "mark@cottagelabs.com",
+    to: [Meteor.settings.openaccessbutton.osf_address,"odaesa@gmail.com"],
+    subject: 'On submitting files to the OSF in a convoluted manner',
+    text: "hello",
+    attachments:[{
+      fileName: 'myfile.txt',
+      filePath: '/home/cloo/att_test.txt'
+    }]
+  });
+}
 
 

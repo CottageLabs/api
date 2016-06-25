@@ -14,28 +14,30 @@ CLapi.addRoute('service/oabutton/embed/request/:rid', {
       var b = OAB_Request.findOne(rid);
       if (b) {
         b.count = OAB_Blocked.find({url:b.url}).count();
+        var which = b.type === 'data' ? 'data' : 'access';
         var title = b.url;
         if ( b.metadata && b.metadata.title ) title = b.metadata.title;
         var template = '<div style="width:800px;padding:0;margin:0;"> \
   <div style="padding:0;margin:0;float:left;width:150px;height:200px;background-color:white;border:2px solid #398bc5;;"> \
-    <img src="https://data.openaccessbutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;"> \
-  </div> \
+    ' + (b.type === 'data' ? '<img src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">' : 
+    '<img src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:100%;width:100%;">') + 
+  '</div> \
   <div style="padding:0;margin:0;float:left;width:400px;height:200px;background-color:#398bc5;;"> \
     <div style="height:166px;"> \
       <p style="margin:2px;color:white;font-size:30px;text-align:center;"> \
-        <a target="_blank" href="https://opendatabutton.org/request/' + rid + '" style="color:white;font-family:Sans-Serif;"> \
-          Open Data Button \
+        <a target="_blank" href="https://open' + which + 'button.org/request/' + rid + '" style="color:white;font-family:Sans-Serif;"> \
+          Open ' + which.substring(0,1).toUpperCase() + which.substring(1,which.length) + ' Button \
         </a> \
       </p> \
       <p style="margin:2px;color:white;font-size:16px;text-align:center;font-family:Sans-Serif;"> \
-        Request for data supporting the article <br> \
-        <a target="_blank" id="odb_article" href="https://opendatabutton.org/request/' + rid + '" style="font-style:italic;color:white;font-family:Sans-Serif;"> \
+        Request for ' + (b.type === 'data' ? 'data supporting' : '') + 'the article <br> \
+        <a target="_blank" id="odb_article" href="https://open' + which + 'button.org/request/' + rid + '" style="font-style:italic;color:white;font-family:Sans-Serif;"> \
         ' + title + '</a> \
       </p> \
     </div> \
     <div style="height:30px;background-color:#f04717;"> \
       <p style="text-align:center;font-size:16px;margin-right:2px;padding-top:1px;"> \
-        <a target="_blank" style="color:white;font-family:Sans-Serif;" href="https://opendatabutton.org/request/' + rid + '"> \
+        <a target="_blank" style="color:white;font-family:Sans-Serif;" href="https://open' + which + 'button.org/request/' + rid + '"> \
           ADD YOUR SUPPORT \
         </a> \
       </p> \
@@ -333,6 +335,14 @@ CLapi.addRoute('service/oabutton/status', {
   }
 });
 
+CLapi.addRoute('service/oabutton/stats', {
+  get: {
+    action: function () {
+      return CLapi.internals.service.oabutton.stats();
+    }
+  }
+});
+
 CLapi.addRoute('service/oabutton/export/:what', {
   roleRequired:'openaccessbutton.admin',
   get: {
@@ -364,10 +374,12 @@ CLapi.internals.service.oabutton.stats = function() {
     article: {
       blocks: {
         total: OAB_Blocked.find({type:'article'}).count(),
+        test: OAB_Blocked.find({$and:[{type:'article'},{test:true}]}).count(),
         users: OAB_Blocked.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length
       },
       requests:{
         total: OAB_Request.find({type:'article'}).count(),
+        test: OAB_Request.find({$and:[{type:'article'},{test:true}]}).count(),
         users: OAB_Request.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length,
         moderate: OAB_Request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
         progress: OAB_Request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
@@ -379,10 +391,12 @@ CLapi.internals.service.oabutton.stats = function() {
     data: {
       blocks: {
         total: OAB_Blocked.find({type:'data'}).count(),
+        test: OAB_Blocked.find({$and:[{type:'data'},{test:true}]}).count(),
         users: OAB_Blocked.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length
       },
       requests:{
         total: OAB_Request.find({type:'data'}).count(),
+        test: OAB_Request.find({$and:[{type:'data'},{test:true}]}).count(),
         users: OAB_Request.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length,
         moderate: OAB_Request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
         progress: OAB_Request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
@@ -434,6 +448,7 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
   var profession;
   if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.profession) profession = u.service.openaccessbutton.profession;
   var event = {user:user, username:username, profession:profession, createdAt: new Date().getTime()};
+  if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) event.test = true;
   if (data.url !== undefined) event.url = data.url;
   if (data.metadata !== undefined) event.metadata = data.metadata; // should be bibjson title, journal, identifier DOI, author, etc
   if (data.story !== undefined) event.story = data.story;
@@ -553,6 +568,7 @@ CLapi.internals.service.oabutton.request = function(type,url,email,requestee,met
         user:user,
         createdAt: new Date().getTime()
       };
+      if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) request.test = true;
       if (metadata) request.metadata = metadata;
       request.receiver = CLapi.internals.store.receiver(request);
       request._id = OAB_Request.insert(request);
@@ -633,27 +649,66 @@ CLapi.internals.service.oabutton.followup = function(rid) {
   }
 }
 
-CLapi.internals.service.oabutton.receive = function(rid,content) {
-  var saved = CLapi.internals.store.receive(rid,content); // put it in the store, unless it is a URL, then what?
-  var url, description; // a provided url, or a url to the item in store? and some sort of description?
+CLapi.internals.service.oabutton.receive = function(rid,content,url,description) {
   var r = OAB_Request.findOne({receiver:rid});
-  var today = new Date().getTime();
-  r.received = {date:today,from:r.email,url:url,description:description};
-  if (r.hold) delete r.hold;
-  r.status = 'received'
-  OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
-  //CLapi.internals.sendmail(); //email everyone who wanted it - this could be a lot of emails
-  //CLapi.internals.sendmail(); //email the user that started the request with specific thanks?
-  //CLapi.internals.sendmail(); //email the address that provided the content with confirmation and thanks
-  //CLapi.internals.sendmail(); //email an oabutton admin user?
-  // tweet about the discovery?
-  // send to the OSF by emailing it to their system using the oabutton project email test-osfm2015-talk@osf.io
-  // by setting the from address as the author that submitted, it will create an account for them and follow up with them
-  // see http://help.osf.io/m/58281/l/546443-upload-your-research
-  // and an example https://osf.io/view/SPSP2016/
-  // but there appears no way to get back the details about this saved item - should we bother linking to it from our own content?
-  //CLapi.internals.sendmail({from:r.email,to:'test-osfm2015-talk@osf.io',subject:''});
-  return {status: 'success', data: r};
+  if (!r) {
+    return {status: 'error', data: 'no request matching that response ID'}
+  } else if (r.received) {
+    return {status: 'error', data: 'content already received'}
+  } else {
+    //if (content) CLapi.internals.store.receive(rid,content); // TODO put it in the store, unless it is a URL, then what? - match how stored via upload UI too
+    var today = new Date().getTime();
+    r.received = {date:today,from:r.email,url:url,description:description};
+    if (r.hold) delete r.hold;
+    r.status = 'received'
+    OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
+
+    var mu = Meteor.settings.openaccessbutton.mail_url;
+    var mf = Meteor.settings.openaccessbutton.mail_from;
+    var w = r.type === 'data' ? 'Opendatabutton' : 'Openaccessbutton';
+
+    // email the person that provided the content, confirming receipt
+    CLapi.internals.sendmail({
+      from: mf,
+      to: r.email,
+      subject: w + ' submission received',
+      text: "Hello " + r.email + ",\n\n" + "Thank you very much for your submission to the request at \n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nWe have contacted all the people who needed access to this content to let them know you've been so helpful in making it available.\n\nThanks very much again for your support,\n\nThe " + w + " team."
+    },mu);  
+    // email the person that started the request
+    CLapi.internals.sendmail({
+      from: mf,
+      to: r.user.email,
+      subject: w + ' request successful!',
+      text: "Hello " + r.user.email + ",\n\n" + "Your " + w + " request has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nThanks very much for your support,\n\nThe " + w + " team."
+    },mu);
+    // email everyone who wanted it
+    var wants = [];
+    OAB_Blocked.find({url:r.url}).forEach(function(b) {
+      var u = Meteor.users.findOne(b.user);
+      var addr = u.emails[0].address;
+      if (wants.indexOf(addr) === -1) wants.push(addr);
+    });
+    CLapi.internals.sendmail({
+      from: mf,
+      bcc: wants,
+      subject: w + ' request successful!',
+      text: "Hello!\n\n" + "An " + w + " request for content that you supported has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nThanks very much for your support,\n\nThe " + w + " team."
+    },mu);
+    // send to the OSF system via the oabutton project email address
+    // see http://help.osf.io/m/58281/l/546443-upload-your-research and an example https://osf.io/view/SPSP2016/
+    // TODO now need some way to look up osf API to get the ID of the item we just submitted - then save that URL in the request received info
+    // https://api.osf.io/v2/docs/#!/v2/File_Detail_GET
+    CLapi.internals.sendmail({
+      from: r.email,
+      to: Meteor.settings.openaccessbutton.osf_address,
+      subject: r.metadata && r.metadata.title ? r.metadata.title : r.url,
+      attachments:[{
+        fileName: '', // TODO make a filename and path of all the stuff the user uploaded.
+        filePath: ''
+      }]
+    },mu);
+    return {status: 'success', data: r};
+  }
 }
 
 CLapi.internals.service.oabutton.status = function(url,type) {

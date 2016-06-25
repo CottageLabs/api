@@ -262,7 +262,11 @@
         <p>You have administrative control, hence you are able to edit this block story.</p>
       </div>
       <div class="col-md-6">
-        {{#if story.test}}{{else}}<a class="btn btn-warning btn-block" href="#" id="maketeststory">Set as a test story</a>{{/if}}
+        {{#if story.test}}
+        <p>This story has been set as a test.</p>
+        {{else}}
+        <a class="btn btn-warning btn-block" href="#" id="maketeststory">Set as a test story</a>
+        {{/if}}
         <a class="btn btn-danger btn-block" href="#" id="deleteblock">Delete story</a>
       </div>
     </div>
@@ -273,13 +277,13 @@
     <div class="row">
       <div class="col-md-12">
         <div class="jumbotron" style="min-height:200px;background-color:#398bc5;">
-          <h3 style="color:white;">The supporting data for 
+          <h3 style="color:white;">The {{#if equals story.type 'data' }}supporting data for{{else}}article{{/if}} 
             <i><a target="_blank" href="{{story.url}}" style="color:white;text-decoration:underline;">{{#if story.metadata.title}}{{story.metadata.title}}{{else}}{{story.url}}{{/if}}</a></i>
             is not available. {{#if story.story}}<br>If it was available, it could be used for {{story.story}}{{else}}Our community needs access to it{{/if}}.
           </h3>
           {{#if story.username}}
           <h4>
-            This was logged by {{story.username}}{{#if story.profession}}, a {{story.profession}}{{/if}}.
+            This was logged by {{story.username}}{{#if story.profession}}{{#if equals story.profession "other"}}{{else}}, a {{story.profession}}{{/if}}{{/if}}.
           </h4>
           {{/if}}
         </div>
@@ -288,31 +292,41 @@
     <div class="row">
       <div class="col-md-12">
         {{#if request}}
-        <p><a class="btn btn-info btn-block" href="/request/{{request._id}}">View the request for the content related to this story</a></p>
+        <p><a class="btn btn-info btn-block" href="/request/{{request._id}}">View the request for content related to this story</a></p>
         {{else}}
-        <p>There is no request for access to the supporting data of this article.</p>
+        <p>There is no request for access to this content yet.</p>
         {{/if}}
         <p><a href="#" id="shares" class="btn btn-default btn-block shares">Share this story</a></p>
         <div class="shares" style="display:none;">
-          <p>Share and publicise this story, to increase the chances of us getting the data to the people that need it.</p>
-          <p>Story URL: <code>https://opendatabutton.org/story/{{session "blockedid"}}</code></p>
+          <p>Share and publicise this story, to increase the chances of us getting the content to the people that need it.</p>
+          <p>Story URL: 
+            {{#if equals story.type 'data' }}
+            <code>https://opendatabutton.org/story/{{session "blockedid"}}</code>
+            {{else}}
+            <code>https://openaccessbutton.org/story/{{session "blockedid"}}</code>
+            {{/if}}
+          </p>
           <p>Embed code - embed a widget in your site to publicise this story. Just copy and paste the code below:</p>
           <textarea class="form-control" style="height:100px;" onclick="this.select()"><div id="odb_insert"></div><script>var odbe = function() {var x = new XMLHttpRequest(); x.onreadystatechange = function() { if (x.readyState == 4 && x.status == 200) { document.getElementById("odb_insert").innerHTML = JSON.parse(x.responseText).data; } }; x.open("GET", "https://api.opendatabutton.org/embed/blocked/{{session "blockedid"}}", true); x.send(); }();</script></textarea>
           <p>You will get a widget like this:</p>
 <div style="width:800px;padding:0;margin:0;">
   <div style="padding:0;margin:0;float:left;width:150px;height:200px;background-color:white;border:2px solid #398bc5;;">
-    <img src="https://data.openaccessbutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">
+    {{#if equals story.type 'data' }}
+    <img src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">
+    {{else}}
+    <img src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:100%;width:100%;">
+    {{/if}}
   </div>
   <div style="padding:0;margin:0;float:left;width:400px;height:200px;background-color:#398bc5;;">
     <div style="height:166px;">
       <p style="margin:2px;color:white;font-size:30px;text-align:center;">
         <a target="_blank" href="https://opendatabutton.org/story/" style="color:white;font-family:Sans-Serif;">
-          Open Data Button
+          Open {{#if equals story.type 'data' }}Data{{else}}Access{{/if}} Button
         </a>
       </p>
       <p style="margin:2px;color:white;font-size:16px;text-align:center;font-family:Sans-Serif;">
         <a target="_blank" id="odb_article" href="https://opendatabutton.org/story/" style="color:white;font-family:Sans-Serif;">
-        I need access to the supporting data for {{#if story.metadata.title}}{{story.metadata.title}}{{else}}{{story.url}}{{/if}}
+        I need access to the {{#if equals story.type 'data' }}supporting data for {{else}}article at {{/if}}{{#if story.metadata.title}}{{story.metadata.title}}{{else}}{{story.url}}{{/if}}
         {{#if story.story}} so that I can {{story.story}}{{/if}}.</a>
       </p>
     </div>
@@ -342,126 +356,6 @@
   </script>
 
 </template>
-        
-        
-
-
-<template name="oabuttonrequests">
-  
-  {{> oabuttonheader}}
-
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-md-4">
-        <div class="well" style="background-color:#212f3f;color:white;min-height:200px;">
-          <h1 style="text-align:center;font-size:100px;color:#f04717;">{{requestscount}}</h1>
-          <p style="text-align:center;">requests for access are in progress</p>
-        </div>
-        <div class="well" style="background-color:#212f3f;color:white;min-height:200px;">
-          <h1 style="text-align:center;font-size:100px;color:#f04717;">{{requestssuccesscount}}</h1>
-          <p style="text-align:center;">requests have been successful</p>
-        </div>
-        <div class="holder holder-suggestions"></div>
-      </div>
-
-      <div class="col-md-8">
-        <div class="panel panel-default holder holder-ui" id="requests">
-          <div class="panel-heading" style="background-color:white;padding:0px;">
-            <div class="input-group" style="margin-left:-1px;margin-top:-1px;margin-bottom:-6px;margin-right:-2px;">
-              <input type="text" class="form-control holder holder-search holder-function" holder-function="suggest" placeholder="search..." style="font-size:1.6em;height:50px;">
-              <div class="input-group-btn">
-                <a href="/request" class="btn btn-default" alt="clear all search terms and reset" title="clear all search terms and reset" style="height:50px;font-size:1.6em;">x</a>
-              </div>
-            </div>
-            <div class="holder holder-filters" style="margin-top:5px;"></div>
-          </div>
-        </div>
-        <div class="holder holder-results"></div>
-      </div>            
-    </div>
-  </div>
-
-  <script>
-  jQuery(document).ready(function() {        
-
-    var result = function(res) {
-      return '<tr><td><h4><a href="/request/' + res._id + '" style="color:#212f3f;">Requesting ' + res.email + ' to provide access to the supporting data for the article at ' + res.url + '</a></h4></td></tr>';
-    }
-    var results = function(data) {
-      var out = '<table class="table table-striped table-bordered"><thead></thead><tbody class="holder holder-results">';
-      for ( var r in data.hits.hits ) {
-        out += result(data.hits.hits[r]._source);
-      }
-      out += '</tbody></table>';
-      $('.holder.holder-results').html(out);
-    }
-
-    var first = true;
-    var scroll = function(data) {
-      if (first) {
-        first = false;
-      } else {
-        for ( var r in data.hits.hits ) {
-          var res = result(data.hits.hits[r]._source);
-          $('.holder.holder-innerresults').append(res);
-        }
-      }
-    }        
-    
-    var aggregations = function(data) {
-      $('.holder.holder-suggestions').html("");
-      for ( var f in $('.holder').holder.options.query.aggregations ) {
-        var disp = '<div class="well"><p>Filter by ' + f + '</p>';
-        for ( var r in data.aggregations[f].buckets ) {
-          var j = data.aggregations[f].buckets[r];
-          disp += '<p>' + searchify({class: 'holder btn btn-info', val: j.key + ' (' + j.doc_count + ')', attrs: {function: 'add', filter: f, value: j.key} }) + '</p>';
-        }
-        disp += '</div>';
-        $('.holder.holder-suggestions').append(disp);
-      }      
-    }
-
-    $('#requests').holder({
-      what: "Requests",
-      url: "https://api.opendatabutton.org/query/request",
-      datatype: 'JSON',
-      scroll: true,
-      defaultquery: { 
-        sort: [
-          {
-            createdAt: {order: 'desc'}
-          }
-        ],
-        query: {
-          filtered: {
-            query: {
-              bool: {
-                must: []
-              }
-            },
-            filter: {
-              bool: {
-                must:[]
-              }
-            }
-          }
-        }
-      },
-      pushstate: false,
-      results: {
-        default: results,
-        scroll: scroll,
-        aggregations: aggregations
-      },
-      size: 50,
-      aggregations: {
-        status: { terms: { field: "status.exact", size: 100 } }
-      }
-    }); 
-
-  });  
-  </script>
-</template>
 
         
 
@@ -489,7 +383,11 @@
         <a class="btn btn-info btn-block" href="#" id="setstatus">Change status</a>
         <a class="btn btn-info btn-block" href="#" id="emailusers">Email users who requested this</a>
         <a class="btn btn-info btn-block" href="#" id="emailauthor">Email the author this request is targeted at</a>
-        {{#if request.test}}{{else}}<a class="btn btn-warning btn-block" href="#" id="maketestrequest">Set as a test request</a>{{/if}}
+        {{#if request.test}}
+        <p>This request has been set as a test.</p>
+        {{else}}
+        <a class="btn btn-warning btn-block" href="#" id="maketestrequest">Set as a test request</a>
+        {{/if}}
         <a class="btn btn-danger btn-block" href="#" id="deleterequest">Delete request</a>
         <p id="statuschanged" style="display:none;">Status has been changed, see below.</p>
       </div>
@@ -515,31 +413,47 @@
     <div class="row">
       <div class="col-md-8">
         <div class="jumbotron" style="min-height:300px;background-color:#398bc5;">
+          {{#if equals request.type 'data' }}
           <h1 style="color:white;">Request for data</h1>
-          <p style="color:#ccc;">supporting the article <a target="_blank" href="{{request.url}}" style="color:white;text-decoration:underline;">
+          {{else}}
+          <h1 style="color:white;">Request for article</h1>
+          {{/if}}
+          <p style="color:#ccc;">
+            {{#if equals request.type 'data' }}
+            supporting the article 
+            {{/if}}
+            <a target="_blank" href="{{request.url}}" style="color:white;text-decoration:underline;">
             {{#if request.metadata.title}}{{request.metadata.title}}{{else}}{{request.url}}{{/if}}</a>. 
             <br>Request started on <b id="timestamp">{{request.createdAt}}</b> by 
           <b>{{#if request.user.username}}{{request.user.username}}{{else}}{{request.user.email}}{{/if}}</b></p>
         </div>
         <div class="shares" style="display:none;">
-          <p>Share and publicise this request, to increase the chances of us getting the data to the people that need it.</p>
+          <p>Share and publicise this request, to increase the chances of us getting it to the people that need it.</p>
+          {{#if equals request.type 'data' }}
           <p>Request URL: <code>https://opendatabutton.org/request/{{session "requestid"}}</code></p>
+          {{else}}
+          <p>Request URL: <code>https://openaccessbutton.org/request/{{session "requestid"}}</code></p>
+          {{/if}}
           <p>Embed code - embed a widget in your site to publicise this request. Just copy and paste the code below:</p>
           <textarea class="form-control" style="height:100px;" onclick="this.select()"><div id="odb_insert"></div><script>var odbe = function() {var x = new XMLHttpRequest(); x.onreadystatechange = function() { if (x.readyState == 4 && x.status == 200) { document.getElementById("odb_insert").innerHTML = JSON.parse(x.responseText).data; } }; x.open("GET", "https://api.opendatabutton.org/embed/request/{{session "requestid"}}", true); x.send(); }();</script></textarea>
           <p>You will get a widget like this:</p>
 <div style="width:800px;padding:0;margin:0;">
   <div style="padding:0;margin:0;float:left;width:150px;height:200px;background-color:white;border:2px solid #398bc5;;">
-    <img src="https://data.openaccessbutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">
+    {{#if equals story.type 'data' }}
+    <img src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">
+    {{else}}
+    <img src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:100%;width:100%;">
+    {{/if}}
   </div>
   <div style="padding:0;margin:0;float:left;width:400px;height:200px;background-color:#398bc5;;">
     <div style="height:166px;">
       <p style="margin:2px;color:white;font-size:30px;text-align:center;">
         <a target="_blank" href="https://opendatabutton.org/request/" style="color:white;font-family:Sans-Serif;">
-          Open Data Button
+          Open {{#if equals request.type 'data' }}Data{{else}}Access{{/if}} Button
         </a>
       </p>
       <p style="margin:2px;color:white;font-size:16px;text-align:center;font-family:Sans-Serif;">
-        Request for data supporting the article <br>
+        Request for {{#if equals request.type 'data' }}data supporting {{/if}} the article <br>
         <a target="_blank" id="odb_article" href="https://opendatabutton.org/request/" style="font-style:italic;color:white;font-family:Sans-Serif;">
         {{#if request.metadata.title}}{{request.metadata.title}}{{else}}{{request.url}}{{/if}}</a>
       </p>
@@ -578,11 +492,11 @@
     <div class="row">
       <div class="col-md-8">
         <div class="panel panel-default" style="min-height:300px;border-color:#398bc5;">
-          <div class="panel-heading" style="background-color:#398bc5;"><h1 style="text-align:center;color:white;">Add your support - get the data</h1></div>
+          <div class="panel-heading" style="background-color:#398bc5;"><h1 style="text-align:center;color:white;">Add your support</h1></div>
           <div class="panel-body">
-            <p>You can help make this data available by supporting this request.</p>
+            <p>You can help make this content available by supporting this request.</p>
             {{#if currentUser}}
-            <textarea class="form-control addsupport" style="min-height:100px;" placeholder="(Optional) please tell us what you would use this data for" id="supportstory"></textarea>
+            <textarea class="form-control addsupport" style="min-height:100px;" placeholder="(Optional) please tell us what you would use this content for" id="supportstory"></textarea>
             <a class="btn btn-info btn-block addsupport" id="addsupport" href="#">Add your support</a>
             <p class="addsupport" style="display:none;">Thank you! Your support has been added to this request, and you will be notified when this content becomes available.</p>
             {{else}}
@@ -634,6 +548,7 @@
           <p>Write about why you support Open Data. Mention this request.</p>
           <p><a href="https://openaccessbutton.org/donate">Donate now</a></p>
         </div>
+        {{#if equals request.type 'data' }}
         <div class="well">
           <h4>What's Open Data, and why should I care?</h4>
           <p>Open Data is data that is freely available on the internet permitting any user to download, copy, analyse, 
@@ -644,15 +559,17 @@
             can be cited - allowing researchers to get greater credit for all their work. With Open Research Data bigger problems are solved 
             faster. Better than data just sitting on your hard drive gathering dust, right?</p>
         </div>
+        {{/if}}
       </div>
     </div>
     
     <div class="row">
       <div class="col-md-12">
         <div class="well">          
-          <p>We believe that researchers have an obligation to make research data supporting papers open by default. 
-            Open research data is good practice for research, makes greater innovation possible, and is fair for funders - 
-            the public. Request pages keep researchers accountable to requests for data made through the Open Data Button.</p>
+          <h4>About this page</h4>
+          <p>We believe that researchers have an obligation to make research papers and the data supporting papers open by default. 
+            Open research and data is good practice for research, makes greater innovation possible, and is fair for funders - 
+            the public. Request pages keep researchers accountable to requests for papers and data made through the Open Access Button and Open Data Button.</p>
 
           <p>This page has been automatically generated by users. If you see an error or offensive content please let us know by emailing 
             <a href="mailto:leads@openaccessbutton.org">leads@openaccessbutton.org</a>.</p>
@@ -683,30 +600,6 @@
   </script>
 </template>
 
-
-
-
-<template name="oabuttonadmin">
-
-  {{> oabuttonheader}}
-
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-md-12">
-        <table class="table table-striped table-bordered"><thead></thead><tbody>
-        {{#each users}}
-        <tr><td><h4><a href="/account/{{_id}}" style="color:#212f3f;">{{_id}}</a></h4></td></tr>
-        {{/each}}
-        </tbody></table>
-      </div>
-    </div>
-    {{#if moreResults}}
-      <div id="showMoreResults" style="margin-left: 25px;">
-        <span class="loading">Loading...</span>
-      </div>
-    {{/if}}
-  </div>
-</template>
 
 
 

@@ -85,6 +85,15 @@ Template.managegroup.events({
   "click #removeadmin": function(event) {
     Meteor.call('removeuserfromgroup',event.target.getAttribute('user'),Session.get("gid"),'admin');
   },
+  
+  "click #makeoabtestacc": function(event) {
+    Meteor.call('makeoabtestacc',event.target.getAttribute('user'));
+  },
+  "click #unmakeoabtestacc": function(event) {
+    Meteor.call('unmakeoabtestacc',event.target.getAttribute('user'));
+  },
+
+  
   "click #makepremium": function(event) {
     Meteor.call('addusertogroup',event.target.getAttribute('user'),Session.get("gid"),'premium');
   },
