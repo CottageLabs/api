@@ -528,9 +528,9 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     job.email = user.emails[0].address;
     job.user = uid;
   }
-  // for now if no uid assume a wellcome user in which case refresh needs to be set to 7
+  // for now if no uid assume a wellcome user in which case refresh needs to be set to 1
   // should really be a check on the user setting, and/or the refresh number already passed in from the request
-  if (!user) refresh = 7;
+  if (!user) refresh = 1;
   if (refresh !== undefined) job.refresh = refresh;
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list

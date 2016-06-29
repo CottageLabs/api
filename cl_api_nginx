@@ -378,3 +378,28 @@ server {
         }
 }
 
+server {
+    listen      80;
+    server_name compliance.cottagelabs.com;
+    return 301 https://compliance.cottagelabs.com$request_uri;
+}
+server {
+        listen 443 ssl;
+        server_name compliance.cottagelabs.com;
+        include includes/cl-wildcard-ssl.conf;
+        root /home/cloo/live/cl;
+
+        location /content {
+            try_files /sub/wellcome$uri /sub/wellcome$uri.html /sub/wellcome$uri/index /sub/wellcome/$uri/index.html 404 /404 =404;
+            add_header Access-Control-Allow-Origin *;
+        }
+        location /static {
+            try_files $uri $uri.html $uri/index $uri/index.html 404 /404 =404;
+            add_header Access-Control-Allow-Origin *;
+        }
+
+        location / {
+            try_files $uri $uri.html /index.html;
+            add_header Access-Control-Allow-Origin *;
+        }
+}
