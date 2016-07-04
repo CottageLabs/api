@@ -89,6 +89,7 @@ Template.oabuttonrequest.events({
     $('#statuschanged').hide();
     var s = $('#status').val();
     if (s === 'progress') {
+      $('#setstatus').html("Change status and send email.");
       var r = OAB_Request.findOne(Session.get("requestid"));
       var email = r.email;
       if (email.constructor === Array) email = email[0];
@@ -120,6 +121,19 @@ Template.oabuttonrequest.events({
     $('#statuschanged').show();
     Meteor.call('setstatus',status,reqid,msg);
   },
+  
+  'click #emailusers': function() {
+    $('#text').show();
+    $('#emailusers').html("Once email content is written, click here to send.");
+    var text = $('#text').val();
+    if (text.length > 0) {
+      var reqid = Session.get("requestid");
+      Meteor.call('emailusers',reqid,text);
+      $('#text').val("").hide();
+      $('#emailusers').html("Email to users sent! Click here to send another.");      
+    }
+  },
+
   'click #deleterequest': function(e) {
     var reqid = Session.get("requestid");
     Meteor.call('deleterequest',reqid);
