@@ -5,7 +5,21 @@ CLapi.addRoute('convert', {
   get: {
     action: function() {
       if ( this.queryParams.url) {
-        return CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to);        
+        var opts = {
+          subset:this.queryParams.subset,
+          fields:this.queryParams.fields.split(',')
+        };
+        var to = 'text/plain';
+        if (this.queryParams.to === 'csv') to = 'text/csv';
+        if (this.queryParams.to === 'json') to = 'application/json';
+        if (this.queryParams.to === 'xml') to = 'text/xml';
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': to
+          },
+          body: CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,undefined,opts)
+        }
       } else {
         return {status: 'success', data: {info: 'Accepts URLs of content files and converts them to what you need'} };
       }
@@ -23,7 +37,7 @@ CLapi.addRoute('convert', {
 });
 
 
-CLapi.internals.convert.run = function(url,from,to,content) {
+CLapi.internals.convert.run = function(url,from,to,content,opts) {
   var which, proc, output;
   if ( from === 'csv' ) {
     if ( to === 'json' ) {
@@ -41,7 +55,7 @@ CLapi.internals.convert.run = function(url,from,to,content) {
     }
   } else if ( from === 'json' ) {
     if ( to === 'csv' ) {
-      output = CLapi.internals.convert.json2csv(url); // pass extra opts here if available
+      output = CLapi.internals.convert.json2csv(opts,url,content); // pass extra opts here if available
     } else if ( to === 'txt' ) {
       from = 'file';
     }
@@ -95,7 +109,7 @@ CLapi.internals.convert.xml2txt = function(url,content,html) {
   return text;
 };
 
-CLapi.internals.convert.file2txt = Async.wrap(function(url, content, callback) {
+CLapi.internals.convert.file2txt = Async.wrap(function(url, content, opts, callback) {
   var textract = Meteor.npmRequire('textract');
   // NOTE extracting pdf requires pdftotext to be installed on the machine
   // https://www.npmjs.com/package/textract
@@ -103,11 +117,11 @@ CLapi.internals.convert.file2txt = Async.wrap(function(url, content, callback) {
   // or may be better off just using pdf2json https://www.npmjs.com/package/pdf2json
   // if we have content rather than url do this a different way...
   if (url) {
-    textract.fromUrl(url, function( err, result ) {
+    textract.fromUrl(url, opts, function( err, result ) {
       return callback(null,result);
     });
   } else {
-    textract.fromBufferWithMime('application/pdf',content, function( err, result ) {
+    textract.fromBufferWithMime('application/pdf',content, opts, function( err, result ) {
       return callback(null,result);
     });
   }
@@ -128,9 +142,22 @@ CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
 CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callback) {
   if ( content === undefined ) {
     var res = Meteor.http.call('GET', url);
-    content = res.content;
+    content = JSON.parse(res.content);
   }
   if (opts === undefined) opts = {};
+  if (opts.subset) {
+    var parts = opts.subset.split('.');
+    delete opts.subset;
+    for ( var p in parts ) {
+      if (Array.isArray(content)) {
+        var c = [];
+        for ( var r in content ) c.push(content[r][parts[p]]);
+        content = c;
+      } else  {
+        content = content[parts[p]];
+      }
+    }
+  }
   opts.data = content;
   var json2csv = Meteor.npmRequire('json2csv');
   json2csv(opts, function(err, result) {

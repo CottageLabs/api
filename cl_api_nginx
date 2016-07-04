@@ -23,26 +23,10 @@ upstream clapi {
     server 10.131.20.129:3000;
     server 10.131.11.72:3000;
 }
-# ALLOW CONNECTS TO NON-HTTPS API FOR NOW, TO ALLOW WELLCOME.TEST.COTTAGELABS.COM TO CONTINUE TO EXIST FOR A WHILE
-#server {
-#    listen      80;
-#    server_name api.cottagelabs.com;
-#    return 301 https://$host$request_uri;
-#}
 server {
     listen      80;
-    client_max_body_size 1024M;
-    keepalive_timeout 300;
-    proxy_read_timeout 600s;
-
-    location / {
-        proxy_pass http://clapi/api/;
-        proxy_redirect off;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
     server_name api.cottagelabs.com;
+    return 301 https://$host$request_uri;
 }
 server {
     listen          443 ssl spdy;
@@ -51,15 +35,8 @@ server {
     include includes/cl-wildcard-ssl.conf;
     # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
 #    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/api.opendatabutton.org/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/api.opendatabutton.org/privkey.pem;
-
-    client_max_body_size 1024M;
-    keepalive_timeout 300;
-    proxy_connect_timeout 600;
-    proxy_send_timeout 600;
-    proxy_read_timeout 600;
-    send_timeout 600;
+#    ssl_certificate /etc/letsencrypt/live/api.cottagelabs.com/fullchain.pem;
+#    ssl_certificate_key /etc/letsencrypt/live/api.cottagelabs.com/privkey.pem;
   
     location / {
         proxy_pass http://clapi/api/;
@@ -78,14 +55,14 @@ server {
     return 301 https://$host$request_uri;
 }
 server {
-    listen          443 ssl;
+    listen          443 ssl spdy;
     server_name     accounts.cottagelabs.com;
 
     include includes/cl-wildcard-ssl.conf;
-
-    client_max_body_size 1024M;
-    keepalive_timeout 70;
-    proxy_read_timeout 600s;
+    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
+#    ssl on;
+#    ssl_certificate /etc/letsencrypt/live/accounts.cottagelabs.com/fullchain.pem;
+#    ssl_certificate_key /etc/letsencrypt/live/accounts.cottagelabs.com/privkey.pem;
 
     location / {
         proxy_pass http://clapilocal;
@@ -102,12 +79,19 @@ server {
 
 # LIVE API CONNECTED DIRECTLY RATHER THAN THROUGH CLUSTER
 server {
-    listen          80;
-    server_name     local.api.cottagelabs.com;
+    listen      80;
+    server_name lapi.cottagelabs.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen          443 ssl spdy;
+    server_name     lapi.cottagelabs.com;
 
-    client_max_body_size 1024M;
-    keepalive_timeout 300;
-    proxy_read_timeout 600s;
+    include includes/cl-wildcard-ssl.conf;
+    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
+#    ssl on;
+#    ssl_certificate /etc/letsencrypt/live/lapi.cottagelabs.com/fullchain.pem;
+#    ssl_certificate_key /etc/letsencrypt/live/lapi.cottagelabs.com/privkey.pem;
 
     location / {
         proxy_pass http://clapilocal/api/;
@@ -127,10 +111,6 @@ server {
     listen          80;
     server_name     dev.api.cottagelabs.com;
 
-    client_max_body_size 1024M;
-    keepalive_timeout 70;
-    proxy_read_timeout 600s;
-
     location / {
         proxy_pass http://localhost:3002/api/;
         proxy_redirect off;
@@ -144,10 +124,6 @@ server {
 server {
     listen          443 ssl;
     server_name     dev.api.cottagelabs.com;
-
-    client_max_body_size 1024M;
-    keepalive_timeout 70;
-    proxy_read_timeout 600s;
 
     ssl on;
     ssl_certificate /etc/letsencrypt/live/dev.api.cottagelabs.com/fullchain.pem;
@@ -170,34 +146,24 @@ server {
         # proxy_buffering off;
     }
 }
+
 server {
-    listen          80;
+    listen      80;
+    server_name test.cottagelabs.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen          443 ssl spdy;
     server_name     test.cottagelabs.com;
 
-    client_max_body_size 1024M;
-    keepalive_timeout 70;
-    proxy_read_timeout 600s;
+    include includes/cl-wildcard-ssl.conf;
+    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
+#    ssl on;
+#    ssl_certificate /etc/letsencrypt/live/test.cottagelabs.com/fullchain.pem;
+#    ssl_certificate_key /etc/letsencrypt/live/test.cottagelabs.com/privkey.pem;
 
     location / {
         proxy_pass http://localhost:3002;
-        proxy_redirect off;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        #proxy_set_header Authorization "";
-        # proxy_buffering off;
-    }
-}
-server {
-    listen          80;
-    server_name     cluster.test.cottagelabs.com;
-
-    client_max_body_size 1024M;
-    keepalive_timeout 70;
-    proxy_read_timeout 600s;
-
-    location / {
-        proxy_pass http://clapi;
         proxy_redirect off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

@@ -139,11 +139,20 @@ CLapi.internals.tdm.levenshtein = function(a,b) {
 CLapi.internals.tdm.keywords = function(content,opts) {
   var gramophone = Meteor.npmRequire('gramophone');
   var keywords = gramophone.extract(content, opts);
-  return keywords;
+	var res = [];
+	if (opts.len) {
+		for ( var i in keywords ) {
+			var str = opts.score ? keywords[i].term : keywords[i];
+			if (str.length >= opts.len) res.push(keywords[i]);
+		}
+	} else {
+		res = keywords;
+	}
+  return res;
 }
 
 CLapi.internals.tdm.extract = function(opts) {
-	// opts expects url,content,matchers,start,end,convert,format,lowercase,ascii
+	// opts expects url,content,matchers (a list, or singular "match" string),start,end,convert,format,lowercase,ascii
 
 	var resolved = opts.url;
 	if (opts.url && opts.resolve) {
@@ -167,6 +176,7 @@ CLapi.internals.tdm.extract = function(opts) {
 		text = opts.content;
 	}
 	
+	if (opts.match) opts.matchers = [opts.match];
 	if (opts.start !== undefined) {
 		var parts = text.split(opts.start);
 		parts[1] !== undefined ? text = parts[1] : text = parts[0];
@@ -179,15 +189,26 @@ CLapi.internals.tdm.extract = function(opts) {
 	var res = {matched:0,matches:[],matchers:opts.matchers};
 	if (text) {
 		for ( var i in opts.matchers ) {
-			var match = opts.lowercase ? opts.matchers[i].toLowerCase() : opts.matchers[i]; // could be strings, objects, regex matches?
+			// match may sometimes have to be an object to pass in more complex settings
+			// in which case add a check for it being an object and if so handle those complexities
 			// should we get +- 100 chars context?
-			if (match.indexOf('/') !== 0 && text.indexOf(match) !== -1) {
+			var match = opts.matchers[i];
+			var mopts = 'g';
+			if (opts.lowercase) mopts += 'i';
+			var msplit = match.split('/');
+			if ( msplit.length > 2 && match.indexOf('/') === 0 ) {
+				mopts = msplit[msplit.length-1];
+				msplit.splice(0,1);
+				msplit.splice(msplit.length-1,1);
+				match = msplit.join("");
+			} else {
+				match = match.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+			}
+			var m;
+			var mr = new RegExp(match,mopts);
+			while ( m = mr.exec(text) ) {
 				res.matched += 1;
-				res.matches.push({matched:match});
-				// TODO what about counting number of same matches?
-			} else if (text.search(match) !== -1) {
-				res.matched += 1;
-				res.matches.push({matched:match});
+				res.matches.push({matched:match,result:m});
 			}
 		}
 	}

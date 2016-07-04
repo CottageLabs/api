@@ -1,7 +1,7 @@
 
 Router.map( function () {
   this.route('fileupload', {
-    path: '/upload',
+    path: '/uploads',
     action: function() {
       // need some logic on who can upload, and if not allowed, redirect somewhere or show error
       if (!Meteor.userId()) {

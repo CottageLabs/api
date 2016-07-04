@@ -650,6 +650,9 @@ CLapi.internals.service.oabutton.followup = function(rid) {
 }
 
 CLapi.internals.service.oabutton.receive = function(rid,content,url,description) {
+  // TODO this currently only works via the UI, after file uploads are set as complete, this is triggered
+  // an actuall call to this on the API would trigger emails and deposits for files that had already been processed
+  // and also could fail on cluster deployment because only the root machine would actually be able to find the files
   var r = OAB_Request.findOne({receiver:rid});
   if (!r) {
     return {status: 'error', data: 'no request matching that response ID'}
@@ -661,7 +664,6 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
     r.received = {date:today,from:r.email,url:url,description:description};
     if (r.hold) delete r.hold;
     r.status = 'received'
-    OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
 
     var mu = Meteor.settings.openaccessbutton.mail_url;
     var mf = Meteor.settings.openaccessbutton.mail_from;
@@ -694,19 +696,44 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
       subject: w + ' request successful!',
       text: "Hello!\n\n" + "An " + w + " request for content that you supported has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nThanks very much for your support,\n\nThe " + w + " team."
     },mu);
-    // send to the OSF system via the oabutton project email address
-    // see http://help.osf.io/m/58281/l/546443-upload-your-research and an example https://osf.io/view/SPSP2016/
-    // TODO now need some way to look up osf API to get the ID of the item we just submitted - then save that URL in the request received info
-    // https://api.osf.io/v2/docs/#!/v2/File_Detail_GET
-    CLapi.internals.sendmail({
-      from: r.email,
-      to: Meteor.settings.openaccessbutton.osf_address,
-      subject: r.metadata && r.metadata.title ? r.metadata.title : r.url,
-      attachments:[{
-        fileName: '', // TODO make a filename and path of all the stuff the user uploaded.
-        filePath: ''
-      }]
-    },mu);
+    
+    if (r.type === 'data') {
+      // send to the OSF system via the oabutton project email address
+      // see http://help.osf.io/m/58281/l/546443-upload-your-research and an example https://osf.io/view/SPSP2016/
+      // TODO now need some way to look up osf API to get the ID of the item we just submitted - then save that URL in the request received info
+      var fs = Meteor.npmRequire('fs');
+      var rdir = Meteor.settings.uploadServer.uploadDir + 'openaccessbutton/' + rid + '/';
+      var files = fs.readdirSync(rdir);
+      var titles = [];
+      for ( var f in files ) {
+        var fl = files[f];
+        var s = r.metadata && r.metadata.title ? r.metadata.title : r.url;
+        titles.push(s);
+        CLapi.internals.sendmail({
+          from: r.email,
+          to: Meteor.settings.openaccessbutton.osf_address,
+          subject: s,
+          attachments:[{
+            fileName: fl,
+            filePath: rdir + fl
+          }]
+        },mu);
+      }
+      var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:"/nodeurl.*/gi",start:"meetingData",end:"}]"});
+      var listing = JSON.parse('[{"' + l.matches[0].result[0].replace(';',''));
+      for ( var li in listing ) {
+        var ls = listing[li];
+        if ( titles.indexOf(ls.title) !== -1 ) {
+          if (r.received.osf === undefined) r.received.osf = [];
+          var u = 'https://osf.io' + ls.nodeUrl;
+          if (r.received.osf.indexOf(u) === -1) r.received.osf.push(u);
+        }
+      }
+    } else {
+      // submit articles to zenodo
+    }
+
+    OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
   }
 }

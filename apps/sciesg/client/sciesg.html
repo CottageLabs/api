@@ -1,0 +1,43 @@
+
+
+<template name="sciesg">
+  <div class="container-fluid">    
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h1 style="text-align:center;">A Proof of Concept for SCIESG</h1>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        {{> upload_bootstrap multiple=true callbacks=sciesguploadactions}}
+      </div>
+    </div>
+ 
+    {{#each session "filedata"}}
+    <div class="row">
+      <h2>{{this.title}}</h2>
+      <div class="col-md-6">
+        <h3>Extracted values for KPI</h3>
+        <p>
+        {{#each this.kpi}}
+        {{this.title}} = {{this.value}}<br>
+        {{/each}}
+        </p>
+      </div>
+      <div class="col-md-6">
+        <h3>Most common document keywords</h3>
+        <p>
+        {{#each this.keywords}}
+        {{this.term}} = {{this.tf}}<br>
+        {{/each}}
+        </p>
+      </div>
+    </div>
+    <hr>
+    {{/each}}
+
+  </div>
+</template>

@@ -144,6 +144,19 @@
             We are thankful to the author for providing this content to our community, and helping all those who want to use it for 
             further work and research.
           </p>
+          {{#if equals request.type "article" }}
+          <p>
+            Are you the author that provided the content? If so, you are eligible for an Open Science Foundation data badge! 
+            You can use this badge on your own website, departmental web pages, etc, to show the world that you are a valued 
+            contributor to open science.
+          </p>
+          <p>
+            Badge URL: <a target="_blank" href="https://opendatabutton.org/static/osf_data_badge.jpg">https://opendatabutton.org/static/osf_data_badge.jpg</a>
+          </p>
+          <p>
+            <a target="_blank" href="https://opendatabutton.org/static/osf_data_badge.jpg"><img src="https://opendatabutton.org/static/osf_data_badge.jpg" style="max-width:400px;padding-top:20px;"></a>
+          </p>
+          {{/if}}
           {{/if}}
         </div>
         {{#if session "validated"}}

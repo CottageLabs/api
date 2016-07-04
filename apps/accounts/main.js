@@ -10,7 +10,6 @@ Router.map( function () {
     action: function() {
       var page;
       if ( this.request.url.indexOf('accounts.cottagelabs.com') !== -1 || this.request.url.indexOf('test.cottagelabs.com') !== -1 ) page = 'accounts';
-      if ( this.request.url.indexOf('opendatabutton.org') !== -1 ) page = 'oabutton';
       this.render(page); 
     }
   });

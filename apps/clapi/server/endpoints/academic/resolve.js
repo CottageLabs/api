@@ -279,7 +279,7 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
       if (possibles.url) break;
       var curl = possibles.urls[c];
       if (possibles.doi && curl.indexOf('dx.doi.org') !== -1) break; // do not redo dois
-      console.log('trying URLs ' + curl);
+      console.log('trying URL ' + curl);
       var content;
       try {
         var resp = Meteor.http.call('GET',curl,{npmRequestOptions: {followRedirect:true,followAllRedirects:true,maxRedirects:30}});
@@ -364,7 +364,11 @@ CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
     if (possibles.url === dud) possibles.url = false;
   }
   
-  //if (possibles.url && possibles.url.indexOf('dx.doi.org') !== -1) _addto(['url'],CLapi.internals.academic.redirect_chain_resolve(possibles.url));
+  if (possibles.url) {
+    console.log('Calling a redirect chain resolve for ' + possibles.url)
+    var nurl = CLapi.internals.academic.redirect_chain_resolve(possibles.url);
+    _addto(['url'],nurl);
+  }
         
   // if exists (and we got to here then we are rerunning)
   if (exists) {
@@ -404,6 +408,7 @@ CLapi.internals.academic.redirect_chain_resolve = function(url) {
   // https://github.com/request/request/issues/311
   // can this be done with just Meteor.http.call instead of requiring external request dep? - yes see above
   // but no not for head requests - Meteor provides no way to access the final url from the request module, annoyingly
+  console.log('Attempting redirect chain resolve for ' + url);
   if (url.indexOf('10') === 0) url = 'http://dx.doi.org/' + url;
   var resolve = function(url, callback) {
     var request = Meteor.npmRequire('request');

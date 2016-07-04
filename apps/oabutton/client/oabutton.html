@@ -263,7 +263,7 @@
       </div>
       <div class="col-md-6">
         {{#if story.test}}
-        <p>This story has been set as a test.</p>
+        <a class="btn btn-warning btn-block" href="#" id="unteststory">This story is set as a test. Click to change to live.</a>
         {{else}}
         <a class="btn btn-warning btn-block" href="#" id="maketeststory">Set as a test story</a>
         {{/if}}
@@ -384,7 +384,7 @@
         <a class="btn btn-info btn-block" href="#" id="emailusers">Email users who requested this</a>
         <a class="btn btn-info btn-block" href="#" id="emailauthor">Email the author this request is targeted at</a>
         {{#if request.test}}
-        <p>This request has been set as a test.</p>
+        <a class="btn btn-warning btn-block" href="#" id="untestrequest">This request is a test. Click to change back to live.</a>
         {{else}}
         <a class="btn btn-warning btn-block" href="#" id="maketestrequest">Set as a test request</a>
         {{/if}}

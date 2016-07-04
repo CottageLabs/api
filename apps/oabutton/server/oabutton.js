@@ -49,6 +49,10 @@ Meteor.methods({
       // should also mail the user that created the request to let them know it is in progress (or every user supporting it?)
     }
   },
+  untestrequest: function(rid) {
+    // only admin user should be able to do this
+    OAB_Request.update(rid,{$set:{test:false}});
+  },
   maketestrequest: function(rid) {
     // only admin user should be able to do this
     OAB_Request.update(rid,{$set:{test:true}});
@@ -57,12 +61,18 @@ Meteor.methods({
     // only admin user should be able to do this
     OAB_Blocked.update(sid,{$set:{test:true}});
   },
+  unteststory: function(sid) {
+    // only admin user should be able to do this
+    OAB_Blocked.update(sid,{$set:{test:false}});
+  },
   deleterequest: function(rid) {
     // only admin user should be able to do this
+    console.log('deleting request ' + rid);
     OAB_Request.remove(rid);
   },
   deleteblock: function(bid) {
     // only admin user should be able to do this
+    console.log('deleting block story ' + bid);
     OAB_Blocked.remove(bid);
   },
   setprofession: function(uid,profession) {
@@ -94,7 +104,14 @@ Meteor.methods({
     var req = OAB_Request.findOne({receiver:respid});
     var today = new Date().getTime();
     if (req && req.received) OAB_Request.update(req._id,{$set:{'received.validated':{user:uid,date:today}}});
-    // TODO email the author that provided the content, and if an ODB request, send them a nice badge link
+    if (req.type === 'data') {
+      CLapi.internals.sendmail({
+        from: Meteor.settings.openaccessbutton.mail_from,
+        to: req.email,
+        subject: 'Open Data Button submitted content validated!',
+        text: "Hello " + req.email + ",\n\n" + "Thank you very much for providing content for the request at \n\nhttps://opendatabutton.org.org/request/" + req._id + "\n\nThe content you provided has now been validated by our community.\n\nYou are now eligible to display an Open Science Foundation Open Data Badge on your website! You can retrieve your badge at the following address:\n\nhttps://opendatabutton.org/static/osf_data_badge.jpg\n\nThanks very much again for your support,\n\nThe Open Data Button team."
+      },Meteor.settings.openaccessbutton.mail_url);
+    }
   },
   listreceivedfiles: function(respid) {
     var fs = Meteor.npmRequire('fs');
