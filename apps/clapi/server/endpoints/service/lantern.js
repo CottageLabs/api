@@ -582,7 +582,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     text += 'You can track the progress of your job at ';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
-    text += user ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
+    text += user ? 'https://lantern.cottagelabs.com#' : 'https://compliance.cottagelabs.com#';
     text += jid;
     text += '\n\nThe Cottage Labs team\n\n';
     text += 'P.S This is an automated email, please do not reply to it.'
@@ -1053,7 +1053,7 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         text += 'You can now download the results of your job at ';
         // TODO this bit should depend on user group permissions somehow
         // for now we assume if a signed in user then lantern, else wellcome
-        text += job.user ? 'https://lantern.cottagelabs.com#' : 'http://wellcome.test.cottagelabs.com#';
+        text += job.user ? 'https://lantern.cottagelabs.com#' : 'https://compliance.cottagelabs.com#';
         text += job._id;
         text += '\n\nThe Cottage Labs team\n\n';
         text += 'P.S This is an automated email, please do not reply to it.'
