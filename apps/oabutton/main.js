@@ -95,10 +95,10 @@ Router.map( function () {
           Meteor.call('listreceivedfiles',Session.get('respid'),function(err,resp) { Session.set('files',resp); });
           this.render('oabuttonuploadreceived');
         } else if (this.params.query.refuse) {
-          CLapi.internals.service.oabutton.refuse(req._id); // can pass a reason here, if the page asks for one
+          Meteor.call('oabrefuse',req.id);// can pass a reason here, if the page asks for one
           this.render('oabuttonuploadrefuse');
         } else if (this.params.query.hold) {
-          CLapi.internals.service.oabutton.hold(req._id,this.params.query.hold);
+          Meteor.call('oabhold',req.id,this.params.query.hold);
           Session.set('holdlength',this.params.query.hold);
           this.render('oabuttonuploadhold');
         } else {

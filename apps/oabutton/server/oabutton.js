@@ -32,6 +32,12 @@ Meteor.publish("userblocked", function (uid,limit) {
 });
 
 Meteor.methods({
+  oabhold: function(rid,hold) {
+    CLapi.internals.service.oabutton.hold(rid,hold);     
+  },
+  oabrefuse: function(rid) {
+    CLapi.internals.service.oabutton.refuse(rid);     
+  },
   addblocked: function(event) {
     OAB_Blocked.insert(event);
   },
@@ -44,7 +50,7 @@ Meteor.methods({
       var email = r.email;
       if (email.constructor === Array) email = email[0];
       if (email.indexOf(',') !== -1) email = email.split(',')[0];
-      var opts = {from:'',to:email,text:msg.text};
+      var opts = {from:'data@openaccessbutton.org',to:email,text:msg.text};
       if (msg.subject) opts.subject = msg.subject;
       CLapi.internals.sendmail(opts,Meteor.settings.openaccessbutton.mail_url);
       // should also mail the user that created the request to let them know it is in progress (or every user supporting it?)
