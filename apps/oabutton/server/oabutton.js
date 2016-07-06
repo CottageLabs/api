@@ -32,11 +32,13 @@ Meteor.publish("userblocked", function (uid,limit) {
 });
 
 Meteor.methods({
-  oabhold: function(rid,hold) {
-    CLapi.internals.service.oabutton.hold(rid,hold);     
+  oabhold: function(respid,hold) {
+    var r = OAB_Request.findOne({response:respid});
+    CLapi.internals.service.oabutton.hold(r._id,hold);     
   },
-  oabrefuse: function(rid) {
-    CLapi.internals.service.oabutton.refuse(rid);     
+  oabrefuse: function(respid) {
+    var r = OAB_Request.findOne({response:respid});
+    CLapi.internals.service.oabutton.refuse(r._id);     
   },
   addblocked: function(event) {
     OAB_Blocked.insert(event);
