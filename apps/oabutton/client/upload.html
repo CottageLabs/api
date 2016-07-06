@@ -137,10 +137,10 @@
           <p><a href="/openaccessbutton/{{session 'respid'}}/{{this}}" class="btn btn-block btn-info">Download {{this}}</a></p>
           {{/each}}
           {{/if}}
-          {{#if request.received.url}}
+          {{#if request.received.osf}}
           <hr style="border-color:white;">
           <p>The files have been stored with the Open Science Foundation:</p>
-          {{#each request.received.url}}
+          {{#each request.received.osf}}
           <p><a href="{{this}}">{{this}}</a></p>
           {{/each}}
           {{/if}}

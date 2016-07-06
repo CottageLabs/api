@@ -611,9 +611,8 @@ CLapi.internals.service.oabutton.refuse = function(rid,reason) {
 }
 
 CLapi.internals.service.oabutton.hold = function(rid,days) {
-  var date = new Date();
-  date.setDate(date.getDate() + days); // does this make it same format as getTime()
   var today = new Date().getTime();
+  var date = (Math.floor(today/1000) + (days*86400)) * 1000;
   var r = OAB_Request.findOne(rid);
   if (r.holds === undefined) r.holds = [];
   if (r.hold) r.holds.push(r.hold);
