@@ -137,6 +137,13 @@
           <p><a href="/openaccessbutton/{{session 'respid'}}/{{this}}" class="btn btn-block btn-info">Download {{this}}</a></p>
           {{/each}}
           {{/if}}
+          {{#if request.received.url}}
+          <hr style="border-color:white;">
+          <p>The files have been stored with the Open Science Foundation:</p>
+          {{#each request.received.url}}
+          <p><a href="{{this}}">{{this}}</a></p>
+          {{/each}}
+          {{/if}}
           {{#if session "validated"}}
           <hr style="border-color:white;">
           <p>
@@ -144,7 +151,7 @@
             We are thankful to the author for providing this content to our community, and helping all those who want to use it for 
             further work and research.
           </p>
-          {{#if equals request.type "article" }}
+          {{#if equals request.type "data" }}
           <p>
             Are you the author that provided the content? If so, you are eligible for an Open Science Foundation data badge! 
             You can use this badge on your own website, departmental web pages, etc, to show the world that you are a valued 
