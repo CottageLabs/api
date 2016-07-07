@@ -718,25 +718,26 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
           }]
         },mu);
       }
-      var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:'/\{"nodeurl.*/gi',start:"meetingData",end:"];"});
-      var sl = '[' + l.matches[0].result[0] + ']';
-      console.log(sl);
-      var listing = JSON.parse(sl);
-      console.log(listing);
-      for ( var li in listing ) {
-        var ls = listing[li];
-        if ( titles.indexOf(ls.title) !== -1 ) {
-          if (r.received.osf === undefined) r.received.osf = [];
-          var u = 'https://osf.io' + ls.nodeUrl;
-          if (r.received.osf.indexOf(u) === -1) r.received.osf.push(u);
+      setTimeout(function() {
+        var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:'/\{"nodeurl.*/gi',start:"meetingData",end:"];"});
+        var sl = '[' + l.matches[0].result[0] + ']';
+        var listing = JSON.parse(sl);
+        for ( var li in listing ) {
+          var ls = listing[li];
+          if ( titles.indexOf(ls.title) !== -1 ) {
+            if (r.received.osf === undefined) r.received.osf = [];
+            var u = 'https://osf.io' + ls.nodeUrl;
+            if (r.received.osf.indexOf(u) === -1) r.received.osf.push(u);
+          }
         }
-      }
-      console.log(r.received.osf);
+        console.log(r.received.osf);
+        //OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
+      },5000);
     } else {
       // submit articles to zenodo
+      OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     }
 
-    //OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
   }
 }
