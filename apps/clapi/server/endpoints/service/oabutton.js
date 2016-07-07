@@ -718,8 +718,8 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
           }]
         },mu);*/
       }
-      var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:'/\{"nodeurl.*/gi',start:"meetingData",end:"}]"});
-      var sl = '[' + l.matches[0].result[0].replace(';','');
+      var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:'/\{"nodeurl.*/gi',start:"meetingData",end:"];"});
+      var sl = '[' + l.matches[0].result[0] + ']';
       console.log(sl);
       var listing = JSON.parse(sl);
       console.log(listing);
@@ -729,9 +729,9 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
           if (r.received.osf === undefined) r.received.osf = [];
           var u = 'https://osf.io' + ls.nodeUrl;
           if (r.received.osf.indexOf(u) === -1) r.received.osf.push(u);
-          console.log(u);
         }
       }
+      console.log(r.received.osf);
     } else {
       // submit articles to zenodo
     }

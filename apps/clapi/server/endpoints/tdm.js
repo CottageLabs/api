@@ -68,6 +68,8 @@ CLapi.addRoute('tdm/extract', {
 			if (this.queryParams.lowercase) params.lowercase = true;
 			if (this.queryParams.ascii) params.ascii = true;
 			if (this.queryParams.convert) params.convert = this.queryParams.convert;
+			if (this.queryParams.start) params.start = this.queryParams.start;
+			if (this.queryParams.end) params.end = this.queryParams.end;
 			return {status: 'success', data: CLapi.internals.tdm.extract(params)}
     }
   }
