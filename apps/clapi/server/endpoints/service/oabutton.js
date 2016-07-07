@@ -706,9 +706,9 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
       var titles = [];
       for ( var f in files ) {
         var fl = files[f];
-        var s = r.metadata && r.metadata.title ? r.metadata.title : r.url;
+        var s = r.metadata && r.metadata.title ? r.metadata.title : fl;
         titles.push(s);
-        /*CLapi.internals.sendmail({
+        CLapi.internals.sendmail({
           from: r.email,
           to: Meteor.settings.openaccessbutton.osf_address,
           subject: s,
@@ -716,7 +716,7 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
             fileName: fl,
             filePath: rdir + fl
           }]
-        },mu);*/
+        },mu);
       }
       var l = CLapi.internals.tdm.extract({url:"https://osf.io/view/osfm2015/",match:'/\{"nodeurl.*/gi',start:"meetingData",end:"];"});
       var sl = '[' + l.matches[0].result[0] + ']';
