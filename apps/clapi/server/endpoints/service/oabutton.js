@@ -730,12 +730,11 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
           if (r.received.osf.indexOf(u) === -1) r.received.osf.push(u);
         }
       }
-      console.log(r.received.osf);
     } else {
       // submit articles to zenodo
     }
 
-    //OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
+    OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
   }
 }
