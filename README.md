@@ -2,9 +2,15 @@
 
 The Cottage Labs API system.
 
+https://codeship.com/projects/0913c170-a8de-0133-e356-528fa7782574/status?branch=master
+
 Provides access to Cottage Labs accounts and is the API layer over any other service we need to run on our infrastructure.
 
-See public/docs for all the info. 
+A push to develop will auto-deploy to our dev API. A push to master will auto-deply to our live API, which also triggers a 
+mupx deploy to update the cluster that serves the live API. We use Codeship for deployment, the above badge indicates current 
+status of the master deployment.
+
+See public/docs for all the info (being updated)
 
 This is a meteor app. Install meteor then run this with:
 
