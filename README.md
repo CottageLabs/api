@@ -2,7 +2,7 @@
 
 The Cottage Labs API system.
 
-https://codeship.com/projects/0913c170-a8de-0133-e356-528fa7782574/status?branch=master
+![Codeship](https://codeship.com/projects/0913c170-a8de-0133-e356-528fa7782574/status?branch=master)
 
 Provides access to Cottage Labs accounts and is the API layer over any other service we need to run on our infrastructure.
 
