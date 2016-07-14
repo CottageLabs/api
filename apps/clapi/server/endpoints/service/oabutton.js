@@ -389,6 +389,7 @@ CLapi.addRoute('service/oabutton/settest', {
         var block = blocks[b];
         res.blockcount += 1;
         var u = Meteor.users.findOne(block.user);
+        if (u === undefined && block.legacy !== undefined) u = {legacy:true}; // old blocks from old oabutton systems have no user, but are valid
         if ( block.test !== true && _maketest(u,block.url) ) {
           res.blocktests += 1;
           if (res.execute) OAB_Blocked.update(block._id,{$set:{test:true}});
@@ -485,18 +486,20 @@ CLapi.internals.service.oabutton.register = function(data) {
 var _maketest = function(u,url,test) {
   if (test) return true; // simply for requests coming in to dev site to all get set to test (so they don't show up as real in the ES index)
   if (url === undefined) return true;
-  if (u === undefined && u.legacy === undefined) return true;
+  if (u === undefined) return true;
   if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) return true;
-  var email = u.emails[0].address;
-  var testemailparts = [
-    'cottagelabs.com',
-    'openaccessbutton.org',
-    'opendatabutton.org',
-    'righttoresearch.org'
-  ];
-  for ( var i in testemailparts ) {
-    if (email.indexOf(testemailparts[i]) !== -1) return true;
-  }
+  try {
+    var email = u.emails[0].address; // particularly old legacy blocks may have no real user data but could still be valid
+    var testemailparts = [
+      'cottagelabs.com',
+      'openaccessbutton.org',
+      'opendatabutton.org',
+      'righttoresearch.org'
+    ];
+    for ( var i in testemailparts ) {
+      if (email.indexOf(testemailparts[i]) !== -1) return true;
+    }
+  } catch(err) {}
   var testurlparts = [
     'cottagelabs.com',
     'openaccessbutton.org',
