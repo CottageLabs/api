@@ -484,6 +484,7 @@
           <p style="text-align:center;font-size:1.2em;"><span class="label label-default" style="background-color:white;color:#212f3f;">This request {{requeststatus}}</span></p>
         </div>
         <p><a href="#" id="shares" class="btn btn-default btn-block">Share this request</a></p>
+        <p><a href="https://openaccessbutton.org/donate" class="btn btn-default btn-block">Donate to support open access</a></p>
       </div>
     </div>
   </div>
@@ -538,22 +539,10 @@
   </div>
 
   <div class="container-fluid" style="margin-top:40px;">
-    <div class="row">
-      <div class="col-md-8">
-        <h1>Stories supporting this request</h1>
-        <h4>Read about all the great things people would like to do with this content</h4>
-        {{# each blocked}}
-          {{# if story}}<hr><p>{{story}}</p>{{/if}}
-        {{/each}}
-      </div>
-      <div class="col-md-4">
-        <div class="well">
-          <h4>How else you can help</h4>
-          <p>Ask people in your lab or wider community to support this request.</p>
-          <p>Write about why you support Open Data. Mention this request.</p>
-          <p><a href="https://openaccessbutton.org/donate">Donate now</a></p>
-        </div>
-        {{#if equals request.type 'data' }}
+
+    {{#if equals request.type 'data' }}
+    <div class="row hidden-xs hidden-sm">
+      <div class="col-md-12">
         <div class="well">
           <h4>What's Open Data, and why should I care?</h4>
           <p>Open Data is data that is freely available on the internet permitting any user to download, copy, analyse, 
@@ -564,10 +553,20 @@
             can be cited - allowing researchers to get greater credit for all their work. With Open Research Data bigger problems are solved 
             faster. Better than data just sitting on your hard drive gathering dust, right?</p>
         </div>
-        {{/if}}
       </div>
     </div>
-    
+    {{/if}}
+
+    <div class="row">
+      <div class="col-md-12">
+        <h1>Stories supporting this request</h1>
+        <h4>Read about all the great things people would like to do with this content</h4>
+        {{# each blocked}}
+          {{# if story}}<hr><p>{{story}}</p>{{/if}}
+        {{/each}}
+      </div>
+    </div>
+
     <div class="row">
       <div class="col-md-12">
         <div class="well">          

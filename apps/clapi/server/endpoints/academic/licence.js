@@ -80,6 +80,11 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     }
     if (end !== undefined) content = content.split(end)[0];
     console.log('Academic licence reduced content length to ' + content.length);
+    if (content.length > 10000000) {
+      lic.large = true;
+      return lic; // catch in case content is huge and cannot be shortened - saw one that 
+    }
+    
     var text;
     try {
       text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');

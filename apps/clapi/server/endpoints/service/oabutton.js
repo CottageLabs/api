@@ -505,6 +505,8 @@ var _maketest = function(u,url,test) {
     'openaccessbutton.org',
     'opendatabutton.org',
     'chrome.google.com',
+    'chrome-extension',
+    'file:',
     '/newtab'
   ];
   for ( var r in testurlparts ) {

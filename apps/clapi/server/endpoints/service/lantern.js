@@ -973,6 +973,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       } else {
         result.publisher_licence = 'unknown';
         result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG).');
+        if (lic.large) result.provenance.push('Retrieved content was longer than 10MB, too large to process');
       }
     }
   } else {

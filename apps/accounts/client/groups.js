@@ -31,6 +31,12 @@ Template.managegroup.founduser = function() {
   }
 }
 
+Template.registerHelper('usernames', function() {
+  return Meteor.users.find().fetch().map(function(it){ 
+    if (it.username) return it.username;
+  });  
+});
+
 Template.managegroup.rendered = function() {
   Meteor.typeahead.inject();
 };
