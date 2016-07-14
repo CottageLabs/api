@@ -190,9 +190,14 @@ CLapi.addRoute('service/oabutton/blocked', {
     authRequired: true,
     action: function() {
       if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
-        return CLapi.internals.service.oabutton.blocked(this.request.body,this.userId);
+        var keys = [];
+        for ( var k in this.request) {
+          keys.push(k);
+        }
+        var test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
+        return CLapi.internals.service.oabutton.blocked(this.request.body,this.userId,test);
       } else {
-        return {status: 'error', data: 'You are not a member of the necessary group'}        
+        return {status: 'error', data: 'You are not a member of the necessary group'}
       }
     }
   },
@@ -224,7 +229,8 @@ CLapi.addRoute('service/oabutton/blocked/:bid', {
       if ( CLapi.cauth('openaccessbutton.user',this.user ) ) {
         var rec = this.request.body;
         rec._id = this.urlParams.bid;
-        return CLapi.internals.service.oabutton.blocked(rec,this.userId);      
+        var test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
+        return CLapi.internals.service.oabutton.blocked(rec,this.userId,true);
       } else {
         return {status: 'error', data: 'You are not a member of the necessary group'}        
       }
@@ -257,7 +263,8 @@ CLapi.addRoute('service/oabutton/request', {
         if (this.request.body && this.request.body.metadata) metadata = this.request.body.metadata;
         if (this.request.body && this.request.body.type) type = this.request.body.type;
         if (type === undefined) type = 'article';
-        return CLapi.internals.service.oabutton.request(type,url,email,this.userId,metadata);
+        var test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
+        return CLapi.internals.service.oabutton.request(type,url,email,this.userId,metadata,test);
       } else {
         return {status: 'error', data: 'You are not a member of the necessary group'}        
       }
@@ -366,6 +373,42 @@ CLapi.addRoute('service/oabutton/export/:what', {
   }
 });
 
+CLapi.addRoute('service/oabutton/settest', {
+  roleRequired:'openaccessbutton.admin',
+  get: {
+    action: function () {
+      var res = {
+        execute: this.queryParams.execute ? true : false,
+        blockcount: 0,
+        blocktests: 0,
+        requestcount: 0,
+        requesttests: 0
+      };
+      var blocks = OAB_Blocked.find().fetch();
+      for ( var b in blocks ) {
+        var block = blocks[b];
+        res.blockcount += 1;
+        var u = Meteor.users.findOne(block.user);
+        if ( block.test !== true && _maketest(u,block.url) ) {
+          res.blocktests += 1;
+          if (res.execute) OAB_Blocked.update(block._id,{$set:{test:true}});
+        }
+      }
+      var requests = OAB_Request.find().fetch();
+      for ( var r in requests ) {
+        var request = requests[r];
+        res.requestcount += 1;
+        var u = Meteor.users.findOne(request.user.id);
+        if ( request.test !== true && _maketest(u,request.url) ) {
+          res.requesttests += 1;
+          if (res.execute) OAB_Request.update(request._id,{$set:{test:true}});
+        }
+      }
+      return res;
+    }
+  }
+});
+
 
 CLapi.internals.service.oabutton = {};
 
@@ -439,18 +482,47 @@ CLapi.internals.service.oabutton.register = function(data) {
   }
 }
 
-CLapi.internals.service.oabutton.blocked = function(data,user) {
+var _maketest = function(u,url,test) {
+  if (test) return true; // simply for requests coming in to dev site to all get set to test (so they don't show up as real in the ES index)
+  if (url === undefined) return true;
+  if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) return true;
+  var email = u.emails[0].address;
+  var testemailparts = [
+    'cottagelabs.com',
+    'openaccessbutton.org',
+    'opendatabutton.org',
+    'righttoresearch.org'
+  ];
+  for ( var i in testemailparts ) {
+    if (email.indexOf(testemailparts[i]) !== -1) return true;
+  }
+  var testurlparts = [
+    'cottagelabs.com',
+    'openaccessbutton.org',
+    'opendatabutton.org',
+    'chrome.google.com',
+    '/newtab'
+  ];
+  for ( var r in testurlparts ) {
+    if (url.indexOf(testurlparts[r]) !== -1) return true;
+  }
+  return false;
+}
+
+CLapi.internals.service.oabutton.blocked = function(data,user,test) {
   // add a check for duplicate on url for user, and if so reject it
   var dup = OAB_Blocked.findOne({url:data.url,user:user});
   if (dup) return {status: 'error', data: 'user already registered a block on this URL'}
+  
   console.log('Creating oabutton block notification');
   var u = Meteor.users.findOne(user);
   var username = u.username;
   if (u.username === undefined) username = u.emails[0].address;
+  var email = u.emails[0].address;
   var profession;
   if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.profession) profession = u.service.openaccessbutton.profession;
   var event = {user:user, username:username, profession:profession, createdAt: new Date().getTime()};
-  if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) event.test = true;
+  if (_maketest(u,event.url,test)) event.test = true;
   if (data.url !== undefined) event.url = data.url;
   if (data.metadata !== undefined) event.metadata = data.metadata; // should be bibjson title, journal, identifier DOI, author, etc
   if (data.story !== undefined) event.story = data.story;
@@ -472,7 +544,7 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
   if (status.provided) {
     event.provided = status.provided; // is this worthwhile? or just have it read from status.provided?
   } else if ( data.email ) {
-    var r = CLapi.internals.service.oabutton.request(event.type,data.url,data.email,user,data.metadata);
+    var r = CLapi.internals.service.oabutton.request(event.type,data.url,data.email,user,data.metadata,event.test);
     r.data._id ? event.request = r.data._id : event.request = false;
   }
   if (status.request && !event.request) event.request = status.request._id;
@@ -531,7 +603,7 @@ CLapi.internals.service.oabutton.blocked = function(data,user) {
   }
 }
 */
-CLapi.internals.service.oabutton.request = function(type,url,email,requestee,metadata) {
+CLapi.internals.service.oabutton.request = function(type,url,email,requestee,metadata,test) {
   console.log('Creating oabutton request notification');
   // type is expected to be article or data but later could be code or other things. Check requests by type
   if ( typeof email === 'string' ) email = [email];
@@ -571,6 +643,7 @@ CLapi.internals.service.oabutton.request = function(type,url,email,requestee,met
         createdAt: new Date().getTime()
       };
       if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) request.test = true;
+      if (_maketest(u,request.url,test)) request.test = true;
       if (metadata) request.metadata = metadata;
       request.receiver = CLapi.internals.store.receiver(request);
       request._id = OAB_Request.insert(request);
