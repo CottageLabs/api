@@ -122,6 +122,16 @@ Meteor.methods({
   },
   listreceivedfiles: function(respid) {
     var fs = Meteor.npmRequire('fs');
-    return fs.readdirSync(Meteor.settings.uploadServer.uploadDir + '/openaccessbutton/' + respid);
+    var req = OAB_Request.findOne({receiver:respid});
+    var fns = fs.readdirSync(Meteor.settings.uploadServer.uploadDir + '/openaccessbutton/' + respid);
+    if (req && req.received && req.received.osf && req.received.osf.length === fns.length) {
+      var ofns = [];
+      for ( var f in fns ) {
+        ofns.push({name:fns[f],url:req.received.osf[f]});
+      }
+      return {inosf:true,files:ofns}
+    } else {
+      return {files:fns}      
+    }
   }
 });

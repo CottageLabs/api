@@ -42,6 +42,13 @@ Template.oabuttonrequest.request = function() {
 Template.oabuttonrequest.blocked = function() {
   return OAB_Blocked.find({url:Session.get('url')});
 }
+Template.oabuttonrequest.maybeanemail = function(un) {
+  return un.indexOf('@') !== -1 && un.indexOf('.') !== -1;
+}
+Template.oabuttonrequest.supports = function() {
+  var supports = OAB_Blocked.findOne({url:Session.get('url'),user:Meteor.userId()});
+  return supports ? true : false;
+}
 Template.oabuttonrequest.blockedcount = function() {
   return OAB_Blocked.find({url:Session.get('url')}).count();
 }

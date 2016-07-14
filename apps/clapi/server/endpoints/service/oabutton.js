@@ -440,8 +440,10 @@ CLapi.internals.service.oabutton.register = function(data) {
 }
 
 CLapi.internals.service.oabutton.blocked = function(data,user) {
+  // add a check for duplicate on url for user, and if so reject it
+  var dup = OAB_Blocked.findOne({url:data.url,user:user});
+  if (dup) return {status: 'error', data: 'user already registered a block on this URL'}
   console.log('Creating oabutton block notification');
-  console.log(data);
   var u = Meteor.users.findOne(user);
   var username = u.username;
   if (u.username === undefined) username = u.emails[0].address;

@@ -123,12 +123,12 @@
         <p>We use a password-less login system, just provide your account email address and you will receive an email to confirm you 
         are who you say you are.</p>
         <hr>
-        <p>Once you sign up and sign in, you will be able to download your Open Data Button for your 
+        <p>Once you sign up and sign in, you will be able to download your Button for your 
           preferred browser.</p>        
         <p>Questions? <a href="https://openaccessbutton.org/contact" class="action">Contact us</a></p>
       </div>
       <div class="col-md-6">
-        <p>No account yet? Sign up now! Just put your email address above and click "authenticate" - we will create a new account for you.</p>
+        <p>No account yet? Sign up now! Just put your email address above and click "Sign in" - we will create a new account for you.</p>
         <p>Just provide your email address and we will send you a validation link. Then once you are logged in for the first time we will ask you for a few other details.</p>
         <p style="font-size:0.9em;color:#bbb;">( Your e-mail address will be used as your account username until you choose a username of your own, but otherwise it will NOT be publicised or shared with third parties. )</p>
       </div>
@@ -283,7 +283,7 @@
           </h3>
           {{#if story.username}}
           <h4>
-            This was logged by {{story.username}}{{#if story.profession}}{{#if equals story.profession "other"}}{{else}}, a {{story.profession}}{{/if}}{{/if}}.
+            This was logged by {{#if maybeanemail story.username}} a user{{else}}{{story.username}}{{/if}}{{#if story.profession}}{{#if equals story.profession "other"}}{{else}}, a {{story.profession}}{{/if}}{{/if}}.
           </h4>
           {{/if}}
         </div>
@@ -496,9 +496,14 @@
           <div class="panel-body">
             <p>You can help make this content available by supporting this request.</p>
             {{#if currentUser}}
+            {{#if supports }}
+            <p>You already support this request!</p>
+            <p>Thank you!</p>
+            {{else}}
             <textarea class="form-control addsupport" style="min-height:100px;" placeholder="(Optional) please tell us what you would use this content for" id="supportstory"></textarea>
             <a class="btn btn-info btn-block addsupport" id="addsupport" href="#">Add your support</a>
             <p class="addsupport" style="display:none;">Thank you! Your support has been added to this request, and you will be notified when this content becomes available.</p>
+            {{/if}}
             {{else}}
             <div class="row">
               <div class="col-md-6">
@@ -613,7 +618,6 @@
         {{# if currentUser.service.openaccessbutton.profession}}
         <h3>{{currentUser.service.openaccessbutton.profession}}</h3>
         {{/if}}
-        <a href="/login" id="logout-btn" class="btn btn-block btn-danger" style="margin-bottom:5px;">Logout</a>
 
         {{#if currentUser.username}}
         {{else}}
@@ -661,25 +665,27 @@
         </div>
         {{/if}}
 
-        <hr>
+        <div class="well">
+          <p>Download your plugin(s):</p>
+          <p><a class="btn btn-info btn-block dl odb ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Open Data Button for Chrome</a></p>
+          <p><a class="btn btn-info btn-block dl odb ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Open Data Button for Firefox</a></p>
 
-        <p>Choose from the options below to get your plugin(s):</p>
-        <p><a class="btn btn-info btn-block" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Open Data Button for Chrome</a></p>
-        <p><a class="btn btn-info btn-block" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Open Data Button for Firefox</a></p>
-
-        <p><a class="btn btn-info btn-block" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Open Access Button for Chrome</a></p>
-        <p><a class="btn btn-info btn-block" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Open Access Button for Firefox</a></p>
-
-        <hr>
+          <p><a class="btn btn-info btn-block dl oab ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Open Access Button for Chrome</a></p>
+          <p><a class="btn btn-info btn-block dl oab ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Open Access Button for Firefox</a></p>
+        </div>
 
         <p>Your API key is:<br>
         <pre><code>{{defaultapikey}}</code></pre></p>
+        <p>(You need this when you first install your plugin, to identify your account to our system)</p>
+
+        <p><a href="/login" id="logout-btn" class="btn btn-block btn-danger" style="margin-bottom:5px;">Logout</a></p>
+
       </div>
 
       <div class="col-md-8">
         <h2>Instructions</h2>
         <ul>          
-          <li>Download, install, and login to the plugins. They will ask for your API key (which is <b>{{defaultapikey}}</b> ) to authenticate you.</li>
+          <li><b>Download, install, and login to the plugins</b>. They will ask for your API key (which is <b>{{defaultapikey}}</b> ) to authenticate you.</li>
           <li>When you want access to an article that is not available, click the Open Access Button (you can do this on a paywall too).</li>
           <li>When you want the data supporting a research article, click the Open Data Button (you can do this on a paywall too).</li>
           <li>If we can't find the article or the data, put in the article title and author email. Let the author know why you want access.</li>
@@ -704,6 +710,18 @@
     </div>
   </div>
 
+  <script>
+  jQuery(document).ready(function() {
+    var loc = window.location.href;
+    var b = navigator.userAgent.match(/chrome/i) ? '.ch' : '.ff';
+    $('.dl').hide();
+    if (loc.indexOf('openaccessbutton') !== -1 || loc.indexOf('cottagelabs') !== -1) {
+      $('.dl.oab'+b).show();
+    } else {
+      $('.dl.odb'+b).show();
+    }
+  });
+  </script>
 </template>
 
 

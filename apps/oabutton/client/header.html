@@ -1,13 +1,10 @@
 <template name="oabuttonheader">
   <head>
     <meta charset="utf-8">
-    <title>Open Access Button</title>
     <meta name="description" content="">
     <meta name="author" content="Cottage Labs">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-
-    <link href="favicon.ico" rel="icon" type="image/x-icon">
 
     <style>
       body {
@@ -25,7 +22,7 @@
       }
       .navbar-nav li a:hover{
         color:#212f3f;
-        background-color:#398bc5;;
+        background-color:#398bc5;
       }
       .navbar-nav li.active{
         color:#212f3f;
@@ -75,11 +72,18 @@
 
   <script>
   jQuery(document).ready(function() {
+    $('#favicon').attr('href','/static/favicon.ico');
     var loc = window.location.href;
     if (loc.indexOf('openaccessbutton') !== -1 || loc.indexOf('cottagelabs') !== -1) {
       $('#biggie').css({'background-color':'#f04717'});
+      $(".navbar-nav li a").hover(function(e) {
+        $(this).css("background-color",e.type === "mouseenter" ? "#f04717" : "transparent");
+      });
       $('.odb').hide();
       $('.oab').show();
+    	document.title = 'Open Access Button';
+    } else {
+    	document.title = 'Open Data Button';      
     }
   });
   </script>

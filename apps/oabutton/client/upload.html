@@ -120,30 +120,34 @@
         <div class="jumbotron">
           <h2>This content has been received!</h2>
           <h3 style="margin-bottom:20px;">In response to request <a target="_blank" href="/request/{{session 'reqid'}}">{{session "reqid"}}</a></h3>
+
           {{#if request.received.description}}
           <hr style="border-color:white;">
           <p>A description of the content has been provided:</p>
           <p>{{request.received.description}}</p>
           {{/if}}
+          
           {{#if request.received.url}}
           <hr style="border-color:white;">
           <p>A public URL to the content has been provided:</p>
           <p><a href="{{request.received.url}}">{{request.received.url}}</a></p>
           {{/if}}
+          
           {{#if availablefiles}}
           <hr style="border-color:white;">
-          <p>{{availablefiles.length}} files have been provided:</p>
-          {{#each availablefiles}}
+          <p>{{availablefiles.files.length}} files have been provided</p>
+          {{#if availablefiles.inosf}}
+          <p>The files have been stored with the Open Science Foundation:</p>
+          {{#each availablefiles.files}}
+          <p><a href="{{this.url}}" class="btn btn-block btn-info">Find {{this.name}} at the OSF</a></p>
+          {{/each}}
+          {{else}}
+          {{#each availablefiles.files}}
           <p><a href="/openaccessbutton/{{session 'respid'}}/{{this}}" class="btn btn-block btn-info">Download {{this}}</a></p>
           {{/each}}
           {{/if}}
-          {{#if request.received.osf}}
-          <hr style="border-color:white;">
-          <p>The files have been stored with the Open Science Foundation:</p>
-          {{#each request.received.osf}}
-          <p><a href="{{this}}">{{this}}</a></p>
-          {{/each}}
           {{/if}}
+                    
           {{#if session "validated"}}
           <hr style="border-color:white;">
           <p>
@@ -166,14 +170,17 @@
           {{/if}}
           {{/if}}
         </div>
+        
         {{#if session "validated"}}
         {{else}}
+        {{#if currentUser}}
         <p>
           Although we have received this content, our community has not yet validated it. Can you validate it for us?
           If it looks like the files available above are the correct content related to the request, then just let us know 
           now:
         </p>
         <a href="#" id="setvalidated" class="btn btn-primary btn-block">Yes, this is the correct content - validate it!</a>
+        {{/if}}
         {{/if}}
       </div>
     </div>
