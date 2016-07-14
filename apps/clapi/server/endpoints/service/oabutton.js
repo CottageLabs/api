@@ -485,6 +485,7 @@ CLapi.internals.service.oabutton.register = function(data) {
 var _maketest = function(u,url,test) {
   if (test) return true; // simply for requests coming in to dev site to all get set to test (so they don't show up as real in the ES index)
   if (url === undefined) return true;
+  if (u === undefined) return true;
   if (u.service && u.service.openaccessbutton && u.service.openaccessbutton.test) return true;
   var email = u.emails[0].address;
   var testemailparts = [
