@@ -3,11 +3,12 @@ var RESULTS_INCREMENT = 20;
 Session.setDefault('resultsLimit', RESULTS_INCREMENT);
 
 Deps.autorun(function() {
-  blockedsub = Meteor.subscribe('userblocked', Meteor.userId(), Session.get('resultsLimit'));
+  Meteor.subscribe('userblocked', Meteor.userId());
+  Meteor.subscribe('userrequested', Meteor.userId());
 });
 
 // whenever #showMoreResults becomes visible, retrieve more results
-function showMoreVisible() {
+/*function showMoreVisible() {
   var threshold, target = $("#showMoreResults");
   if (!target.length) return;
 
@@ -25,7 +26,7 @@ function showMoreVisible() {
     }
   }        
 }
-$(window).scroll(showMoreVisible);
+$(window).scroll(showMoreVisible);*/
 
 Template.oabuttonstory.story = function() {
   return OAB_Blocked.findOne(Session.get('blockedid'));
@@ -34,6 +35,9 @@ Template.oabuttonstory.request = function() {
   var b = OAB_Blocked.findOne(Session.get('blockedid'));
   return OAB_Request.findOne({url:b.url});
 }
+Template.oabuttonstory.maybeanemail = function(un) {
+  return un.indexOf('@') !== -1 && un.indexOf('.') !== -1;
+}
 
 
 Template.oabuttonrequest.request = function() {
@@ -41,9 +45,6 @@ Template.oabuttonrequest.request = function() {
 }
 Template.oabuttonrequest.blocked = function() {
   return OAB_Blocked.find({url:Session.get('url')});
-}
-Template.oabuttonrequest.maybeanemail = function(un) {
-  return un.indexOf('@') !== -1 && un.indexOf('.') !== -1;
 }
 Template.oabuttonrequest.supports = function() {
   var supports = OAB_Blocked.findOne({url:Session.get('url'),user:Meteor.userId()});
@@ -204,8 +205,18 @@ Template.oabuttonaccount.events({
     },
     'change #mailinglist': function () {
       Meteor.call('mailinglist', Meteor.userId(), $('#set-profession').val());
+    },
+    'click .dlft': function () {
+      Meteor.call('gotbutton', Meteor.userId());
     }
 });
+Template.oabuttonaccount.allset = function() {
+  var us = {};
+  try {
+    us = Meteor.user().service.openaccessbutton;
+  } catch(err) {}
+  return Meteor.user().username && us.profession !== undefined && us.confirm_public !== undefined && us.confirm_terms !== undefined && us.mailing_list !== undefined && us.downloaded !== undefined;
+};
 Template.oabuttonaccount.username = function() {
   if ( Meteor.user().username ) {
     return Meteor.user().username;
@@ -223,11 +234,11 @@ Template.oabuttonaccount.defaultapikey = function() {
 Template.oabuttonaccount.stories = function() {
   return OAB_Blocked.find();
 }
-Template.oabuttonaccount.moreResults = function() {
-  return !(OAB_Blocked.find().count() < Session.get("resultsLimit"));
+Template.oabuttonaccount.requests = function() {
+  return OAB_Request.find();
 }
-Template.oabuttonaccount.rendered = function() {
-  if ( blockedsub && blockedsub.ready() ) showMoreVisible();
+Template.oabuttonaccount.noneyet = function() {
+  return OAB_Blocked.find().count() === 0 && OAB_Request.find().count() === 0;
 }
 
 Meteor.startup(function () {

@@ -99,7 +99,7 @@ CLapi.addRoute('service/lantern', {
     } else if (checklength > quota.available) {
       return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
     } else {
-      var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh);
+      var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh,this.queryParams.wellcome);
       return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
     }
   }
@@ -172,7 +172,7 @@ CLapi.addRoute('service/lantern/:job/results', {
       
       var res;
       if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
-        var format = job.user ? 'lantern' : 'wellcome'; // format should be derived by the user that is calling this
+        var format = job.wellcome ? 'wellcome' : 'lantern';
         res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
         var grantcount = 0;
         for ( var k in res ) {
@@ -512,25 +512,29 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
-CLapi.internals.service.lantern.job = function(input,uid,refresh) {
+CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
   // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
   var user;
   var job = {};
   if (input.email) {
     job.email = input.email;
-    if (!uid) {
+    if (!uid && wellcome !== undefined) {
       user = Meteor.users.findOne({"emails.address":input.email});
       if (user) job.user = user._id;
     }
   }
-  if (uid) {
+  if (uid && wellcome !== undefined) {
     user = Meteor.users.findOne(uid);
     job.email = user.emails[0].address;
     job.user = uid;
   }
-  // for now if no uid assume a wellcome user in which case refresh needs to be set to 1
+  // for now if no user or wellcome is true assume a wellcome user
   // should really be a check on the user setting, and/or the refresh number already passed in from the request
-  if (!user) refresh = 1;
+  if (user === undefined) wellcome = true;
+  if (wellcome !== undefined) {
+    refresh = 1;
+    job.wellcome = true;
+  }
   if (refresh !== undefined) job.refresh = refresh;
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
@@ -582,7 +586,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh) {
     text += 'You can track the progress of your job at ';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
-    text += user ? 'https://lantern.cottagelabs.com#' : 'https://compliance.cottagelabs.com#';
+    text += job.wellcome ? 'https://compliance.cottagelabs.com#' : 'https://lantern.cottagelabs.com#';
     text += jid;
     text += '\n\nThe Cottage Labs team\n\n';
     text += 'P.S This is an automated email, please do not reply to it.'
@@ -973,7 +977,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       } else {
         result.publisher_licence = 'unknown';
         result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG).');
-        if (lic.large) result.provenance.push('Retrieved content was longer than 10MB, too large to process');
+        if (lic.large) result.provenance.push('Retrieved content was very long, so was contracted to 500,000 chars from start and end to process');
       }
     }
   } else {
@@ -1054,7 +1058,7 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         text += 'You can now download the results of your job at ';
         // TODO this bit should depend on user group permissions somehow
         // for now we assume if a signed in user then lantern, else wellcome
-        text += job.user ? 'https://lantern.cottagelabs.com#' : 'https://compliance.cottagelabs.com#';
+        text += job.wellcome ? 'https://compliance.cottagelabs.com#' : 'https://lantern.cottagelabs.com#';
         text += job._id;
         text += '\n\nThe Cottage Labs team\n\n';
         text += 'P.S This is an automated email, please do not reply to it.'

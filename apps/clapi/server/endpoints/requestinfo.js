@@ -19,11 +19,12 @@ CLapi.addRoute('requestinfo', {
 CLapi.internals.requestinfo = function(request) {
   // useful stuff for having a look at what is there and dumping it out to the return object if desired
   // could add geo lookup here, etc
-  /*var keys = [];
-  var obj = {};
+  var obj = {ip: request.headers['x-real-ip'], forwarded: request.headers['x-forwarded-for']};
+  var keys = [];
   for ( var k in request ) {
     keys.push(k);
-    if ( k === 'domain' || k === 'headers') obj[k] = request[k];
-  }*/
-  return {ip: request.headers['x-real-ip'], forwarded: request.headers['x-forwarded-for']};
+    if ( k === 'domain' || k === 'headers' || k === 'url' ) obj[k] = request[k];
+  }
+  obj.keys = keys;
+  return obj;
 }

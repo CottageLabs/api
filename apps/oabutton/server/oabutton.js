@@ -12,11 +12,6 @@ Meteor.publish("requestrelatedtoblock", function (bid) {
   var b = OAB_Blocked.findOne(bid);
   return OAB_Request.find({url:b.url});
 });
-/*Meteor.publish("users", function (limit) {
-  // check if there is a current user, and if that user has oabutton admin
-  // if not, return nothing. If yes, return all oabutton users
-  return Meteor.users.find({}, { limit: limit});
-});*/
 Meteor.publish("request", function (rid,receiver) {
   if (rid) {
     return OAB_Request.find(rid);
@@ -27,8 +22,11 @@ Meteor.publish("request", function (rid,receiver) {
 Meteor.publish("blockedforurl", function (url) {
   return OAB_Blocked.find({url:url});
 });
-Meteor.publish("userblocked", function (uid,limit) {
-  return OAB_Blocked.find({user:uid}, {limit:limit});
+Meteor.publish("userblocked", function (uid) {
+  return OAB_Blocked.find({user:uid});
+});
+Meteor.publish("userrequested", function (uid) {
+  return OAB_Request.find({'user.id':uid});
 });
 
 Meteor.methods({
@@ -102,6 +100,9 @@ Meteor.methods({
   },
   mailinglist: function(uid) {
     Meteor.users.update(uid,{$set:{'service.openaccessbutton.mailing_list':true}});
+  },
+  gotbutton: function(uid) {
+    Meteor.users.update(uid,{$set:{'service.openaccessbutton.downloaded':true}});
   },
   setreceived: function(respid,description,url) {
     var req = OAB_Request.findOne({receiver:respid});

@@ -146,7 +146,7 @@
 <template name="enter_email">
   <form id="enter-email-form" role="form">
     <p><input type="email" class="form-control" id="enter-email" placeholder="Enter your email address"></p>
-    <p><button type="submit" class="btn btn-primary btn-block">Sign in</button></p>
+    <p><button id="clsigninbutton" type="submit" class="btn btn-primary btn-block">Sign in</button></p>
   </form>
 </template>
 
@@ -161,7 +161,7 @@
     {{#if session "known"}}
     Login
     {{else}}
-    Register
+    Continue
     {{/if}}
     </button>
     <button id="reset-email" type="button" class="btn btn-danger btn-block">Cancel</button>

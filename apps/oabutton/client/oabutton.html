@@ -103,9 +103,6 @@
         <h1>Sign in</h1>
         <h1>Register</h1>
         <h1>Download</h1>
-        <p>
-          Open Access Button and Open Data Button
-        </p>
       </div>
       <div class="col-md-6">
         <div class="well">
@@ -125,15 +122,21 @@
         <hr>
         <p>Once you sign up and sign in, you will be able to download your Button for your 
           preferred browser.</p>        
-        <p>Questions? <a href="https://openaccessbutton.org/contact" class="action">Contact us</a></p>
       </div>
       <div class="col-md-6">
+        <p>Questions? <a href="https://openaccessbutton.org/contact" class="action">Contact us</a></p>
         <p>No account yet? Sign up now! Just put your email address above and click "Sign in" - we will create a new account for you.</p>
         <p>Just provide your email address and we will send you a validation link. Then once you are logged in for the first time we will ask you for a few other details.</p>
         <p style="font-size:0.9em;color:#bbb;">( Your e-mail address will be used as your account username until you choose a username of your own, but otherwise it will NOT be publicised or shared with third parties. )</p>
       </div>
     </div>
   </div>
+  
+  <script>
+  jQuery(document).ready(function() {
+    $('#clsigninbutton').css({'background-color':'#f04717','border-color':'#f04717'});
+  });
+  </script>
 
 </template>
 
@@ -610,22 +613,35 @@
 <template name="oabuttonaccount">
 
   {{> oabuttonheader}}
+
   <div class="container-fluid">
+    {{#if currentUser.username}}
+    {{#if allset}}
+    {{else}}
     <div class="row">
-      <div class="col-md-4" style="border-right:1px solid #c8c8c8;">
-        <h2>{{username}}</h2>
-        {{# if currentUser.service.openaccessbutton.profession}}
-        <h3>{{currentUser.service.openaccessbutton.profession}}</h3>
-        {{/if}}
-
-        {{#if currentUser.username}}
-        {{else}}
-        <input type="text" name="username" id="new-username" class="form-control" placeholder="Set a username for your account">
-        <button id="set-username" type="button" class="btn btn-block btn-info" style="margin-bottom:5px;">Set your username</button>
-        {{/if}}
-
-        {{#if currentUser.service.openaccessbutton.profession}}
-        {{else}}
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h1>Hello {{username}}</h1>
+        </div>
+      </div>
+    </div>
+    {{/if}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h1>Thanks for signing up!</h1>
+          <input type="text" name="username" id="new-username" class="form-control" placeholder="Set a username for your account">
+          <button id="set-username" type="button" class="btn btn-block btn-info" style="margin-bottom:5px;">Set your username</button>
+        </div>
+      </div>
+    </div>
+    {{/if}}
+  
+    {{#if currentUser.service.openaccessbutton.profession}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
         <select id="set-profession" name="profession" class="form-control">
           <option value="">Please select your profession</option>
           <option value="Student">Student</option>
@@ -638,53 +654,72 @@
           <option value="Other">Other</option>
           <option value="Undisclosed">Prefer not to say</option>
         </select>
-        {{/if}}
+      </div>
+    </div>
+    {{/if}}
 
-        {{#if currentUser.service.openaccessbutton.confirm_public}}
-        {{else}}
+    {{#if currentUser.service.openaccessbutton.confirm_public}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
         <div class="checkbox">
-          <input id="confirm_public" name="confirm_public" type="checkbox" />
+          <input id="confirm_public" name="confirm_public" type="checkbox">
           <label for="confirm_public" class="confirm-label">I understand that information obtained by this button will be publicly accessible</label>
         </div>
-        {{/if}}
-        {{#if currentUser.service.openaccessbutton.confirm_terms}}
-        {{else}}
+      </div>
+    </div>
+    {{/if}}
+    {{#if currentUser.service.openaccessbutton.confirm_terms}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
         <div class="checkbox">
-          <input id="confirm_terms" name="confirm_terms" type="checkbox" />
+          <input id="confirm_terms" name="confirm_terms" type="checkbox">
           <label for="confirm_terms" class="confirm-label">I have read the Open Access Button
             <a target="_blank" href="https://openaccessbutton.org/privacy">privacy policy</a> and I agree to the <a target="_blank" href="https://openaccessbutton.org/terms">terms</a>
           </label>
         </div>
-        {{/if}}
-        {{#if currentUser.service.openaccessbutton.mailing_list}}
-        {{else}}
+      </div>
+    </div>
+    {{/if}}
+    {{#if currentUser.service.openaccessbutton.mailing_list}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
         <div class="checkbox">
-          <input id="mailinglist" name="mailing_list" type="checkbox" />
+          <input id="mailinglist" name="mailing_list" type="checkbox">
           <label for="mailinglist" class="mailinglist-label">I would like to be added to the Open Access Button Mailing List</label>
         </div>
-        {{/if}}
-
-        <div class="well">
-          <p>Download your plugin(s):</p>
-          <p><a class="btn btn-info btn-block dl odb ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Open Data Button for Chrome</a></p>
-          <p><a class="btn btn-info btn-block dl odb ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Open Data Button for Firefox</a></p>
-
-          <p><a class="btn btn-info btn-block dl oab ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Open Access Button for Chrome</a></p>
-          <p><a class="btn btn-info btn-block dl oab ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Open Access Button for Firefox</a></p>
-        </div>
-
-        <p>Your API key is:<br>
-        <pre><code>{{defaultapikey}}</code></pre></p>
-        <p>(You need this when you first install your plugin, to identify your account to our system)</p>
-
-        <p><a href="/login" id="logout-btn" class="btn btn-block btn-danger" style="margin-bottom:5px;">Logout</a></p>
-
       </div>
+    </div>
+    {{/if}}
+    {{#if currentUser.service.openaccessbutton.downloaded}}
+    {{else}}
+    <div class="row">
+      <div class="col-md-12">
+        <p><a class="btn btn-info btn-block dl odb ch dlft" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Download Open Data Button for Chrome</a></p>
+        <p><a class="btn btn-info btn-block dl odb ff dlft" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Download Open Data Button for Firefox</a></p>
+        <p><a class="btn btn-info btn-block dl oab ch dlft" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Download Open Access Button for Chrome</a></p>
+        <p><a class="btn btn-info btn-block dl oab ff dlft" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Download Open Access Button for Firefox</a></p>
+        <p><button type="button" class="btn btn-block dlft">Already got the button? Click here to let us know!</button></p>
+      </div>
+    </div>
+    {{/if}}
+  </div>
 
-      <div class="col-md-8">
-        <h2>Instructions</h2>
+
+  {{#if allset}}
+  <div class="container-fluid">
+    
+    {{#if noneyet}}
+    <div class="row">
+      <div class="col-md-12">
+        <h2>Hi {{username}}</h2>
+
+        <h2>Getting started</h2>
         <ul>          
-          <li><b>Download, install, and login to the plugins</b>. They will ask for your API key (which is <b>{{defaultapikey}}</b> ) to authenticate you.</li>
+          <li><b>Start by downloading, installing, and logging in to the plugins</b>.</li>
+          <li>You will be asked for your API key (which is <b style="color:red;">{{defaultapikey}}</b> ) to authenticate.</li>
           <li>When you want access to an article that is not available, click the Open Access Button (you can do this on a paywall too).</li>
           <li>When you want the data supporting a research article, click the Open Data Button (you can do this on a paywall too).</li>
           <li>If we can't find the article or the data, put in the article title and author email. Let the author know why you want access.</li>
@@ -693,8 +728,48 @@
           <li>We'll follow up with the author and keep you in the loop about the request.</li>
           <li>We'll ask you to verify data your sent is what you wanted and that there is enough documentation for you to understand it.</li>
         </ul>
+        
+        <p><a class="btn btn-info btn-block dl odb ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Get Open Data Button for Chrome</a></p>
+        <p><a class="btn btn-info btn-block dl odb ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Get Open Data Button for Firefox</a></p>
+        <p><a class="btn btn-info btn-block dl oab ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Get Open Access Button for Chrome</a></p>
+        <p><a class="btn btn-info btn-block dl oab ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Get Open Access Button for Firefox</a></p>
 
-        <h2>Your stories for requiring access to articles and data</h2>
+        <p><a href="/login" id="logout-btn" class="btn btn-block btn-danger" style="margin-bottom:5px;">Logout</a></p>
+
+      </div>
+    </div>
+  
+    {{else}}
+    <div id="torequestalert" class="row" style="display:none;">
+      <div class="col-md-12">
+        <div class="alert alert-info">
+          <h4>Thanks for signing in. Do you still want to add your support to the request you were viewing? <a id="torequest" href="/request/xxx">If so click here.</a></h4>
+        </div>
+      </div>
+    </div>
+    <div class="well">
+      <div class="row">
+        <div class="col-md-3">
+          <h2>{{username}} <small>{{currentUser.service.openaccessbutton.profession}}</small></h2>
+        </div>
+        <div class="col-md-5">
+          <h2><small>API key: {{defaultapikey}}</small></h2>
+        </div>
+        <div class="col-md-3">
+          <p><a class="btn btn-info btn-block dl odb ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-data-button/kapdifmagjnchppkpilehblabndnmgpi">Get Open Data Button for Chrome</a></p>
+          <p><a class="btn btn-info btn-block dl odb ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/open-data-button/">Get Open Data Button for Firefox</a></p>
+          <p><a class="btn btn-info btn-block dl oab ch" target="_blank" href="https://chrome.google.com/webstore/detail/open-access-button/gknkbkaapnhpmkcgkmdekdffgcddoiel">Get Open Access Button for Chrome</a></p>
+          <p><a class="btn btn-info btn-block dl oab ff" target="_blank" href="https://addons.mozilla.org/en-GB/firefox/addon/openaccessbutton/">Get Open Access Button for Firefox</a></p>
+        </div>
+        <div class="col-md-1">
+          <p><a href="/login" id="logout-btn" class="btn btn-block btn-danger" style="margin-top:10px;">Logout</a></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <h3>Your stories for requiring access to articles and data</h3>
         <table class="table table-striped table-bordered"><thead></thead><tbody>
         {{#each stories}}
         {{#if equals type 'article'}}
@@ -704,10 +779,46 @@
         {{/if}}
         {{/each}}
         </tbody></table>
-
+      </div>
+      <div class="col-md-6">
+        <h3>Your requests for requiring access to articles and data</h3>
+        <table class="table table-striped table-bordered"><thead></thead><tbody>
+        {{#each requests}}
+        {{#if equals type 'article'}}
+        <tr><td><h4><a href="https://openaccessbutton.org/request/{{_id}}" style="color:#212f3f;">Access to the article at {{url}}</a></h4></td></tr>
+        {{else}}
+        <tr><td><h4><a href="https://opendatabutton.org/request/{{_id}}" style="color:#212f3f;">Supporting data for the article at {{url}}</a></h4></td></tr>
+        {{/if}}
+        {{/each}}
+        </tbody></table>
       </div>
     </div>
+    
+    <script>
+    jQuery(document).ready(function() {
+      var getUrlParameter = function getUrlParameter(sParam) {
+        var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+          sURLVariables = sPageURL.split('&'),
+          sParameterName,
+          i;
+        for (i = 0; i < sURLVariables.length; i++) {
+          sParameterName = sURLVariables[i].split('=');
+          if (sParameterName[0] === sParam) {
+            return sParameterName[1] === undefined ? true : sParameterName[1];
+          }
+        }
+      };
+      var rid = getUrlParameter('supportrequest');
+      if (rid) {
+        $('#torequest').attr('href','/request/' + rid);
+        $('#torequestalert').show();
+      }
+    });
+    </script>
+    {{/if}}
+
   </div>
+  {{/if}}
 
   <script>
   jQuery(document).ready(function() {

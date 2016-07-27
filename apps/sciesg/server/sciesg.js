@@ -34,15 +34,15 @@ Meteor.methods({
       fs.writeFileSync(dir + fn.split('.')[0] + '.txt', text);
       var keywords = CLapi.internals.tdm.keywords(text.toLowerCase(),{ngrams:1,min:3,score:true,limit:20,stem:true,len:5});
       var matchers = [
-        '/Sales volumes.*?([0-9.,]+)/g',
-        '/Total revenue.*?([0-9.,]+)/g',
-        '/Gross Profit.*?([0-9.,]+)/g',
-        '/Capital expenditure.*?([0-9.,]+)/g',
-        '/Net Debt.*?([0-9.,]+)/g',
-        '/Headroom.*?([0-9.,]+)/g',
-        '/Committed Bank Facilities.*?([0-9.,]+)/g',
-        '/Corporate Bonds.*?([0-9.,]+)/g',
-        '/Total air emissions.*([0-9.,]+)/g'
+        '/Sales volumes.*?([0-9.,]+)/gi',
+        '/Total revenue.*?([0-9.,]+)/gi',
+        '/Gross Profit.*?([0-9.,]+)/gi',
+        '/Capital expenditure.*?([0-9.,]+)/gi',
+        '/Net Debt.*?([0-9.,]+)/gi',
+        '/Headroom.*?([0-9.,]+)/gi',
+        '/Committed Bank Facilities.*?([0-9.,]+)/gi',
+        '/Corporate Bonds.*?([0-9.,]+)/gi',
+        '/Total air emissions.*([0-9.,]+)/gi'
       ]
       var extracts = CLapi.internals.tdm.extract({content:text,matchers:matchers});
       var res = {text:text,keywords:keywords,extracts:extracts,title:fn.split('.')[0]};

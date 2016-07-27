@@ -32,6 +32,7 @@ CLapi.internals.use.base.search = function(qry,from,size) {
 	// base requires IP registration - my machine IP has been registered, but change if machine changes
 	// limited to non-commercial and 1 query per second, contact them for more options
 	// it uses offset and hits (default 10) for from and size, and accepts solr query syntax
+	// string terms, "" to be next to each other, otherwise ANDed, can accept OR, and * or ? wildcards, brackets to group, - to negate
 	if (qry === undefined) qry = '*';
   var proxy = Meteor.settings.clapi_proxy; // need to route through the proxy so requests come from registered IP
   if ( !proxy ) return { status: 'error', data: 'NO BASE PROXY SETTING PRESENT!'}

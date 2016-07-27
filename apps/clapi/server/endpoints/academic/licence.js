@@ -80,9 +80,10 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     }
     if (end !== undefined) content = content.split(end)[0];
     console.log('Academic licence reduced content length to ' + content.length);
-    if (content.length > 10000000) {
+    if (content.length > 1000000) {
+      console.log('content for licence check was long, so reduced to 500000 chars from start and end');
       lic.large = true;
-      return lic; // catch in case content is huge and cannot be shortened - saw one that 
+      content = content.substring(0,500000) + content.substring(content.length-500000,content.length);
     }
     
     var text;

@@ -230,7 +230,7 @@ CLapi.addRoute('service/oabutton/blocked/:bid', {
         var rec = this.request.body;
         rec._id = this.urlParams.bid;
         var test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
-        return CLapi.internals.service.oabutton.blocked(rec,this.userId,true);
+        return CLapi.internals.service.oabutton.blocked(rec,this.userId,test);
       } else {
         return {status: 'error', data: 'You are not a member of the necessary group'}        
       }
@@ -518,7 +518,6 @@ var _maketest = function(u,url,test) {
 CLapi.internals.service.oabutton.blocked = function(data,user,test) {
   // add a check for duplicate on url for user, and if so reject it
   var dup = OAB_Blocked.findOne({url:data.url,user:user});
-  if (dup) return {status: 'error', data: 'user already registered a block on this URL'}
   
   console.log('Creating oabutton block notification');
   var u = Meteor.users.findOne(user);
@@ -558,6 +557,8 @@ CLapi.internals.service.oabutton.blocked = function(data,user,test) {
   if (data._id) {
     rec = data._id;
     OAB_Blocked.update(rec,{$set:event});
+  } else if (dup) {
+    event._id = dup._id;
   } else {
     rec = OAB_Blocked.insert(event);
     event._id = rec;
@@ -822,19 +823,29 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
 
 CLapi.internals.service.oabutton.status = function(url,type) {
   if (type === undefined) type = 'article';
-  var ret = { 
+  var ret = {
     blocked: OAB_Blocked.find({url:url,type:type}).count(),
     request: OAB_Request.findOne({url:url,type:type}),
     availability: {}
+  }
+  if ( type === 'data' ) {
+    // any useful places to check 
   }
   if ( type === 'article' ) {
     // check with dissemin
     // worth checking with core?
   }
+  if (ret.request && ret.request.received) {
+    var u = 'https://';
+    u += type === 'data' ? 'opendatabutton.org' : 'openaccessbutton.org';
+    u += '/request/' + ret.request._id;
+    var s = CLapi.internals.shortlink(u);
+    ret.provided = {url:'http://ctg.li/'+s.body.data}
+  } 
+
   //CLapi.internals.academic.resolve(url); 
   // TODO make sure academic resolve is updated to handle URLs as well as DOIs/IDs
   // and make sure academic resolve is updated to check oabutton requests for receied items
-  if (ret.availability.url) ret.provided = ret.availability.url; // this should be a URL use tracker URL
   return ret;
 }
 
