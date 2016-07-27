@@ -38,8 +38,8 @@ lantern_results.before.insert(function (userId, doc) {
 
 lantern_processes.findByIdentifier = function(idents) {
   var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0) m.push({pmid:idents.pmid});
+  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0 && !idents.pmcid.match(/^(PMC)*0/i)) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0 && !idents.pmid.match(/^0/)) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
   if (m.length === 0) {  // causes a Mongo error otherwise, since Mongo does not like $or: [] in the queries below
@@ -49,8 +49,8 @@ lantern_processes.findByIdentifier = function(idents) {
 }
 lantern_results.findByIdentifier = function(idents,refresh) {  
   var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0) m.push({pmid:idents.pmid});
+  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0 && !idents.pmcid.match(/^(PMC)*0/i)) m.push({pmcid:idents.pmcid});
+  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0 && !idents.pmid.match(/^0/)) m.push({pmid:idents.pmid});
   if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
   if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
 
