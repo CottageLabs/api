@@ -321,7 +321,7 @@ server {
 server {
     listen      80;
     server_name lantern.cottagelabs.com;
-    return 301 https://lantern.cottagelabs.com;
+    return 301 https://lantern.cottagelabs.com$request_uri;
 }
 server {
         listen 443 ssl;

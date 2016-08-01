@@ -153,7 +153,17 @@ CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
   var res = Meteor.http.call('GET', url);
-  return { status: 'success', total: res.data.hitCount, data: res.data && res.data.resultList ? res.data.resultList.result : []}
+  var ret = {}
+  if (res.data && res.data.hitCount) {
+    ret.status = 'success';
+    ret.total = res.data.hitCount; 
+    ret.data = res.data && res.data.resultList ? res.data.resultList.result : []
+  } else {
+    ret.status = 'error';    
+    ret.total = 0; 
+    ret.data = [];
+  }
+  return ret;
 }
 
 // http://dev.api.cottagelabs.com/use/europepmc/search/has_doi:n%20AND%20FIRST_PDATE:[2016-03-22%20TO%202016-03-22]
