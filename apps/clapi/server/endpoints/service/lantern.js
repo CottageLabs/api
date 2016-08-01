@@ -15,6 +15,7 @@ academic/resolve currently only caches full lookup - change it to cache DOI look
 */
 
 // The Lantern API
+lantern_meta = new Mongo.Collection("lantern_meta"); // meta info to store across cron checks
 lantern_jobs = new Mongo.Collection("lantern_jobs"); // batches of submitted jobs from users
 lantern_processes = new Mongo.Collection("lantern_processes"); // individual processes of ident object sets {doi:"blah",pmid:"same"}
 lantern_results = new Mongo.Collection("lantern_results"); // results for particular identifiers
@@ -292,6 +293,11 @@ CLapi.addRoute('service/lantern/:job/original', {
       var ret = CLapi.internals.convert.json2csv(undefined,undefined,fl);
       var name = 'original';
       if (job.name) name = job.name.split('.')[0].replace(/ /g,'_');
+      //header('Content-Encoding: UTF-8');
+      //header('Content-type: text/csv; charset=UTF-8');
+      //header('Content-Disposition: attachment; filename=Customers_Export.csv');
+      //echo "\xEF\xBB\xBF"; // UTF-8 BOM
+      // http://answers.microsoft.com/en-us/mac/forum/macoffice2011-macexcel/mac-excel-converts-utf-8-characters-to-underlines/7c4cdaa7-bfa3-41a2-8482-554ae235227b?msgId=c8295574-a053-48a6-b419-51523ce2a247&auth=1
       this.response.writeHead(200, {
         'Content-disposition': "attachment; filename="+name+"_original.csv",
         'Content-type': 'text/csv',
@@ -317,6 +323,21 @@ CLapi.addRoute('service/lantern/jobs', {
     action: function() {
       var results = [];
       var jobs = lantern_jobs.find();
+      jobs.forEach(function(job) {
+        job.processes = job.list.length;
+        delete job.list;
+        results.push(job);
+      });
+      return {status: 'success', data: {total:results.length, jobs: results} }
+    }
+  }
+});
+
+CLapi.addRoute('service/lantern/jobs/todo', {
+  get: {
+    action: function() {
+      var results = [];
+      var jobs = lantern_jobs.find({done:{$not:{$eq:true}}});
       jobs.forEach(function(job) {
         job.processes = job.list.length;
         delete job.list;
@@ -579,6 +600,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
       process ? job.list[i].process = process._id : job.list[i].process = lantern_processes.insert(proc);
     }
   }
+  if (job.list.length === 0) job.done = true; // bit pointless submitting empty jobs, but theoretically possible. Could make impossible...
   var jid = lantern_jobs.insert(job);
   if (job.email) {
     var jor = job.name ? job.name : jid;
@@ -666,7 +688,7 @@ CLapi.internals.service.lantern.process = function(processid) {
         var prst = proc[st];
         if (stt === 'title') {
           stt = 'search';
-          prst = 'TITLE:' + prst.replace(/[A-Za-z0-9]/g,' ');
+          prst = 'TITLE:' + prst.replace(/[^A-Za-z0-9]/g,' ');
         }
         if (stt === 'pmcid') stt = 'pmc';
         // TODO need to simplify the title to keywords?
@@ -1446,6 +1468,35 @@ CLapi.internals.service.lantern.alertdone = function() {
   return ret;
 }
 
+CLapi.internals.service.lantern.alertstuck = function() {
+  var prev = lantern_meta.findOne('previous_processing_check');
+  if (prev === undefined) {
+    prev = {_id:'previous_processing_check',list:[],same:false,since:0};
+    lantern_meta.insert(prev);
+  }
+  var procs = lantern_processes.find({processing:{$exists:true}}).fetch();
+  var currents = [];
+  var same = true;
+  for ( var p in procs ) {
+    currents.push(p._id);
+    if ( prev.list.indedxOf(p._id) === -1 ) same = false;
+  }
+  prev.since = same ? prev.since + 30 : 0;
+  prev.same = same;
+  prev.list = currents;
+  lantern_meta.update('previous_processing_check',{$set:prev});
+  if (same && currents.length !== 0) {
+    CLapi.internals.sendmail({
+      to:'mark@cottagelabs.com',
+      subject:'ALERT: Lantern processes stuck',
+      text:'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes'
+    });
+    return true;
+  } else {
+    return false;
+  }
+}
+
 CLapi.internals.service.lantern.dropoldresults = function() {
   // search for results over 180 days old and delete them
   var d = Meteor.settings.cron.lantern_dropoldresults;
@@ -1483,6 +1534,13 @@ if ( Meteor.settings.cron.lantern_dropoldresults ) {
     schedule: function(parser) { return parser.recur().every(24).hour(); },
     job: CLapi.internals.service.lantern.dropoldresults
   });
+}
+if ( Meteor.settings.cron.lantern_alertstuck ) {
+  SyncedCron.add({
+    name: 'lantern_alertstuck',
+    schedule: function(parser) { return parser.recur().every(30).minute(); },
+    job: CLapi.internals.service.lantern.alertstuck
+  });  
 }
 if ( Meteor.settings.cron.lantern_alertdone ) {
   SyncedCron.add({
