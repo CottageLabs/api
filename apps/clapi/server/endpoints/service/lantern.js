@@ -539,7 +539,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
   var job = {};
   if (input.email) {
     job.email = input.email;
-    if (!uid && wellcome !== undefined) {
+    if (!uid && wellcome === undefined) {
       user = Meteor.users.findOne({"emails.address":input.email});
       if (user) job.user = user._id;
     }
