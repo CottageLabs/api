@@ -21,6 +21,7 @@ lantern_processes = new Mongo.Collection("lantern_processes"); // individual pro
 lantern_results = new Mongo.Collection("lantern_results"); // results for particular identifiers
 // There can be more than one result for an identified paper, because they are re-run if outwith acceptable time limit
 
+CLapi.addCollection(lantern_meta);
 CLapi.addCollection(lantern_jobs);
 CLapi.addCollection(lantern_processes);
 CLapi.addCollection(lantern_results);
@@ -1476,14 +1477,16 @@ CLapi.internals.service.lantern.alertstuck = function() {
   var currents = [];
   var same = true;
   for ( var p in procs ) {
-    currents.push(p._id);
-    if ( prev.list.indedxOf(p._id) === -1 ) same = false;
+    currents.push(procs[p]._id);
+    if ( prev.list.indexOf(procs[p]._id) === -1 ) same = false;
   }
-  prev.since = same ? prev.since + 30 : 0;
+  prev.since = same ? prev.since + 15 : 0;
   prev.same = same;
   prev.list = currents;
   lantern_meta.update('previous_processing_check',{$set:prev});
-  if (same && currents.length !== 0) {
+  console.log("Stuck lantern processes check")
+  console.log(prev);
+  if (same && currents.length !== 0 && prev.since >= 30) {
     CLapi.internals.sendmail({
       to:'mark@cottagelabs.com',
       subject:'ALERT: Lantern processes stuck',
@@ -1536,7 +1539,7 @@ if ( Meteor.settings.cron.lantern_dropoldresults ) {
 if ( Meteor.settings.cron.lantern_alertstuck ) {
   SyncedCron.add({
     name: 'lantern_alertstuck',
-    schedule: function(parser) { return parser.recur().every(30).minute(); },
+    schedule: function(parser) { return parser.recur().every(15).minute(); },
     job: CLapi.internals.service.lantern.alertstuck
   });  
 }
