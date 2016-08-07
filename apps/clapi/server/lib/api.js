@@ -61,6 +61,7 @@ CLapi = new Restivus({
   version: '',
   //apiPath: '',
   //useDefaultAuth: true,
+  defaultHeaders: { 'Content-Type': 'application/json; charset=utf-8' },
   prettyJson: true,
   auth: {
     token: 'api.keys.hashedToken',

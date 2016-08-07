@@ -92,7 +92,7 @@ CLapi.addRoute('service/lantern', {
     var maxallowedlength = 3000; // this could be in config or a per user setting...
     var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
     var email = this.request.body.email ? this.request.body.email : '';
-    var quota = CLapi.internals.service.lantern.quota(email);
+    var quota = this.queryParams.wellcome !== undefined ? {available:10000000,wellcome:true} : CLapi.internals.service.lantern.quota(email);
     // TODO should partial jobs be accepted, up to remaining quota available / max length?
     // for now jobs that are too big are refused
     if (checklength > maxallowedlength) {
@@ -534,9 +534,9 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
-  // is there a limit on how long the job list can be? And is that limit controlled by user permissions?
   var user;
   var job = {};
+  // oddities controlling wellcome compliance submission appear here - remove once no longer necessary
   if (input.email) {
     job.email = input.email;
     if (!uid && wellcome === undefined) {
@@ -544,13 +544,11 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
       if (user) job.user = user._id;
     }
   }
-  if (uid && wellcome !== undefined) {
+  if (uid && wellcome === undefined) {
     user = Meteor.users.findOne(uid);
     job.email = user.emails[0].address;
     job.user = uid;
   }
-  // for now if no user or wellcome is true assume a wellcome user
-  // should really be a check on the user setting, and/or the refresh number already passed in from the request
   if (user === undefined) wellcome = true;
   if (wellcome !== undefined) {
     refresh = 1;
