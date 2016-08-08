@@ -23,9 +23,9 @@ upstream clapilocal {
 upstream clapi {
     #ip_hash;
     keepalive 16;
-    server localhost:3333 max_fails=3 fail_timeout=600;
-    server 10.131.20.129:3000 max_fails=3 fail_timeout=600;
-    server 10.131.11.72:3000 max_fails=3 fail_timeout=600;
+    server localhost:3333 max_fails=1 fail_timeout=60;
+    server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
+    server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
 }
 server {
     listen      80;

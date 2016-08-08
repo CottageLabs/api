@@ -101,7 +101,11 @@ CLapi.addRoute('service/lantern', {
       return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
     } else {
       var j = lantern_jobs.insert({new:true});
-      CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh,this.queryParams.wellcome,j);
+      var b = this.request.body;
+      var u = this.userId;
+      var r = this.queryParams.refresh;
+      var w = this.queryParams.wellcome;
+      Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
       return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
     }
   }
