@@ -152,9 +152,12 @@ CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
   if (size !== undefined) url += '&pageSize=' + size;
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
-  var res = Meteor.http.call('GET', url);
+  var res;
+  try {
+    res = Meteor.http.call('GET',url);
+  } catch(err) {}// meteor http call get will throw error on 404
   var ret = {}
-  if (res.data && res.data.hitCount) {
+  if (res && res.data && res.data.hitCount) {
     ret.status = 'success';
     ret.total = res.data.hitCount; 
     ret.data = res.data && res.data.resultList ? res.data.resultList.result : []
@@ -182,8 +185,12 @@ CLapi.internals.use.europepmc.published = function(startdate,enddate,from,size,q
   if (size !== undefined) url += '&pageSize=' + size;
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
-  var res = Meteor.http.call('GET', url);
-  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+  try {
+    var res = Meteor.http.call('GET',url);
+    return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+  } catch(err) {
+    return { status: 'error', total: 0, data: {}}    
+  }// meteor http call get will throw error on 404
 }
 
 CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qrystr) {
@@ -201,8 +208,12 @@ CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qry
   if (size !== undefined) url += '&pageSize=' + size;
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
   console.log(url);
-  var res = Meteor.http.call('GET', url);
-  return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+  try {
+    var res = Meteor.http.call('GET',url);
+    return { status: 'success', total: res.data.hitCount, data: res.data.resultList.result}
+  } catch(err) {
+    return { status: 'error', total: 0, data: {}}    
+  }// meteor http call get will throw error on 404
 }
 
 CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {

@@ -89,7 +89,6 @@ CLapi.addRoute('service/lantern', {
     }
   },
   post: function() {
-    // cannot receive files to meteor restivus! Another ridiculous thing!!!
     var maxallowedlength = 3000; // this could be in config or a per user setting...
     var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
     var email = this.request.body.email ? this.request.body.email : '';
