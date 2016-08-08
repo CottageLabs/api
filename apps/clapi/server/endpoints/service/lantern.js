@@ -100,7 +100,8 @@ CLapi.addRoute('service/lantern', {
     } else if (checklength > quota.available) {
       return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
     } else {
-      var j = CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh,this.queryParams.wellcome);
+      var j = lantern_jobs.insert({new:true});
+      CLapi.internals.service.lantern.job(this.request.body,this.userId,this.queryParams.refresh,this.queryParams.wellcome,j);
       return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
     }
   }
@@ -533,7 +534,7 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
-CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
+CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
   var user;
   var job = {};
   // oddities controlling wellcome compliance submission appear here - remove once no longer necessary
@@ -599,7 +600,12 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome) {
     }
   }
   if (job.list.length === 0) job.done = true; // bit pointless submitting empty jobs, but theoretically possible. Could make impossible...
-  var jid = lantern_jobs.insert(job);
+  job.new = false;
+  if (jid !== undefined) {
+    lantern_jobs.update(jid,{$set:job});
+  } else {
+    jid = lantern_jobs.insert(job);
+  }
   if (job.email) {
     var jor = job.name ? job.name : jid;
     var text = 'Hi ' + job.email + '\n\nThanks very much for submitting your processing job ' + jor + '.\n\n';
@@ -1048,30 +1054,20 @@ CLapi.internals.service.lantern.progress = function(jobid) {
     var p;
     if (job.done) {
       p = 100;
+    } else if (job.new === true) {
+      p = 0;
     } else {
-      //var update = false;
-      //var updates = {};
       var total = job.list.length;
       var count = 0;
       for ( var i in job.list ) {
-        /*if ( job.list[i].result ) {
-          count += 1;
-        } else if (check) {*/
         var found = lantern_results.findOne(job.list[i].process);
         // could add a check for OTHER results with similar IDs - but shouldn't be any, and would have to re-sanitise the IDs
-        //if (!found) found = lantern_results.findByIdentifier(pi);
         if ( found ) {
           count += 1;
-          //updates["list." + i + ".result"] = found._id;
-          //update = true;
         }
-        //}
       }
       p = count/total * 100;      
       if ( p === 100 ) {
-        // this will only happen on first time the progress check finds job is 100% cos otherwise it returns 100 on seeing job.done
-        //updates.done = true;
-        //lantern_jobs.update(job._id, {$set:updates});
         lantern_jobs.update(job._id, {$set:{done:true}});
         var jor = job.name ? job.name : job._id;
         var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
@@ -1087,12 +1083,9 @@ CLapi.internals.service.lantern.progress = function(jobid) {
           subject:'Job ' + jor + ' completed successfully',
           text:text
         });
-      }/* else if (update) {
-        // this happens if the job has had some progress but is not yet 100%
-        lantern_jobs.update(job._id, {$set:updates});
-      }*/
+      }
     }
-    return {progress:p,name:job.name,email:job.email,_id:job._id};
+    return {progress:p,name:job.name,email:job.email,_id:job._id,new:job.new};
   } else {
     return false;
   }
@@ -1486,10 +1479,13 @@ CLapi.internals.service.lantern.alertstuck = function() {
   console.log("Stuck lantern processes check")
   console.log(prev);
   if (same && currents.length !== 0 && prev.since >= 30) {
+    var txt = 'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes';
+    txt += '\n\nResetting the processes may help, if you are sure you do not want to check the situation first:\n\n';
+    txt += 'https://api.cottagelabs.com/service/lantern/processes/reset';
     CLapi.internals.sendmail({
-      to:'mark@cottagelabs.com',
-      subject:'ALERT: Lantern processes stuck',
-      text:'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes'
+      to:'sysadmin@cottagelabs.com',
+      subject:'CL ALERT: Lantern processes stuck',
+      text:txt
     });
     return true;
   } else {
