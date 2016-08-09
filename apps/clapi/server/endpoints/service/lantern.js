@@ -827,6 +827,12 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');      
       }
     }
+  } else {
+    result.provenance.push('Unable to locate article in EPMC.')
+  }
+
+  if (!result.doi && !result.pmid && !result.pmcid) {
+    result.provenance.push('Unable to obtain DOI, PMID or PMCID for this article. Compliance information may be severely limited.');
   }
 
   if (result.doi) {
@@ -852,6 +858,8 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.title = c.title[0]; 
         result.provenance.push('Added article title from Crossref');
       }
+    } else {
+      result.provenance.push('Unable to obtain information about this article from Crossref.')
     }
     
     // look up core to see if it is in there (in fulltext or not?)
@@ -882,6 +890,8 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.provenance.push('Could not find DOI in CORE');
       }
     }
+  } else {
+    result.provenance.push('Not attempting Crossref or CORE lookups - do not have DOI for article.');
   }
 
   // use grist API from EUPMC to look up PI name of any grants present
@@ -909,6 +919,8 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.provenance.push('Tried but failed to find Grant PI via Grist API');
       }
     }
+  } else {
+    result.provenance.push('Not attempting Grist API grant lookups since no grants data was obtained from EUPMC.');
   }
   
   if (result.pmid && !result.in_epmc) {
@@ -918,6 +930,11 @@ CLapi.internals.service.lantern.process = function(processid) {
     } else {
       result.provenance.push('Checked ahead of print status on pubmed, no date found');
     }
+  } else {
+    var msg = 'Not checking ahead of print status on pubmed.';
+    if (!result.pmid) {msg += ' We don\'t have the article\'s PMID.';}
+    if (result.in_epmc) {msg += ' The article is already in EUPMC.';}
+    result.provenance.push(msg);
   }
   
   if ( result.journal.issn ) {
@@ -944,13 +961,21 @@ CLapi.internals.service.lantern.process = function(processid) {
       } catch(err) {}
       // it is possible to have no publisher info, so catch the error
       // see http://www.sherpa.ac.uk/romeo/api29.php?ak=Z34hA6x7RtM&issn=1941-2789&
-      if (!result.journal.title && journal && journal.jtitle && journal.jtitle.length > 0) {
-        result.journal.title = journal.jtitle[0];
-        result.provenance.push('Added journal title from Sherpa Romeo');
+      if (!result.journal.title) {
+        if (journal && journal.jtitle && journal.jtitle.length > 0) {
+          result.journal.title = journal.jtitle[0];
+          result.provenance.push('Added journal title from Sherpa Romeo');
+        } else {
+          result.provenance.push('Tried, but could not add journal title from Sherpa Romeo.');
+        }
       }
-      if (!result.publisher && publisher && publisher.name && publisher.name.length > 0) {
-        result.publisher = publisher.name[0];
-        result.provenance.push('Added publisher from Sherpa Romeo');
+      if (!result.publisher) {
+        if (publisher && publisher.name && publisher.name.length > 0) {
+          result.publisher = publisher.name[0];
+          result.provenance.push('Added publisher from Sherpa Romeo');
+        } else {
+          result.provenance.push('Tried, but could not add publisher from Sherpa Romeo.');
+        }
       }
       if (publisher) result.romeo_colour = publisher.romeocolour[0];
       result.embargo = {preprint:false,postprint:false,pdf:false};
@@ -972,7 +997,11 @@ CLapi.internals.service.lantern.process = function(processid) {
       }
       result.provenance.push('Added embargo and archiving data from Sherpa Romeo');
       // can we infer licence or is_oa from sherpa data?
+    } else {
+      result.provenance.push('Unable to add any data from Sherpa Romeo.')
     }
+  } else {
+    result.provenance.push('Not attempting to add any data from Sherpa Romeo - don\'t have a journal ISSN to use for lookup.')
   }
   
   // if license could not be found yet, call academic/licence to get info from the splash page
@@ -1009,8 +1038,11 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG).');
         if (lic.large) result.provenance.push('Retrieved content was very long, so was contracted to 500,000 chars from start and end to process');
       }
+    } else {
+      result.provenance.push('Unable to retrieve licence data via article publisher splash page (used to be OAG) - cannot obtain a suitable URL to run the licence detection on.');
     }
   } else {
+    result.provenance.push('Not attempting to retrieve licence data via article publisher splash page lookup (used to be OAG).');
     result.publisher_licence_check_ran = false;
   }
   
