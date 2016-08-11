@@ -805,10 +805,11 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.licence_source = lic.source;
       result.epmc_licence_source = lic.source;
       var extrainfo = '';
+      // add the exact licence type here since for wellcome this is now lost under non-standard-licence translation
       if (lic.matched) {extrainfo += ' The bit that let us determine the licence was: ' + lic.matched + ' .';}
       if (lic.matcher) {extrainfo += ' If licence statements contain URLs we will try to find those in addition to ' +
         'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matcher + ' .';}
-      result.provenance.push('Added EPMC licence from ' + lic.source + '.' + extrainfo);
+      result.provenance.push('Added EPMC licence (' + result.epmc_licence + ') from ' + lic.source + '.' + extrainfo);
 
       // result.licence and result.licence_source can be overwritten later by
       // the academic licence detection (what OAG used to do), but we will keep the
@@ -1038,7 +1039,7 @@ CLapi.internals.service.lantern.process = function(processid) {
         if (lic.matched) {extrainfo += ' The bit that let us determine the licence was: ' + lic.matched + ' .';}
         if (lic.matcher) {extrainfo += ' If licence statements contain URLs we will try to find those in addition to ' +
           'searching for the statement\'s text. Here the entire licence statement was: ' + lic.matcher + ' .';}
-        result.provenance.push('Added licence data via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG).' + extrainfo);
+        result.provenance.push('Added licence (' + result.publisher_licence + ') via article publisher splash page lookup to ' + lic.resolved + ' (used to be OAG).' + extrainfo);
       } else {
         result.publisher_licence = 'unknown';
         result.provenance.push('Unable to retrieve licence data via article publisher splash page lookup (used to be OAG).');
@@ -1239,6 +1240,13 @@ var _formatwellcome = function(result) {
   }
   if (result.publisher_licence === undefined) {
     result.publisher_licence = 'unknown';
+  }
+  // if the licence starts with cc-, leave it. Otherwise set to non-standard-licence.
+  if (result.epmc_licence !== undefined && result.epmc_licence !== 'unknown' && !result.epmc_licence.startsWith('cc-')) {
+    result.epmc_licence = 'non-standard-licence';
+  }
+  if (result.publisher_licence !== undefined && result.publisher_licence !== 'unknown' && result.publisher_licence !== "not applicable" && !result.publisher_licence.startsWith('cc-')) {
+    result.publisher_licence = 'non-standard-licence';
   }
   if (!result.in_epmc) {
     result['Author Manuscript?'] = "not applicable";
