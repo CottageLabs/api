@@ -702,8 +702,9 @@ CLapi.internals.service.lantern.process = function(processid) {
         // TODO need to simplify the title to keywords?
         var res = CLapi.internals.use.europepmc[stt](prst);
         if (res.data) {
-          if (res.data.id) {
-            // we retrieved one result
+          if (res.data.id && stt !== 'search') {
+            // we retrieved one result and it was not just a title lookup
+            // title-only lookups can never have a confidence of 1.0
             eupmc = res.data;
             result.confidence = 1;
           } else if (stt === 'search' && res.total) {
@@ -737,7 +738,6 @@ CLapi.internals.service.lantern.process = function(processid) {
       }
     }
   }
-  
   if (eupmc !== undefined) {
     if (eupmc.pmcid && result.pmcid !== eupmc.pmcid) {
       result.pmcid = eupmc.pmcid;
@@ -839,7 +839,13 @@ CLapi.internals.service.lantern.process = function(processid) {
     var crossref = CLapi.internals.use.crossref.works.doi(result.doi);
     if (crossref.status === 'success') {
       var c = crossref.data;
-      result.confidence = 1;
+      if (!result.confidence) {
+        // Do not overwrite previously set confidence, if any.
+        // The only other place which sets confidence is the EUPMC lookup. If it already set it to 1, then we don't
+        // need to do anything. But if a title-only search (i.e. less confident lookup) set it to < 1, then we will
+        // wrongly overwrite it here.
+        result.confidence = 1;
+      }
       result.publisher = c.publisher; // completes oacwellcome issue 90
       result.provenance.push('Added publisher name from Crossref');
       if (!result.journal.issn && c.ISSN && c.ISSN.length > 0) {
