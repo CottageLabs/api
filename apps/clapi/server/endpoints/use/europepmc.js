@@ -62,19 +62,19 @@ CLapi.addRoute('use/europepmc/pmc/:qry', {
 CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
   get: {
     action: function() {
-      var res = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
-      if (res) {
-        return {status: 'success', data: res.data.resultList.result[0] }
-        this.response.writeHead(200, {
-          'Content-type': 'application/xml',
-          'Content-length': res.length
-        });        
-        this.response.write(res);
-        this.done();
-        return {};
-      } else {
-        return {statusCode: 404, body: {status: 'error', data: '404 not found' }}        
+      var res;
+      try {
+        res = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
+      } catch (err) {
+        if(err.response.statusCode === 404) {
+          console.log(this.urlParams.qry + ' not found when fetching EPMC full text XML.');
+        } else {
+          console.log('Error while fetching EPMC full text XML for ' + this.urlParams.qry + '. Most probably EPMC is temporarily down.');
+        }
+        return {statusCode: 404, body: {status: 'error', data: '404 not found' }}
       }
+
+      return {status: 'success', data: res.data.resultList.result[0] }
     }
   }
 });
@@ -223,7 +223,13 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+    if (!fulltext && pmcid) {
+      try {
+        fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+      } catch (err) {
+        // no need to log this failure to get the fulltext - simply try the HTML instead
+      }
+    }
     if (fulltext) {
       var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
       // console.log(pmcid + ' licinperms XML check: ' + licinperms);
@@ -282,11 +288,22 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (fulltext && fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
-      // console.log("First call for AAM XML");
-      return 'Y_IN_EPMC_FULLTEXT';
-    } else if ( pmcid ) {
-      var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+    if (fulltext) {
+      if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+        // console.log("First call for AAM XML");
+        return 'Y_IN_EPMC_FULLTEXT';
+      } else {
+        return false;
+      }
+    }
+    
+    if ( pmcid ) {
+      try {
+        var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+      } catch (err) {
+        // no need to log this failure to get the fulltext - simply try the HTML then
+      }
+
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
         // console.log("Different call for AAM XML");
         return 'Y_IN_EPMC_FULLTEXT';
@@ -311,18 +328,25 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
             return false;
           }
         } catch(err) {
-          return false;
+          if(err.response.statusCode === 404) {
+            return 'unknown-not-found-in-epmc'
+          } else {
+            return 'unknown-error-accessing-epmc';
+          }
         }
       }
     } else {
-      return false;
+      return 'unknown';
     }
   } else {
-    return false;
+    return 'unknown';
   }
 }
 
 CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
+  // This function will raise an error if the HTTP GET returns an HTTP error like 404
+  // When using it, make sure to put it in a try/catch block and take appropriate
+  // action on error, like adding processing notes, logging and setting values to "unknown".
   var res;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
   if (res && res.total > 0) rec = res.data[0];
@@ -330,10 +354,8 @@ CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
   if (pmcid) pmcid = pmcid.toLowerCase().replace('pmc','');
   var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/PMC' + pmcid + '/fullTextXML';
   var fulltext = false;
-  try {
-    var r = Meteor.http.call('GET',url);
-    if (r.statusCode === 200) fulltext = r.content;
-  } catch(err) {}// meteor http call get will throw error on 404
+  var r = Meteor.http.call('GET',url);
+  if (r.statusCode === 200) fulltext = r.content;
   return fulltext;
 }
 
