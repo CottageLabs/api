@@ -32,6 +32,7 @@ OAB_Request.after.update(function (userId, doc, fieldNames, modifier, options) {
 OAB_Request.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/oabutton/request/' + doc._id);
 });
+//CLapi.addCollection(OAB_Request);
 
 Router.map( function () {
   this.route('oabuttonsupportrequests', {
@@ -118,21 +119,7 @@ Router.map( function () {
     action : function() {
       var r = OAB_Request.findOne(this.params.rid);
       Session.set('url', r.url);
-      Meteor.subscribe('blockedforurl', r.url);
       Session.set('requestid', this.params.rid);
-      this.render();                
-    }
-  });
-  this.route('oabuttonstory', {
-    path: '/story/:sid',
-    waitOn : function() {
-      return [
-        Meteor.subscribe('block', this.params.sid),
-        Meteor.subscribe('requestrelatedtoblock', this.params.sid)
-      ]
-    },
-    action : function() {
-      Session.set('blockedid', this.params.sid);
       this.render();                
     }
   });

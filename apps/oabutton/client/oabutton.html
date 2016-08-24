@@ -251,115 +251,6 @@
   });  
   </script>
 </template>
-
-
-
-<template name="oabuttonstory">
-  
-  {{> oabuttonheader}}
-  
-  {{# if isadmin currentUser 'openaccessbutton'}}
-  <div class="container-fluid" style="background-color:orange;padding-top:20px;padding-bottom:20px;">
-    <div class="row">
-      <div class="col-md-6">
-        <p>You have administrative control, hence you are able to edit this block story.</p>
-      </div>
-      <div class="col-md-6">
-        {{#if story.test}}
-        <a class="btn btn-warning btn-block" href="#" id="unteststory">This story is set as a test. Click to change to live.</a>
-        {{else}}
-        <a class="btn btn-warning btn-block" href="#" id="maketeststory">Set as a test story</a>
-        {{/if}}
-        <a class="btn btn-danger btn-block" href="#" id="deleteblock">Delete story</a>
-      </div>
-    </div>
-  </div>
-  {{/if}}
-
-  <div class="container-fluid" style="margin-top:100px;margin-bottom:100px;">
-    <div class="row">
-      <div class="col-md-12">
-        <div class="jumbotron" style="min-height:200px;background-color:#398bc5;">
-          <h3 style="color:white;">The {{#if equals story.type 'data' }}supporting data for{{else}}article{{/if}} 
-            <i><a target="_blank" href="{{story.url}}" style="color:white;text-decoration:underline;">{{#if story.metadata.title}}{{story.metadata.title}}{{else}}{{story.url}}{{/if}}</a></i>
-            is not available. {{#if story.story}}<br>If it was available, it could be used for {{story.story}}{{else}}Our community needs access to it{{/if}}.
-          </h3>
-          {{#if story.username}}
-          <h4>
-            This was logged by {{#if maybeanemail story.username}} a user{{else}}{{story.username}}{{/if}}{{#if story.profession}}{{#if equals story.profession "other"}}{{else}}, a {{story.profession}}{{/if}}{{/if}}.
-          </h4>
-          {{/if}}
-        </div>
-      </div>
-    </div>
-    <div class="row">
-      <div class="col-md-12">
-        {{#if request}}
-        <p><a class="btn btn-info btn-block" href="/request/{{request._id}}">View the request for content related to this story</a></p>
-        {{else}}
-        <p>There is no request for access to this content yet.</p>
-        {{/if}}
-        <p><a href="#" id="shares" class="btn btn-default btn-block shares">Share this story</a></p>
-        <div class="shares" style="display:none;">
-          <p>Share and publicise this story, to increase the chances of us getting the content to the people that need it.</p>
-          <p>Story URL: 
-            {{#if equals story.type 'data' }}
-            <code>https://opendatabutton.org/story/{{session "blockedid"}}</code>
-            {{else}}
-            <code>https://openaccessbutton.org/story/{{session "blockedid"}}</code>
-            {{/if}}
-          </p>
-          <p>Embed code - embed a widget in your site to publicise this story. Just copy and paste the code below:</p>
-          <textarea class="form-control" style="height:100px;" onclick="this.select()"><div id="odb_insert"></div><script>var odbe = function() {var x = new XMLHttpRequest(); x.onreadystatechange = function() { if (x.readyState == 4 && x.status == 200) { document.getElementById("odb_insert").innerHTML = JSON.parse(x.responseText).data; } }; x.open("GET", "https://api.opendatabutton.org/embed/blocked/{{session "blockedid"}}", true); x.send(); }();</script></textarea>
-          <p>You will get a widget like this:</p>
-<div style="width:800px;padding:0;margin:0;">
-  <div style="padding:0;margin:0;float:left;width:150px;height:200px;background-color:white;border:2px solid #398bc5;;">
-    {{#if equals story.type 'data' }}
-    <img src="//opendatabutton.org/static/ODB_Logo_Transparent_311.png" style="height:100%;width:100%;">
-    {{else}}
-    <img src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:100%;width:100%;">
-    {{/if}}
-  </div>
-  <div style="padding:0;margin:0;float:left;width:400px;height:200px;background-color:#398bc5;;">
-    <div style="height:166px;">
-      <p style="margin:2px;color:white;font-size:30px;text-align:center;">
-        <a target="_blank" href="https://opendatabutton.org/story/" style="color:white;font-family:Sans-Serif;">
-          Open {{#if equals story.type 'data' }}Data{{else}}Access{{/if}} Button
-        </a>
-      </p>
-      <p style="margin:2px;color:white;font-size:16px;text-align:center;font-family:Sans-Serif;">
-        <a target="_blank" id="odb_article" href="https://opendatabutton.org/story/" style="color:white;font-family:Sans-Serif;">
-        I need access to the {{#if equals story.type 'data' }}supporting data for {{else}}article at {{/if}}{{#if story.metadata.title}}{{story.metadata.title}}{{else}}{{story.url}}{{/if}}
-        {{#if story.story}} so that I can {{story.story}}{{/if}}.</a>
-      </p>
-    </div>
-  </div>
-  <div style="padding:0;margin:0;float:left;width:200px;height:200px;background-color:#212f3f;">
-    <h1 style="text-align:center;font-size:50px;color:#f04717;font-family:Sans-Serif;" id="odb_counter">
-    </h1>
-    <p style="text-align:center;color:white;font-size:14px;font-family:Sans-Serif;">
-      Let's increase access to research and supporting data, to enable more people to do great things with the shared knowledge of our society.
-    </p>
-  </div>
-  <div style="width:100%;clear:both;"></div>
-</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    jQuery(document).ready(function() {
-      var shares = function(event) {
-        event.preventDefault();
-        $('.shares').toggle();
-      }
-      $('#shares').bind('click',shares);
-    });
-  </script>
-
-</template>
-
         
 
 
@@ -560,6 +451,7 @@
     </div>
     {{/if}}
 
+    <!--
     <div class="row">
       <div class="col-md-12">
         <h1>Stories supporting this request</h1>
@@ -569,6 +461,7 @@
         {{/each}}
       </div>
     </div>
+    -->
 
     <div class="row">
       <div class="col-md-12">
@@ -715,6 +608,7 @@
     <div class="row">
       <div class="col-md-12">
         <h2>Hi {{username}}</h2>
+        <h2><small>API key: {{defaultapikey}}</small></h2>
 
         <h2>Getting started</h2>
         <ul>          

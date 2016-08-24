@@ -6,9 +6,9 @@ CLapi.addRoute('convert', {
     action: function() {
       if ( this.queryParams.url) {
         var opts = {
-          subset:this.queryParams.subset,
-          fields:this.queryParams.fields.split(',')
+          subset:this.queryParams.subset
         };
+        if (this.queryParams.fields) opts.fields = this.queryParams.fields.split(',');
         var to = 'text/plain';
         if (this.queryParams.to === 'csv') to = 'text/csv';
         if (this.queryParams.to === 'json') to = 'application/json';
@@ -49,9 +49,9 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     if ( to === 'txt' ) {
       var html = false;
       if ( from === 'html' ) html = true;
-      output = CLapi.internals.convert.xml2txt(url,html);
+      output = CLapi.internals.convert.xml2txt(url,undefined,html);
     } else if ( to === 'json' ) {
-      output = CLapi.internals.convert.xml2json(url);
+      output = CLapi.internals.convert.xml2json(url,undefined);
     }
   } else if ( from === 'json' ) {
     if ( to === 'csv' ) {
@@ -100,7 +100,7 @@ CLapi.internals.convert.csv2json = Async.wrap(_csv2json);
 CLapi.internals.convert.xml2txt = function(url,content,html) {
   // TODO if it is html should we use some server-side page rendering here? 
   // such as phantomjs, to get text content before rendering to text?
-  if ( content === undefined) {
+  if ( url !== undefined) {
     var res = Meteor.http.call('GET', url);
     content = res.content;
   }
@@ -128,7 +128,7 @@ CLapi.internals.convert.file2txt = Async.wrap(function(url, content, opts, callb
 });
 
 CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
-  if ( content === undefined ) {
+  if ( url !== undefined ) {
     var res = Meteor.http.call('GET', url);
     content = res.content;
   }
@@ -140,7 +140,7 @@ CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
 });
 
 CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callback) {
-  if ( content === undefined ) {
+  if ( url !== undefined ) {
     var res = Meteor.http.call('GET', url);
     content = JSON.parse(res.content);
   }

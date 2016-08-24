@@ -3,55 +3,24 @@ var RESULTS_INCREMENT = 20;
 Session.setDefault('resultsLimit', RESULTS_INCREMENT);
 
 Deps.autorun(function() {
-  Meteor.subscribe('userblocked', Meteor.userId());
   Meteor.subscribe('userrequested', Meteor.userId());
 });
-
-// whenever #showMoreResults becomes visible, retrieve more results
-/*function showMoreVisible() {
-  var threshold, target = $("#showMoreResults");
-  if (!target.length) return;
-
-  threshold = $(window).scrollTop() + $(window).height() - target.height();
-
-  if (target.offset().top <= threshold) {
-    if (!target.data("visible")) {
-      target.data("visible", true);
-      Session.set("resultsLimit",
-          Session.get("resultsLimit") + RESULTS_INCREMENT);
-    }
-  } else {
-    if (target.data("visible")) {
-      target.data("visible", false);
-    }
-  }        
-}
-$(window).scroll(showMoreVisible);*/
-
-Template.oabuttonstory.story = function() {
-  return OAB_Blocked.findOne(Session.get('blockedid'));
-}
-Template.oabuttonstory.request = function() {
-  var b = OAB_Blocked.findOne(Session.get('blockedid'));
-  return OAB_Request.findOne({url:b.url});
-}
-Template.oabuttonstory.maybeanemail = function(un) {
-  return un.indexOf('@') !== -1 && un.indexOf('.') !== -1;
-}
-
 
 Template.oabuttonrequest.request = function() {
   return OAB_Request.findOne(Session.get('requestid'));
 }
 Template.oabuttonrequest.blocked = function() {
-  return OAB_Blocked.find({url:Session.get('url')});
+  //return OAB_SUPPORT.find({rid:Session.get('requestid')}).fetch();
+  return [];
 }
 Template.oabuttonrequest.supports = function() {
-  var supports = OAB_Blocked.findOne({url:Session.get('url'),user:Meteor.userId()});
-  return supports ? true : false;
+  //var supports = OAB_SUPPORT.findOne({url:Session.get('url'),user:Meteor.userId()});
+  //return supports ? true : false;
+  return false
 }
 Template.oabuttonrequest.blockedcount = function() {
-  return OAB_Blocked.find({url:Session.get('url')}).count();
+  //return OAB_SUPPORT.find({rid:Session.get('requestid')}).count();
+  return 2;
 }
 Template.oabuttonrequest.requesttitle = function() {
   var r = OAB_Request.findOne(Session.get('requestid'));
@@ -76,22 +45,6 @@ Template.oabuttonrequest.requeststatus = function() {
   }
 }
 
-Template.oabuttonstory.events({
-  'click #deleteblock': function(e) {
-    var sid = Session.get("blockedid");
-    Meteor.call('deletestory',sid);
-    // TODO should redirect to somewhere now, and confirm deletion
-  },
-  'click #maketeststory': function(e) {
-    var sid = Session.get("blockedid");
-    Meteor.call('maketeststory',sid);
-  },
-  'click #unteststory': function(e) {
-    var sid = Session.get("blockedid");
-    Meteor.call('unteststory',sid);
-  }
-});
-
 Template.oabuttonrequest.events({
   'change #status': function() {
     $('#statuschanged').hide();
@@ -105,7 +58,7 @@ Template.oabuttonrequest.events({
       var blocks = OAB_Blocked.find({url:Session.get('url')}).count();
       var type = r.type ? r.type : 'article';
       var text = mail_templates[type].author_request.text;
-      var b = OAB_Blocked.find({url:Session.get('url')}).count();
+      var b = 0; // should be a count on the object now
       text = text.replace(/\{\{blocks\}\}/g,b);
       text = text.replace(/\{\{rid\}\}/g,r._id);
       text = text.replace(/\{\{respond\}\}/g,r.receiver);
@@ -231,14 +184,12 @@ Template.oabuttonaccount.defaultapikey = function() {
   }
 };
 
-Template.oabuttonaccount.stories = function() {
-  return OAB_Blocked.find();
-}
 Template.oabuttonaccount.requests = function() {
   return OAB_Request.find();
 }
 Template.oabuttonaccount.noneyet = function() {
-  return OAB_Blocked.find().count() === 0 && OAB_Request.find().count() === 0;
+  //return OAB_SUPPORT.find().count() === 0 && OAB_Request.find().count() === 0;
+  return true;
 }
 
 Meteor.startup(function () {

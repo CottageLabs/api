@@ -1,13 +1,35 @@
 
 // academic catalogue
 
-// this is really just an overlay to an es endpoint on the catalogue
-// but should it be on our machine or on cambridge?
+Catalogue = new Mongo.Collection("catalogue");
+Catalogue.before.insert(function (userId, doc) {
+  doc.createdAt = Date.now();
+});
+Catalogue.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/catalogue/article/' + this._id, doc);
+});
+Catalogue.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+Catalogue.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/catalogue/article/' + doc._id, doc);
+});
+Catalogue.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/catalogue/article/' + doc._id);
+});
 
 CLapi.addRoute('academic/catalogue', {
   get: {
     action: function() {
       return {status: 'success', data: {info: 'query an academic catalogue'} };
+    }
+  }
+});
+
+CLapi.addRoute('academic/catalogue/extract', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.academic.catalogue.extract(this.queryParams.url,this.queryParams.refresh) };
     }
   }
 });
@@ -44,6 +66,43 @@ CLapi.addRoute('academic/daily/retrieve/:date', {
 });
 
 CLapi.internals.academic.catalogue = {}
+
+CLapi.internals.academic.catalogue.extract = function(url,refresh) {
+  // example URLs:
+  // http://www.sciencedirect.com/science/article/pii/S0735109712600734
+  // http://journals.plos.org/plosone/article?id=info%3Adoi%2F10.1371%2Fjournal.pone.0159909
+  var r = Catalogue.findOne({url:url});
+  if (r && !refresh) {
+    return r.metadata;
+  } else {
+    var meta = {url:url};
+    // get the URL content then extract metadata from it
+    if (url.indexOf('?') === -1) url += '?';
+    url += '&np=y'; //this forces sciencedirect to load full page - may need to collect a bunch of these sorts of things for different sites. cookies and resolving made no difference
+    //url = CLapi.internals.academic.redirect_chain_resolve(url);
+    //meta.resolved = url;
+    //var res = Meteor.http.call('GET',url);
+    //var cookie = res.headers['set-cookie'] ? res.headers['set-cookie'].join( "; " ) : '';
+    var get = Meteor.http.call('GET',url,{npmRequestHeaders:{
+      //'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
+      //'Set-Cookie': cookie,
+      //'Content-Type': 'text/plain'
+    }});
+    // DC terms in general
+    // og: opengraph terms
+    // http://schema.org/ terms
+    // DOI, PMCID, PMID
+    // ORCIDs if any (probably not)
+    // look for title, authors, journal info etc
+    // should use features similar to academic/licence, which should perhaps be abstracted out. Or perhaps features in service/contentmine are already enough, or the tdm.js tool
+    // what is crucially needed for now, is for oabutton, which is page title and any contact email address for an author on the page
+    //meta.get = get;
+    if (get.content && get.content.indexOf('<title>') !== -1) meta.title = get.content.split('<title>')[1].split('</title>')[0];
+    meta.email = [];
+    //meta._id = Catalogue.insert(meta);
+    return meta;
+  }
+}
 
 CLapi.internals.academic.catalogue.save = function(record,date) {
   // save a record into the catalogue?

@@ -81,8 +81,13 @@ CLapi.addRoute('service/lantern', {
     action: function() {
       // could trigger a simple GET with query param to submit one URL
       if ( this.queryParams.doi ) {
-        // make a new job
-        return {status: 'todo'}
+        var j = lantern_jobs.insert({new:true});
+        var b = [{doi:this.queryParams.doi}];
+        var u = this.userId;
+        var r = this.queryParams.refresh;
+        var w = this.queryParams.wellcome;
+        Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
+        return {status: 'success', data: {job:j}};
       } else {
         return {status: 'success', data: 'The lantern API'}
       }
@@ -179,6 +184,14 @@ CLapi.addRoute('service/lantern/:job/results', {
       var res;
       if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
         var format = job.wellcome ? 'wellcome' : 'lantern';
+        if (this.queryParams.wellcome) {
+          // override the format by query param if necessary
+          if (this.queryParams.wellcome === 'false') {
+            format = 'lantern';
+          } else {
+            format = 'wellcome';
+          }
+        }
         res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
         var grantcount = 0;
         for ( var k in res ) {
@@ -209,7 +222,10 @@ CLapi.addRoute('service/lantern/:job/results', {
 
         if (format !== 'wellcome') {
           fields.push('In CORE?');
-          fields.push('Archived repositories');
+          fields.push('Repositories');
+          fields.push('Repository URLs');
+          fields.push('Repository fulltext URLs');
+          fields.push('Repository OAI IDs');
         }
 
         fields = fields.concat([
@@ -556,10 +572,10 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
   }
   if (user === undefined) wellcome = true;
   if (wellcome !== undefined) {
-    refresh = 1;
+    if (refresh === undefined) refresh = 1;
     job.wellcome = true;
   }
-  if (refresh !== undefined) job.refresh = refresh;
+  if (refresh !== undefined) job.refresh = parseInt(refresh);
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
     list = input.list;
@@ -679,7 +695,7 @@ CLapi.internals.service.lantern.process = function(processid) {
     archiving: undefined, // sherpa romeo archiving data
     author: [], // eupmc author list if available (could look on other sources too?)
     in_core: 'unknown',
-    repositories: [], // where CORE says it is
+    repositories: [], // where CORE says it is. Should be list of objects
     grants:[], // a list of grants, probably from eupmc for now
     provenance: [] // list of things that were done
   };
@@ -696,41 +712,25 @@ CLapi.internals.service.lantern.process = function(processid) {
         var prst = proc[st];
         if (stt === 'title') {
           stt = 'search';
-          prst = 'TITLE:' + prst.replace(/[^A-Za-z0-9]/g,' ');
+          prst = 'TITLE:"' + prst.replace('"','') + '"';
         }
         if (stt === 'pmcid') stt = 'pmc';
-        // TODO need to simplify the title to keywords?
         var res = CLapi.internals.use.europepmc[stt](prst);
         if (res.data) {
           if (res.data.id && stt !== 'search') {
-            // we retrieved one result and it was not just a title lookup
-            // title-only lookups can never have a confidence of 1.0
             eupmc = res.data;
             result.confidence = 1;
-          } else if (stt === 'search' && res.total) {
-            // we may have matched a result by title search
-            // sometimes even exact title match comes way down the eupmc results list. See:
-            // http://dev.api.cottagelabs.com/use/europepmc/search/TITLE:The%20therapeutic%20potential%20of%20allosteric%20ligands%20for%20free%20fatty%20acid%20sensitive%20GPCRs
-            // so have to loop the results, but better limit it to some degree
-            if (res.total === 1) {
+          } else if (stt === 'search') {
+            if (res.total && res.total === 1) {
               eupmc = res.data[0];
-              result.confidence = 0.9;
+              result.confidence = 0.9; // exact title match
             } else {
-              for ( var e = 0; e < 50; e++) {
-                if (res.data[e] && res.data[e].title) {
-                  var diff = CLapi.internals.tdm.levenshtein(prst.toLowerCase().replace(' ',''),res.data[e].title.toLowerCase().replace(/[A-Za-z0-9]/g,''));
-                  if ( diff === 0 ) {
-                    eupmc = res.data[e];
-                    result.confidence = 0.9;
-                  } else if (diff < 3) {
-                    eupmc = res.data[e];
-                    result.confidence = (9-diff)/10;                  
-                  }
-                }
-              }
-              if (eupmc === undefined && res.data.length > 0) {
+              // try a fuzzy match
+              prst = prst.replace('"','');
+              var res2 = CLapi.internals.use.europepmc[stt](prst);
+              if (res2.total && res2.total === 1) {
                 eupmc = res.data[0];
-                result.confidence = 0.5;
+                result.confidence = 0.7;                
               }
             }
           }
@@ -784,7 +784,29 @@ CLapi.internals.service.lantern.process = function(processid) {
     // some dates that wellcome want - dateofpublication appears to be what they prefer
     //if (eupmc.journalInfo && eupmc.journalInfo.printPublicationDate) result.journal.printPublicationDate = eupmc.journal.printPublicationDate;
     if (eupmc.journalInfo && eupmc.journalInfo.dateOfPublication) {
-      result.journal.dateOfPublication = eupmc.journalInfo.dateOfPublication;
+      var date = eupmc.journalInfo.dateOfPublication;
+      try {
+        var dateparts = date.replace(/  /g,' ').split(' ');
+        var yr = dateparts[0].toString();
+        var mth = dateparts.length > 1 ? dateparts[1] : 1;
+        if ( isNaN(parseInt(mth)) ) {
+          var mths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+          var tmth = mth.toLowerCase().substring(0,3);
+          if (mths.indexOf(tmth) !== -1) {
+            mth = mths.indexOf(tmth) + 1;
+          } else {
+            mth = "01";
+          }
+        } else {
+          mth = parseInt(mth);
+        }
+        mth = mth.toString();
+        if (mth.length === 1) mth = "0" + mth;
+        var dy = dateparts.length > 2 ? dateparts[2].toString() : "01";
+        if (dy.length === 1) dy = "0" + dy;
+        date = (new Date(Date.parse(yr + '-' + mth + '-' + dy))).toUTCString();
+      } catch(err) {}
+      result.journal.dateOfPublication = date;
       result.provenance.push('Added date of publication from EUPMC');
     }
     if (eupmc.electronicPublicationDate) {
@@ -882,7 +904,46 @@ CLapi.internals.service.lantern.process = function(processid) {
           result.provenance.push('Added authors from CORE');
         }
         if (cc.repositories && cc.repositories.length > 0) {
-          for ( var ci in cc.repositories ) result.repositories.push(cc.repositories[ci].name); // add URL here - does not seem to be in CORE data
+          for ( var ci in cc.repositories ) {
+            var rep = cc.repositories[ci];
+            if (rep.uri && rep.uri.length > 0) {
+              rep.url = rep.uri;
+              delete rep.uri;
+            } else {
+              try {
+                var repo = CLapi.internals.use.opendoar.search(rep.name);
+                if (repo.status === 'success' && repo.total === 1 && repo.data[0].rUrl) {
+                  rep.url = repo.data[0].rUrl;
+                  // or is oUrl or uUrl more appropriate? See https://dev.api.cottagelabs.com/use/opendoar/search/Aberdeen%2520University%2520Research%2520Archive
+                  result.provenance.push('Added repo base URL from OpenDOAR');                  
+                } else {
+                  result.provenance.push('Searched OpenDOAR but could not find repo and/or URL');                  
+                }
+              } catch (err) {
+                result.provenance.push('Tried but failed to search OpenDOAR for repo base URL');          
+              }
+            }
+            if (rep.id) delete rep.id;
+            rep.fulltexts = [];
+            if ( cc.fulltextUrls ) {
+              for ( var f in cc.fulltextUrls ) {
+                var fu = cc.fulltextUrls[f];
+                if ( fu.indexOf('core.ac.uk') === -1 ) {
+                  try {
+                    var exists = Meteor.http.call('GET',fu); // will throw an error if cannot be accessed
+                    var resolved;
+                    try {
+                      resolved = fu.indexOf('dx.doi.org') !== -1 ? CLapi.internals.academic.doiresolve(fu) : CLapi.internals.academic.redirect_chain_resolve(fu);
+                    } catch (err) {
+                      resolved = fu;
+                    }
+                    if (rep.fulltexts.indexOf(resolved) === -1 && (!rep.url || ( rep.url && resolved.indexOf(rep.url.replace('http://','').replace('https://','').split('/')[0]) !== -1 ) ) ) rep.fulltexts.push(resolved);
+                  } catch (err) {}
+                }
+              }
+            }
+            result.repositories.push(rep); // add URL here - does not seem to be in CORE data
+          }
           result.provenance.push('Added repositories that CORE claims article is available from');
         }
         if (!result.title && cc.title) {
@@ -1469,10 +1530,29 @@ var _formatlantern = function(result) {
     delete result.archiving;    
   }
   if (result.repositories) {
-    result['Archived repositories'] = '';
+    result['Repositories'] = '';
+    result['Repository URLs'] = '';
+    result['Repository fulltext URLs'] = '';
+    result['Repository OAI IDs'] = '';
     for ( var rr in result.repositories ) {
-      if (result['Archived repositories'] !== '') result['Archived repositories'] += '\r\n';
-      result['Archived repositories'] += result.repositories[rr];
+      if (result.repositories[rr].name) {
+        if (result.Repositories !== '') result.Repositories += '\r\n';
+        result.Repositories += result.repositories[rr].name;
+      }
+      if (result.repositories[rr].url) {
+        if (result['Repository URLs'] !== '') result['Repository URLs'] += '\r\n';
+        result['Repository URLs'] += result.repositories[rr].url;
+      }
+      if (result.repositories[rr].oai) {
+        if (result['Repository OAI IDs'] !== '') result['Repository OAI IDs'] += '\r\n';
+        result['Repository OAI IDs'] += result.repositories[rr].oai;
+      }
+      if (result.repositories[rr].fulltexts) {
+        for ( var f in result.repositories[rr].fulltexts ) {
+          if (result['Repository fulltext URLs'] !== '') result['Repository fulltext URLs'] += '\r\n';
+          result['Repository fulltext URLs'] += result.repositories[rr].fulltexts[f];
+        }
+      }
     }
     delete result.repositories;    
   }

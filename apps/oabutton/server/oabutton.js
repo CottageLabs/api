@@ -2,28 +2,12 @@
 Meteor.publish("requests", function () {
   return OAB_Request.find();
 });
-Meteor.publish("blocked", function (limit) {
-  return OAB_Blocked.find({}, { limit: limit });
-});
-Meteor.publish("block", function (bid) {
-  return OAB_Blocked.find(bid);
-});
-Meteor.publish("requestrelatedtoblock", function (bid) {
-  var b = OAB_Blocked.findOne(bid);
-  return OAB_Request.find({url:b.url});
-});
 Meteor.publish("request", function (rid,receiver) {
   if (rid) {
     return OAB_Request.find(rid);
   } else {
     return OAB_Request.find({receiver:receiver});
   }
-});
-Meteor.publish("blockedforurl", function (url) {
-  return OAB_Blocked.find({url:url});
-});
-Meteor.publish("userblocked", function (uid) {
-  return OAB_Blocked.find({user:uid});
 });
 Meteor.publish("userrequested", function (uid) {
   return OAB_Request.find({'user.id':uid});
@@ -35,9 +19,6 @@ Meteor.methods({
   },
   oabrefuse: function(rid) {
     CLapi.internals.service.oabutton.refuse(rid);     
-  },
-  addblocked: function(event) {
-    OAB_Blocked.insert(event);
   },
   setstatus: function(status,rid,msg) {
     // only admin user should be able to do this
@@ -62,23 +43,10 @@ Meteor.methods({
     // only admin user should be able to do this
     OAB_Request.update(rid,{$set:{test:true}});
   },
-  maketeststory: function(sid) {
-    // only admin user should be able to do this
-    OAB_Blocked.update(sid,{$set:{test:true}});
-  },
-  unteststory: function(sid) {
-    // only admin user should be able to do this
-    OAB_Blocked.update(sid,{$set:{test:false}});
-  },
   deleterequest: function(rid) {
     // only admin user should be able to do this
     console.log('deleting request ' + rid);
     OAB_Request.remove(rid);
-  },
-  deleteblock: function(bid) {
-    // only admin user should be able to do this
-    console.log('deleting block story ' + bid);
-    OAB_Blocked.remove(bid);
   },
   setprofession: function(uid,profession) {
     Meteor.users.update(uid,{$set:{'service.openaccessbutton.profession':profession}});  
