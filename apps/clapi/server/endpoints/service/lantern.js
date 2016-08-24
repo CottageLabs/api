@@ -404,7 +404,7 @@ CLapi.addRoute('service/lantern/processes', {
 CLapi.addRoute('service/lantern/processes/running', {
   get: {
     action: function() {
-      return {status: 'success', data: lantern_processes.find({processing:{$exists:true}}).count() }
+      return {status: 'success', data: lantern_processes.find({processing:{$eq:true}}).count() }
     }
   }
 });
@@ -504,7 +504,7 @@ CLapi.internals.service.lantern.status = function() {
   return {
     processes: {
       total: lantern_processes.find().count(),
-      running: lantern_processes.find({processing:{$exists:true}}).count()
+      running: lantern_processes.find({processing:{$eq:true}}).count()
     },
     jobs: {
       total: lantern_jobs.find().count(),
@@ -517,7 +517,7 @@ CLapi.internals.service.lantern.status = function() {
 
 CLapi.internals.service.lantern.reset = function() {
   // reset all processing processes
-  var procs = lantern_processes.find({processing:{$exists:true}});
+  var procs = lantern_processes.find({processing:{$eq:true}});
   var count = 0;
   procs.forEach(function(row) {
     lantern_processes.update(row._id,{$set:{processing:undefined}});
@@ -961,6 +961,7 @@ CLapi.internals.service.lantern.process = function(processid) {
             if ( cc.fulltextUrls ) {
               for ( var f in cc.fulltextUrls ) {
                 var fu = cc.fulltextUrls[f];
+                console.log(fu);
                 if ( fu.indexOf('core.ac.uk') === -1 ) {
                   try {
                     var exists = Meteor.http.call('GET',fu); // will throw an error if cannot be accessed
@@ -994,6 +995,7 @@ CLapi.internals.service.lantern.process = function(processid) {
   } else {
     result.provenance.push('Not attempting Crossref or CORE lookups - do not have DOI for article.');
   }
+  console.log('Finished lantern processing of CORE data')
 
   // use grist API from EUPMC to look up PI name of any grants present
   if ( result.grants.length > 0 ) {
@@ -1628,7 +1630,7 @@ CLapi.internals.service.lantern.alertstuck = function() {
     prev = {_id:'previous_processing_check',list:[],same:false,since:0};
     lantern_meta.insert(prev);
   }
-  var procs = lantern_processes.find({processing:{$exists:true}}).fetch();
+  var procs = lantern_processes.find({processing:{$eq:true}}).fetch();
   var currents = [];
   var same = true;
   for ( var p in procs ) {
