@@ -702,6 +702,32 @@ CLapi.internals.service.lantern.process = function(processid) {
   
   // search eupmc by (in order) pmcid, pmid, doi, title
   // check epmc for the record https://github.com/CottageLabs/lantern-api/blob/develop/service/workflow.py#L294
+  var _formatepmcdate = function(date) {
+    try {
+      var dateparts = date.replace(/  /g,' ').split(' ');
+      var yr = dateparts[0].toString();
+      var mth = dateparts.length > 1 ? dateparts[1] : 1;
+      if ( isNaN(parseInt(mth)) ) {
+        var mths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+        var tmth = mth.toLowerCase().substring(0,3);
+        if (mths.indexOf(tmth) !== -1) {
+          mth = mths.indexOf(tmth) + 1;
+        } else {
+          mth = "01";
+        }
+      } else {
+        mth = parseInt(mth);
+      }
+      mth = mth.toString();
+      if (mth.length === 1) mth = "0" + mth;
+      var dy = dateparts.length > 2 ? dateparts[2].toString() : "01";
+      if (dy.length === 1) dy = "0" + dy;
+      date = yr + '-' + mth + '-' + dy + 'T00:00:00Z';
+      return date;
+    } catch(err) {
+      return date;
+    }
+  }
   var identtypes = ['pmcid','pmid','doi','title'];
   var eupmc;
   for ( var i in identtypes ) {
@@ -784,33 +810,11 @@ CLapi.internals.service.lantern.process = function(processid) {
     // some dates that wellcome want - dateofpublication appears to be what they prefer
     //if (eupmc.journalInfo && eupmc.journalInfo.printPublicationDate) result.journal.printPublicationDate = eupmc.journal.printPublicationDate;
     if (eupmc.journalInfo && eupmc.journalInfo.dateOfPublication) {
-      var date = eupmc.journalInfo.dateOfPublication;
-      try {
-        var dateparts = date.replace(/  /g,' ').split(' ');
-        var yr = dateparts[0].toString();
-        var mth = dateparts.length > 1 ? dateparts[1] : 1;
-        if ( isNaN(parseInt(mth)) ) {
-          var mths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-          var tmth = mth.toLowerCase().substring(0,3);
-          if (mths.indexOf(tmth) !== -1) {
-            mth = mths.indexOf(tmth) + 1;
-          } else {
-            mth = "01";
-          }
-        } else {
-          mth = parseInt(mth);
-        }
-        mth = mth.toString();
-        if (mth.length === 1) mth = "0" + mth;
-        var dy = dateparts.length > 2 ? dateparts[2].toString() : "01";
-        if (dy.length === 1) dy = "0" + dy;
-        date = (new Date(Date.parse(yr + '-' + mth + '-' + dy))).toUTCString();
-      } catch(err) {}
-      result.journal.dateOfPublication = date;
+      result.journal.dateOfPublication = _formatepmcdate(eupmc.journalInfo.dateOfPublication);
       result.provenance.push('Added date of publication from EUPMC');
     }
     if (eupmc.electronicPublicationDate) {
-      result.electronicPublicationDate = eupmc.electronicPublicationDate;
+      result.electronicPublicationDate = _formatepmcdate(eupmc.electronicPublicationDate);
       result.provenance.push('Added electronic publication date from EUPMC');
     }
     var ft;
