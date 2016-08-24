@@ -1,36 +1,68 @@
 
 // mongo API
-// some useful things to do to the mongo db in general
-// may not expose as actual API routes... be careful if they are
 
-// convenience to remove jobs, processes, results. should have admin auth or be removed
-CLapi.addRoute('mongo/remove/:coll', {
-  roleRequired:'root',
+CLapi.addRoute('mongo/edit/:coll', {
+  post: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.mongo.edit(this.urlParams.coll,undefined,this.request.body);
+    }
+  }
+});
+CLapi.addRoute('mongo/edit/:coll/:rec', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.mongo.edit(this.urlParams.coll,this.urlParams.rec);
+    }
+  },
+  post: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.mongo.edit(this.urlParams.coll,this.urlParams.rec,this.request.body);
+    }
+  },
+  put: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.mongo.edit(this.urlParams.coll,this.urlParams.rec,this.request.body,true);
+    }
+  },
   delete: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.mongo.edit(this.urlParams.coll,this.urlParams.rec,undefined,undefined,true);
+    }
+  }
+});
+
+CLapi.addRoute('mongo/remove/:coll', {
+  delete: {
+    roleRequired:'root',
     action: function() {
       return CLapi.internals.mongo.delete(this.urlParams.coll)
     }
   }
 });
 CLapi.addRoute('mongo/remove/:coll/:rec', {
-  roleRequired:'root',
   delete: {
+    roleRequired:'root',
     action: function() {
       return CLapi.internals.mongo.delete(this.urlParams.coll,this.urlParams.rec)
     }
   }
 });
 CLapi.addRoute('mongo/backup/:coll', {
-  roleRequired:'root',
   get: {
+    roleRequired:'root',
     action: function() {
       return CLapi.internals.mongo.backup(this.urlParams.coll)
     }
   }
 });
 CLapi.addRoute('mongo/index/:idx/:coll', {
-  roleRequired:'root',
   get: {
+    roleRequired:'root',
     action: function() {
       return CLapi.internals.mongo.index(this.urlParams.idx,this.urlParams.coll)
     }
@@ -38,6 +70,42 @@ CLapi.addRoute('mongo/index/:idx/:coll', {
 });
 
 CLapi.internals.mongo = {};
+
+CLapi.internals.mongo.edit = function(coll,rec,record,replace,del) {
+  var co;
+  if ( coll === 'accounts' ) {
+    co = Meteor.users;
+  // add additional collection types here that should be allowed to be altered in this way
+  // manual adding keeps more control. Can disable easily too
+  } else {
+    return {status: 'error'}  
+  }
+  if (record) {
+    if (rec) {
+      if (replace === true) {
+        if ( record._id && record._id !== rec ) return {status: 'error'};
+        if ( record._id === undefined ) record._id = rec;
+        co.update(rec,record);
+        return co.findOne(rec);
+      } else {
+        co.update(rec,{$set:record});
+        return co.findOne(rec);
+      }
+    } else {
+      record._id = co.insert(record);
+      return record;
+    }
+  } else if (rec) {
+    if (del === true) {
+      co.remove(rec);
+      return {status: 'success'}
+    } else {
+      return co.findOne(rec);
+    }
+  } else {
+    return {status: 'error'}
+  }
+}
 
 CLapi.internals.mongo.delete = function(coll,rec) {
   if ( rec === undefined ) rec = {};

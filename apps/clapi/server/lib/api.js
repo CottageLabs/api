@@ -95,6 +95,11 @@ CLapi = new Restivus({
       }
       if ( !xapikey ) {
         try {
+          xapikey = this.request.body.apikey;
+        } catch(err) {}
+      }
+      if ( !xapikey ) {
+        try {
           xapikey = this.request.body.api_key;
         } catch(err) {}
       }

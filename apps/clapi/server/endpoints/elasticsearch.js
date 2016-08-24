@@ -35,7 +35,11 @@ var esaction = function(user,action,urlp,params,data) {
   // also check that the user is in the necessary group to access the route
   // so there needs to be an elasticsearch group that gives user permissions on certain roles, like blocked_GET, or something like that
   var allowed = Meteor.settings.es.routes;
-  return CLapi.internals.es.query(action,rt,data);
+  if (urlp.rc === '_facet' && urlp.rd !== undefined) {
+    return CLapi.internals.es.facet(urlp.ra,urlp.rb,urlp.rd);
+  } else {
+    return CLapi.internals.es.query(action,rt,data);
+  }
 }
 
 var es = {
@@ -61,6 +65,7 @@ CLapi.addRoute('es', es);
 CLapi.addRoute('es/:ra', es);
 CLapi.addRoute('es/:ra/:rb', es);
 CLapi.addRoute('es/:ra/:rb/:rc', es);
+CLapi.addRoute('es/:ra/:rb/:rc/:rd', es);
 
 CLapi.internals.es = {};
 
@@ -79,6 +84,20 @@ CLapi.internals.es.map = function(route,map,url) {
   var maproute = db + '/_mapping/' + routeparts[1];
   if ( Meteor.settings.es.version < 1 ) maproute = db + '/' + routeparts[1] + '/_mapping';
   return Meteor.http.call('PUT',maproute,{data:map});
+}
+
+CLapi.internals.es.facet = function(index,type,key,url) {
+  console.log('Performing elasticsearch facet on ' + index + ' ' + type + ' ' + key);
+  var size = 100;
+  var esurl = url ? url : Meteor.settings.es.url;
+  var opts = {data:{query:{"match_all":{}},size:0,facets:{}}};
+  opts.data.facets[key] = {terms:{field:key,size:size}};
+  try {
+    var ret = Meteor.http.call('POST',esurl+'/'+index+'/'+type+'/_search',opts);
+    return ret.data.facets[key].terms;
+  } catch(err) {
+    return {info: 'the call to es returned an error'}
+  }
 }
 
 CLapi.internals.es.query = function(action,route,data,url) {
