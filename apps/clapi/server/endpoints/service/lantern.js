@@ -967,7 +967,8 @@ CLapi.internals.service.lantern.process = function(processid) {
                     //var exists = Meteor.http.call('GET',fu); // will throw an error if cannot be accessed
                     var resolved;
                     try {
-                      resolved = fu.indexOf('dx.doi.org') !== -1 ? CLapi.internals.academic.doiresolve(fu) : CLapi.internals.academic.redirect_chain_resolve(fu);
+                      resolved = fu;
+                      //resolved = fu.indexOf('dx.doi.org') !== -1 ? CLapi.internals.academic.doiresolve(fu) : CLapi.internals.academic.redirect_chain_resolve(fu);
                     } catch (err) {
                       resolved = fu;
                     }
