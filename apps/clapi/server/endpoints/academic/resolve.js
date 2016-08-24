@@ -4,6 +4,14 @@
 academic_resolved = new Mongo.Collection("academic_resolved");
 CLapi.addCollection(academic_resolved); // temp useful to view all the created links
 
+CLapi.addRoute('academic/undirect', {
+  get: {
+    action: function() {
+      return {status:'success', data: CLapi.internals.academic.redirect_chain_resolve(this.queryParams.url) };
+    }
+  }
+});
+
 CLapi.addRoute('academic/resolve', {
   get: {
     action: function() {
@@ -408,11 +416,15 @@ CLapi.internals.academic.redirect_chain_resolve = function(url) {
   // https://github.com/request/request/issues/311
   // can this be done with just Meteor.http.call instead of requiring external request dep? - yes see above
   // but no not for head requests - Meteor provides no way to access the final url from the request module, annoyingly
+  
+  // here is an odd one that seems to stick forever:
+  // https://kclpure.kcl.ac.uk/portal/en/publications/superior-temporal-activation-as-a-function-of-linguistic-knowledge-insights-from-deaf-native-signers-who-speechread(4a9db251-4c8e-4759-b0eb-396360dc897e).html
+  
   console.log('Attempting redirect chain resolve for ' + url);
   if (url.indexOf('10') === 0) url = 'http://dx.doi.org/' + url;
   var resolve = function(url, callback) {
     var request = Meteor.npmRequire('request');
-    request.head(url, function (err, res, body) {
+    request.head(url, {headers: {'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'}}, function (err, res, body) {
       console.log(err);
       if ( res === undefined ) {
         console.log(url);

@@ -5,14 +5,13 @@ CLapi.addRoute('convert', {
   get: {
     action: function() {
       if ( this.queryParams.url) {
-        var opts = {
-          subset:this.queryParams.subset
-        };
+        var opts = {};
+        if (this.queryParams.subset) opts.subset = this.queryParams.subset;
         if (this.queryParams.fields) opts.fields = this.queryParams.fields.split(',');
         var to = 'text/plain';
         if (this.queryParams.to === 'csv') to = 'text/csv';
         if (this.queryParams.to === 'json') to = 'application/json';
-        if (this.queryParams.to === 'xml') to = 'text/xml';
+        if (this.queryParams.to === 'xml') to = 'application/xml';
         return {
           statusCode: 200,
           headers: {
@@ -45,13 +44,9 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     } else if ( to === 'txt' ) {
       from = 'file';
     }
-  } else if ( from === 'html' || from === 'xml' ) {
+  } else if ( from === 'html' ) {
     if ( to === 'txt' ) {
-      var html = false;
-      if ( from === 'html' ) html = true;
-      output = CLapi.internals.convert.xml2txt(url,undefined,html);
-    } else if ( to === 'json' ) {
-      output = CLapi.internals.convert.xml2json(url,undefined);
+      output = CLapi.internals.convert.html2txt(url,undefined);
     }
   } else if ( from === 'json' ) {
     if ( to === 'csv' ) {
@@ -59,10 +54,15 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     } else if ( to === 'txt' ) {
       from = 'file';
     }
-  }
-  if ( from === 'file' || from === 'pdf' ) {
+  } else if ( from === 'xml' ) {
     if ( to === 'txt' ) {
-      output = CLapi.internals.convert.file2txt(url);
+      output = CLapi.internals.convert.xml2txt(url,undefined);
+    } else if ( to === 'json' ) {
+      output = CLapi.internals.convert.xml2json(url,undefined);
+    }
+  } else if ( from === 'file' || from === 'pdf' ) {
+    if ( to === 'txt' ) {
+      output = CLapi.internals.convert.file2txt(url,undefined,opts);
     }    
   }
   if ( output === undefined ) {
@@ -97,8 +97,8 @@ var _csv2json = function(url,content,callback) {
 CLapi.internals.convert.csv2json = Async.wrap(_csv2json);
 
 
-CLapi.internals.convert.xml2txt = function(url,content,html) {
-  // TODO if it is html should we use some server-side page rendering here? 
+CLapi.internals.convert.html2txt = function(url,content) {
+  // TODO should we use some server-side page rendering here? 
   // such as phantomjs, to get text content before rendering to text?
   if ( url !== undefined) {
     var res = Meteor.http.call('GET', url);
@@ -115,17 +115,23 @@ CLapi.internals.convert.file2txt = Async.wrap(function(url, content, opts, callb
   // https://www.npmjs.com/package/textract
   // http://www.foolabs.com/xpdf/download.html
   // or may be better off just using pdf2json https://www.npmjs.com/package/pdf2json
-  // if we have content rather than url do this a different way...
-  if (url) {
-    textract.fromUrl(url, opts, function( err, result ) {
-      return callback(null,result);
-    });
-  } else {
-    textract.fromBufferWithMime('application/pdf',content, opts, function( err, result ) {
-      return callback(null,result);
-    });
+  if (opts === undefined) opts = {};
+  var from = opts.from !== undefined ? opts.from : 'application/pdf';
+  if (opts.from !== undefined) delete opts.from;
+  
+  if (url !== undefined) {
+    // for as yet unknown reasons this does not work when getting a PDF. Tried changing and not changing to buffer, tried converting to string, tried octet-streaming, tried textract.fromUrl, none work.
+    var res = Meteor.http.call('GET',url,{npmRequestOptions:{encoding:null}});
+    content = new Buffer(res.content);
   }
+  textract.fromBufferWithMime(from, content, opts, function( err, result ) {
+    return callback(null,result);
+  });
 });
+
+CLapi.internals.convert.xml2txt = function(url,content) {
+  return CLapi.internals.convert.file2txt(url,content,{from:'application/xml'});
+}
 
 CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
   if ( url !== undefined ) {

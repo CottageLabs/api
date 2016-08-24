@@ -80,9 +80,12 @@ CLapi.addRoute('service/lantern', {
   get: {
     action: function() {
       // could trigger a simple GET with query param to submit one URL
-      if ( this.queryParams.doi ) {
+      if ( this.queryParams.doi || this.queryParams.pmid || this.queryParams.pmc ) {
         var j = lantern_jobs.insert({new:true});
-        var b = [{doi:this.queryParams.doi}];
+        var b = [];
+        if (this.queryParams.doi) b.push({doi:this.queryParams.doi});
+        if (this.queryParams.pmid) b.push({pmid:this.queryParams.pmid});
+        if (this.queryParams.pmcid) b.push({pmcid:this.queryParams.pmcid});
         var u = this.userId;
         var r = this.queryParams.refresh;
         var w = this.queryParams.wellcome;
