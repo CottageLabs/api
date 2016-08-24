@@ -703,27 +703,56 @@ CLapi.internals.service.lantern.process = function(processid) {
   // search eupmc by (in order) pmcid, pmid, doi, title
   // check epmc for the record https://github.com/CottageLabs/lantern-api/blob/develop/service/workflow.py#L294
   var _formatepmcdate = function(date) {
+    // try to format an epmc date which could really be any string. Some we will get wrong.
     try {
-      var dateparts = date.replace(/  /g,' ').split(' ');
-      var yr = dateparts[0].toString();
-      var mth = dateparts.length > 1 ? dateparts[1] : 1;
-      if ( isNaN(parseInt(mth)) ) {
-        var mths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-        var tmth = mth.toLowerCase().substring(0,3);
-        if (mths.indexOf(tmth) !== -1) {
-          mth = mths.indexOf(tmth) + 1;
+      date = date.replace(/\//g,'-');
+      if (date.indexOf('-') !== -1) {
+        if (date.length < 11) {
+          var dp = date.split('-');
+          if (dp.length === 3) {
+            if (date.indexOf('-') < 4) {
+              // assume date is like 01-10-2006
+              return dp[2] + '-' + dp[1] + '-' + dp[0] + 'T00:00:00Z';
+            } else {
+              // assume date is like 2006-10-01
+              return date + 'T00:00:00Z';            
+            }
+          } else if ( dp.length === 2 ) {
+            // could be date like 2006-01 or 01-2006
+            if (date.indexOf('-') < 4) {
+              return dp[1] + dp[0] + date + '-01T00:00:00Z';
+            } else {
+              return date + '-01T00:00:00Z';
+            }
+          } else {
+            return date;
+          }
         } else {
-          mth = "01";
+          // what else could be tried?
+          return date;
         }
       } else {
-        mth = parseInt(mth);
+        var dateparts = date.replace(/  /g,' ').split(' ');
+        var yr = dateparts[0].toString();
+        var mth = dateparts.length > 1 ? dateparts[1] : 1;
+        if ( isNaN(parseInt(mth)) ) {
+          var mths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+          var tmth = mth.toLowerCase().substring(0,3);
+          if (mths.indexOf(tmth) !== -1) {
+            mth = mths.indexOf(tmth) + 1;
+          } else {
+            mth = "01";
+          }
+        } else {
+          mth = parseInt(mth);
+        }
+        mth = mth.toString();
+        if (mth.length === 1) mth = "0" + mth;
+        var dy = dateparts.length > 2 ? dateparts[2].toString() : "01";
+        if (dy.length === 1) dy = "0" + dy;
+        date = yr + '-' + mth + '-' + dy + 'T00:00:00Z';
+        return date;
       }
-      mth = mth.toString();
-      if (mth.length === 1) mth = "0" + mth;
-      var dy = dateparts.length > 2 ? dateparts[2].toString() : "01";
-      if (dy.length === 1) dy = "0" + dy;
-      date = yr + '-' + mth + '-' + dy + 'T00:00:00Z';
-      return date;
     } catch(err) {
       return date;
     }
