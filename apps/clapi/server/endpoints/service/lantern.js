@@ -964,7 +964,7 @@ CLapi.internals.service.lantern.process = function(processid) {
                 console.log(fu);
                 if ( fu.indexOf('core.ac.uk') === -1 ) {
                   try {
-                    var exists = Meteor.http.call('GET',fu); // will throw an error if cannot be accessed
+                    //var exists = Meteor.http.call('GET',fu); // will throw an error if cannot be accessed
                     var resolved;
                     try {
                       resolved = fu.indexOf('dx.doi.org') !== -1 ? CLapi.internals.academic.doiresolve(fu) : CLapi.internals.academic.redirect_chain_resolve(fu);
