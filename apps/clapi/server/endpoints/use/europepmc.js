@@ -340,9 +340,6 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
 }
 
 CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
-  // This function will raise an error if the HTTP GET returns an HTTP error like 404
-  // When using it, make sure to put it in a try/catch block and take appropriate
-  // action on error, like adding processing notes, logging and setting values to "unknown".
   var res;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
   if (res && res.total > 0) rec = res.data[0];
