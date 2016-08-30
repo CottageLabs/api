@@ -288,12 +288,15 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
+    var ft_arg_checked = false;
     if (fulltext) {
       if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
         // console.log("First call for AAM XML");
+        // ft_arg_checked = true;  // technically true but not necessary since we return
         return 'Y_IN_EPMC_FULLTEXT';
       } else {
-        return false;
+        // so far AAM is false
+        ft_arg_checked = true;  // but don't return yet - in case both pmcid and fulltext args are passed in, we should try using the pmcid next before deciding "false"
       }
     }
     
@@ -332,9 +335,11 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
         }
       }
     } else {
+      if (ft_arg_checked) return false;
       return 'unknown';
     }
   } else {
+    if (ft_arg_checked) return false;
     return 'unknown';
   }
 }
