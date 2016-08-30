@@ -20,7 +20,7 @@ CLapi.addRoute('convert', {
           body: CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,undefined,opts)
         }
       } else {
-        return {status: 'success', data: {info: 'Accepts URLs of content files and converts them to what you need'} };
+        return {status: 'success', data: {info: 'Accepts URLs of content files and converts them. from csv to json,txt. from html to txt. from xml to txt, json. from pdf to txt. from file to txt. For json to csv a subset param can be provided, giving dot notation to the part of the json object that should be converted.'} };
       }
     }
   },

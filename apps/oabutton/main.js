@@ -15,6 +15,7 @@ OAB_Blocked.after.update(function (userId, doc, fieldNames, modifier, options) {
 OAB_Blocked.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/oabutton/blocked/' + doc._id);
 });
+//CLapi.addCollection(OAB_Blocked);
 
 OAB_Request = new Mongo.Collection("oabutton_request");
 OAB_Request.before.insert(function (userId, doc) {
