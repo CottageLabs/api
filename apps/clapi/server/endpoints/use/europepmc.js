@@ -62,19 +62,25 @@ CLapi.addRoute('use/europepmc/pmc/:qry', {
 CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
   get: {
     action: function() {
-      var res;
-      try {
-        res = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
-      } catch (err) {
-        if(err.response.statusCode === 404) {
+      var ft_envelope;
+      ft_envelope = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
+      if(ft_envelope.error) {
+        if (ft_envelope.error === 'NOT_FOUND_IN_EPMC') {
           console.log(this.urlParams.qry + ' not found when fetching EPMC full text XML.');
-        } else {
-          console.log('Error while fetching EPMC full text XML for ' + this.urlParams.qry + '. Most probably EPMC is temporarily down.');
+          return {statusCode: 404, body: {status: 'error', data: '404 not found. Not found in EPMC.' }};
         }
-        return {statusCode: 404, body: {status: 'error', data: '404 not found' }}
+        if (ft_envelope.error === 'EPMC_ERROR') {
+          console.log('Error while fetching EPMC full text XML for ' + this.urlParams.qry + '. Most probably EPMC is temporarily down.');
+          return {statusCode: 404, body: {status: 'error', data: '404 not found. Error when getting from EPMC.'}};
+        }
       }
-
-      return {status: 'success', data: res.data.resultList.result[0] }
+      this.response.writeHead(200, {
+        'Content-type': 'application/xml',
+        'Content-length': res.length
+      });
+      this.response.write(res);
+      this.done();
+      return {};
     }
   }
 });
@@ -223,13 +229,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (!fulltext && pmcid) {
-      try {
-        fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
-      } catch (err) {
-        // no need to log this failure to get the fulltext - simply try the HTML instead
-      }
-    }
+    if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
     if (fulltext) {
       var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
       // console.log(pmcid + ' licinperms XML check: ' + licinperms);
@@ -298,11 +298,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
     }
     
     if ( pmcid ) {
-      try {
-        var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
-      } catch (err) {
-        // no need to log this failure to get the fulltext - simply try the HTML then
-      }
+      var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
 
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
         // console.log("Different call for AAM XML");
@@ -353,9 +349,17 @@ CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
   if (!pmcid) pmcid = rec.pmcid;
   if (pmcid) pmcid = pmcid.toLowerCase().replace('pmc','');
   var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/PMC' + pmcid + '/fullTextXML';
-  var fulltext = false;
-  var r = Meteor.http.call('GET',url);
-  if (r.statusCode === 200) fulltext = r.content;
-  return fulltext;
+  var result = {fulltext: undefined, error: false};
+  try {
+    var r = Meteor.http.call('GET', url);
+    if (r.statusCode === 200) result.fulltext = r.content;
+  } catch(err) {
+    if(err.response.statusCode === 404) {
+      result.error = 'NOT_FOUND_IN_EPMC';
+    } else {
+      result.error = 'EPMC_ERROR';
+    }
+  }
+  return result;
 }
 

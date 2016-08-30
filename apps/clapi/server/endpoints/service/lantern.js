@@ -849,19 +849,17 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.electronicPublicationDate = _formatepmcdate(eupmc.electronicPublicationDate);
       result.provenance.push('Added electronic publication date from EUPMC');
     }
-    var ft;
-    try {
-      if (result.is_oa && result.in_epmc) ft = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
-      if (!ft && result.pmcid) {
-        ft = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
-      }
-    } catch (err) {
-      if(err.response.statusCode === 404) {
-        result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
-      } else {
-        result.provenance.push('Encountered an error while retrieving the EUPMC full text XML. One possible reason is EUPMC being temporarily unavailable.')
-      }
+
+    var ft_envelope;
+    if (result.is_oa && result.in_epmc) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
+    if (!ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
+
+    if(ft_envelope.error) {
+      if (ft_envelope.error === 'NOT_FOUND_IN_EPMC') result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
+      if (ft_envelope.error === 'EPMC_ERROR') result.provenance.push('Encountered an error while retrieving the EUPMC full text XML. One possible reason is EUPMC being temporarily unavailable.');
     }
+    
+    var ft = ft_envelope.fulltext;
     if (ft) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
