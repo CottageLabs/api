@@ -76,9 +76,9 @@ CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
       }
       this.response.writeHead(200, {
         'Content-type': 'application/xml',
-        'Content-length': res.length
+        'Content-length': ft_envelope.fulltext.length
       });
-      this.response.write(res);
+      this.response.write(ft_envelope.fulltext);
       this.done();
       return {};
     }
