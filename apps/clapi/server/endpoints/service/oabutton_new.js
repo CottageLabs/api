@@ -9,6 +9,24 @@ OAB_SUPPORT = new Mongo.Collection("oab_support");
 OAB_META = new Mongo.Collection("oab_meta");
 OAB_AVAILABILITY = new Mongo.Collection("oab_availability"); // records use of that endpoint
 
+OAB_AVAILABILITY.before.insert(function (userId, doc) {
+  doc.createdAt = Date.now();
+});
+OAB_AVAILABILITY.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/oabutton/availability/' + this._id, doc);
+});
+OAB_AVAILABILITY.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+OAB_AVAILABILITY.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/oabutton/availability/' + doc._id, doc);
+});
+OAB_AVAILABILITY.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oabutton/availability/' + doc._id);
+});
+CLapi.addCollection(OAB_AVAILABILITY);
+CLapi.addCollection(OAB_SUPPORT);
+
 CLapi.addRoute('service/oab', {
   get: {
     action: function() {

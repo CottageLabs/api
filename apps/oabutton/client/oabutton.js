@@ -19,8 +19,7 @@ Template.oabuttonrequest.supports = function() {
   return false
 }
 Template.oabuttonrequest.blockedcount = function() {
-  //return OAB_SUPPORT.find({rid:Session.get('requestid')}).count();
-  return 2;
+  return OAB_Blocked.find().count();
 }
 Template.oabuttonrequest.requesttitle = function() {
   var r = OAB_Request.findOne(Session.get('requestid'));

@@ -114,7 +114,10 @@ Router.map( function () {
   this.route('oabuttonrequest', {
     path: '/request/:rid',
     waitOn : function() {
-      return Meteor.subscribe('request', this.params.rid)
+      return [
+        Meteor.subscribe('request', this.params.rid),
+        Meteor.subscribe('blocked', this.params.rid)
+      ]
     },
     action : function() {
       var r = OAB_Request.findOne(this.params.rid);

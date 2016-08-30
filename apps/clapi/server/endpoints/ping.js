@@ -8,7 +8,7 @@
 // <img src="https://api.cottagelabs.com/ping/p.png?n=<CURRENTNONCE>service=oabutton&id=<USERID>">
 
 pings = new Mongo.Collection("pings");
-//CLapi.addCollection(pings);
+CLapi.addCollection(pings);
 
 CLapi.addRoute('ping', {
   get: {

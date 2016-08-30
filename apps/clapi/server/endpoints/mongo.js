@@ -114,6 +114,7 @@ CLapi.internals.mongo.delete = function(coll,rec) {
   if ( coll === 'lantern_results' ) lantern_results.remove(rec);
   if ( coll === 'academic_licence' ) academic_licence.remove(rec);
   if ( coll === 'academic_resolved' ) academic_resolved.remove(rec);
+  if ( coll === 'hidden_gems' ) hidden_gems.remove(rec);
   return {status: 'success'}
 }
 

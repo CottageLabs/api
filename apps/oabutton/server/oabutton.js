@@ -2,6 +2,11 @@
 Meteor.publish("requests", function () {
   return OAB_Request.find();
 });
+Meteor.publish("blocked", function (rid) {
+  var r = OAB_Request.find(rid);
+  var url = r.url;
+  return OAB_Blocked.find({url:url});
+});
 Meteor.publish("request", function (rid,receiver) {
   if (rid) {
     return OAB_Request.find(rid);
