@@ -4,28 +4,63 @@
 // TODO: add a "I followed this URL route" which should work for badges too, and URLs of content we can direct people to
 
 //OAB_DNR = new Mongo.Collection("oabutton_dnr");
-OAB_DNR = new Mongo.Collection("oab_dnr");
-OAB_SUPPORT = new Mongo.Collection("oab_support");
-OAB_META = new Mongo.Collection("oab_meta");
-OAB_AVAILABILITY = new Mongo.Collection("oab_availability"); // records use of that endpoint
+oab_dnr = new Mongo.Collection("oab_dnr");
+oab_support = new Mongo.Collection("oab_support");
+oab_meta = new Mongo.Collection("oab_meta");
+oab_availability = new Mongo.Collection("oab_availability"); // records use of that endpoint
+oab_request = new Mongo.Collection("oab_request"); // records use of that endpoint
 
-OAB_AVAILABILITY.before.insert(function (userId, doc) {
+oab_availability.before.insert(function (userId, doc) {
   doc.createdAt = Date.now();
 });
-OAB_AVAILABILITY.after.insert(function (userId, doc) {
-  CLapi.internals.es.insert('/oabutton/availability/' + this._id, doc);
+oab_availability.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/oab/availability/' + this._id, doc);
 });
-OAB_AVAILABILITY.before.update(function (userId, doc, fieldNames, modifier, options) {
+oab_availability.before.update(function (userId, doc, fieldNames, modifier, options) {
   modifier.$set.updatedAt = Date.now();
 });
-OAB_AVAILABILITY.after.update(function (userId, doc, fieldNames, modifier, options) {
-  CLapi.internals.es.insert('/oabutton/availability/' + doc._id, doc);
+oab_availability.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/oab/availability/' + doc._id, doc);
 });
-OAB_AVAILABILITY.after.remove(function (userId, doc) {
-  CLapi.internals.es.delete('/oabutton/availability/' + doc._id);
+oab_availability.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oab/availability/' + doc._id);
 });
-CLapi.addCollection(OAB_AVAILABILITY);
-CLapi.addCollection(OAB_SUPPORT);
+
+oab_request.before.insert(function (userId, doc) {
+  doc.createdAt = Date.now();
+});
+oab_request.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/oab/request/' + this._id, doc);
+});
+oab_request.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+oab_request.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/oab/request/' + doc._id, doc);
+});
+oab_request.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oab/request/' + doc._id);
+});
+
+oab_support.before.insert(function (userId, doc) {
+  doc.createdAt = Date.now();
+});
+oab_support.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/oab/support/' + this._id, doc);
+});
+oab_support.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+oab_support.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/oab/support/' + doc._id, doc);
+});
+oab_support.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oab/support/' + doc._id);
+});
+
+CLapi.addCollection(oab_availability);
+CLapi.addCollection(oab_support);
+CLapi.addCollection(oab_request);
 
 CLapi.addRoute('service/oab', {
   get: {
@@ -48,15 +83,36 @@ CLapi.addRoute('service/oab', {
 CLapi.addRoute('service/oab/availability', {
   get: {
     action: function() {
-      var opts = {url:this.queryParams.url,uid:this.userId}
-      return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
+      var opts = {url:this.queryParams.url}
+      if ( this.request.headers['x-apikey'] ) {
+        // we don't require auth for availability checking, but we do want to record the user if they did have auth
+        var acc = Meteor.users.findOne({'api.keys.key':this.request.headers['x-apikey']});
+        if (acc) opts.uid = acc._id;
+      }
+      if (opts.url && false) {
+        // check if this is a URL on the blacklist and if this is not a test submission, then return 400 so the plugin 
+        // can warn of unwillingness to accept
+        return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
+      } else {
+        return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
+      }
     }
   },
   post: {
     action: function() {
       var opts = this.request.body;
-      opts.uid = this.userId;
-      return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
+      if ( this.request.headers['x-apikey'] ) {
+        // we don't require auth for availability checking, but we do want to record the user if they did have auth
+        var acc = Meteor.users.findOne({'api.keys.key':this.request.headers['x-apikey']});
+        if (acc) opts.uid = acc._id;
+      }
+      if (opts.url && false) {
+        // check if this is a URL on the blacklist and if this is not a test submission, then return 400 so the plugin 
+        // can warn of unwillingness to accept
+        return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
+      } else {
+        return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
+      }
     }
   }
 });
@@ -88,7 +144,7 @@ CLapi.addRoute('service/oab/request', {
 CLapi.addRoute('service/oab/request/:rid', {
   get: {
     action: function() {
-      var r = OAB_Request.findOne(this.urlParams.rid);
+      var r = oab_request.findOne(this.urlParams.rid);
       if (r) {
         return {status: 'success', data: r}
       } else {
@@ -104,6 +160,16 @@ CLapi.addRoute('service/oab/support/:rid', {
     action: function() {
       if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
         return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId);
+      } else {
+        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
+      }
+    }
+  },
+  post: {
+    authRequired: true,
+    action: function() {
+      if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
+        return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId); // this post could contain data to add to the support note
       } else {
         return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
       }
@@ -130,7 +196,7 @@ CLapi.addRoute('service/oab/embed/:rid', {
   get: {
     action: function() {
       var rid = this.urlParams.rid;
-      var b = OAB_Request.findOne(rid);
+      var b = oab_request.findOne(rid);
       if (b) {
         b.count = 0; // TODO this shold be stored in the request object
         var title = b.url;
@@ -216,26 +282,26 @@ CLapi.internals.service.oab.status = function() {
   return {
     article: {
       requests:{
-        total: OAB_Request.find({type:'article'}).count(),
-        test: OAB_Request.find({$and:[{type:'article'},{test:true}]}).count(),
-        users: OAB_Request.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length,
-        moderate: OAB_Request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
-        progress: OAB_Request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
-        hold: OAB_Request.find({$and:[{type:'article'},{status:'hold'}]}).count(),
-        refused: OAB_Request.find({$and:[{type:'article'},{status:'refused'}]}).count(),
-        received: OAB_Request.find({$and:[{type:'article'},{status:'received'}]}).count()
+        total: oab_request.find({type:'article'}).count(),
+        test: oab_request.find({$and:[{type:'article'},{test:true}]}).count(),
+        users: oab_request.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length,
+        moderate: oab_request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
+        progress: oab_request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
+        hold: oab_request.find({$and:[{type:'article'},{status:'hold'}]}).count(),
+        refused: oab_request.find({$and:[{type:'article'},{status:'refused'}]}).count(),
+        received: oab_request.find({$and:[{type:'article'},{status:'received'}]}).count()
       }
     },
     data: {
       requests:{
-        total: OAB_Request.find({type:'data'}).count(),
-        test: OAB_Request.find({$and:[{type:'data'},{test:true}]}).count(),
-        users: OAB_Request.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length,
-        moderate: OAB_Request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
-        progress: OAB_Request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
-        hold: OAB_Request.find({$and:[{type:'data'},{status:'hold'}]}).count(),
-        refused: OAB_Request.find({$and:[{type:'data'},{status:'refused'}]}).count(),
-        received: OAB_Request.find({$and:[{type:'data'},{status:'received'}]}).count()
+        total: oab_request.find({type:'data'}).count(),
+        test: oab_request.find({$and:[{type:'data'},{test:true}]}).count(),
+        users: oab_request.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length,
+        moderate: oab_request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
+        progress: oab_request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
+        hold: oab_request.find({$and:[{type:'data'},{status:'hold'}]}).count(),
+        refused: oab_request.find({$and:[{type:'data'},{status:'refused'}]}).count(),
+        received: oab_request.find({$and:[{type:'data'},{status:'received'}]}).count()
       }
     },
     users: CLapi.internals.accounts.count({"roles.openaccessbutton":{$exists:true}})    
@@ -251,8 +317,8 @@ addition should be:
 and conditions is dependent on type - later it will probably be to do with ILLs
 */
 CLapi.internals.service.oab.accepts = function(addition) {
-  var meta = OAB_META.findOne('meta');
-  if (!meta) meta = {_id: OAB_META.insert({_id:'meta',accepts:[]}), accepts:[] };
+  var meta = oab_meta.findOne('meta');
+  if (!meta) meta = {_id: oab_meta.insert({_id:'meta',accepts:[]}), accepts:[] };
   if (addition) {
     var exists = false;
     for ( var a in meta.accepts ) {
@@ -262,7 +328,7 @@ CLapi.internals.service.oab.accepts = function(addition) {
     }
     if (!exists) {
       meta.accepts.push(addition);
-      OAB_META.update('meta',{$set:{accepts:meta.accepts}});
+      oab_meta.update('meta',{$set:{accepts:meta.accepts}});
     }
   }
   return meta.accepts;
@@ -329,16 +395,16 @@ CLapi.internals.service.oab.request = function(req,uid) {
   // check if an email was provided in the request object. If so, see if not on dnr. If not, need to use one from extraction of metadata
   req.test = true; // set if meets some test criteria
   req.receiver = CLapi.internals.store.receiver(req); // is store receiver really necessary here?
-  req._id = OAB_Request.insert(req);
-  return opts.request;
+  req._id = oab_request.insert(req);
+  return req;
 }
 
 CLapi.internals.service.oab.support = function(rid,story,uid) {
-  var r = OAB_Request.findOne(rid);
+  var r = oab_request.findOne(rid);
   if ( !CLapi.internals.service.oab.supports(rid,uid) ) {
-    OAB_Request.update(rid,{$set:{count:r.count + 1}});
+    oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
-    OAB_Support.insert({url:r.url,uid:uid,username:user.username,email:user.emails[0].address,story:story});
+    oab_support.insert({url:r.url,uid:uid,username:user.username,email:user.emails[0].address,story:story});
     return true;
   } else {
     return false;
@@ -348,14 +414,17 @@ CLapi.internals.service.oab.support = function(rid,story,uid) {
 CLapi.internals.service.oab.supports = function(rid,uid,url) {
   var matcher = {};
   if (rid) matcher._id = rid;
-  
-  var supports = OAB_SUPPORT.find().fetch();
+  if (uid) matcher.uid = uid;
+  return oab_support.find(matcher).fetch();
   // return all the records of users supporting this request ID, or all supports by a given user, or all supports of a given request, 
   // or all supports by url, or supports by user of url (by url could have multiples, because types)
 }
 
 /*
 {
+  blacklist: [
+    <blacklist sites where the user should be told they cannot use the button>
+  ],
   availability: [
     {
       type: 'article',
@@ -385,13 +454,12 @@ CLapi.internals.service.oab.supports = function(rid,uid,url) {
 */
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
-  OAB_AVAILABILITY.insert(opts); // just records usage of this endpoint
-  
   if (opts.url === undefined) return {}
+  oab_availability.insert(opts); // just records usage of this endpoint
   
-  var already = [];
   var ret = {availability:[],requests:[],accepts:[]};
-    
+  
+  // when something is found, should we save the fact that we know where it is?
   if ( opts.type === 'data' || opts.type === undefined ) {
     // any useful places to check - append discoveries to availability
     // if found, push 'data' into already
@@ -406,12 +474,20 @@ CLapi.internals.service.oab.availability = function(opts) {
   }
   // TODO add availability checkers for any new types that are added to the accepts list  
 
+  var already = [];
   var matcher = {url:opts.url};
   if (opts.type) matcher.type = opts.type;
-  var requests = OAB_Request.find(matcher).fetch();
+  var requests = oab_request.find(matcher).fetch();
   for ( var r in requests ) {
     if ( already.indexOf(requests[r].type) === -1 ) {
-      ret.requests.push(requests[r]);
+      var rq = {
+        type: requests[r].type,
+        _id: requests[r]._id
+      }
+      rq.ucreated = opts.uid && requests[r].user && requests[r].user.id === opts.uid ? true : false;
+      var supported = CLapi.internals.service.oab.supports();
+      rq.usupport = supported.length > 0 ? true : false;
+      ret.requests.push(rq);
       already.push(requests[r].type);
     }
   }
@@ -430,19 +506,19 @@ CLapi.internals.service.oab.availability = function(opts) {
 CLapi.internals.service.oabutton.hold = function(rid,days) {
   var today = new Date().getTime();
   var date = (Math.floor(today/1000) + (days*86400)) * 1000;
-  var r = OAB_Request.findOne(rid);
+  var r = oab_request.findOne(rid);
   if (r.holds === undefined) r.holds = [];
   if (r.hold) r.holds.push(r.hold);
   r.hold = {from:today,until:date};
   r.status = 'hold';
-  OAB_Request.update(rid,{$set:{hold:r.hold,holds:r.holds,status:r.status}});
+  oab_request.update(rid,{$set:{hold:r.hold,holds:r.holds,status:r.status}});
   //CLapi.internals.sendmail(); // inform requestee that their request is on hold
   return {status: 'success', data: r};
 }
 
 CLapi.internals.service.oabutton.refuse = function(rid,reason) {
   var today = new Date().getTime();
-  var r = OAB_Request.findOne(rid);
+  var r = oab_request.findOne(rid);
   if (r.holds === undefined) r.holds = [];
   if (r.hold) r.holds.push(r.hold);
   delete r.hold;
@@ -450,21 +526,21 @@ CLapi.internals.service.oabutton.refuse = function(rid,reason) {
   r.refused.push({date:today,email:r.email,reason:reason});
   r.status = 'refused';
   delete r.email;
-  OAB_Request.update(rid,{$set:{hold:undefined,email:undefined,holds:r.holds,refused:r.refused,status:r.status}});
+  oab_request.update(rid,{$set:{hold:undefined,email:undefined,holds:r.holds,refused:r.refused,status:r.status}});
   //CLapi.internals.sendmail(); // inform requestee that their request has been refused
   return {status: 'success', data: r};
 }
 
 CLapi.internals.service.oabutton.followup = function(rid) {
   var MAXEMAILFOLLOWUP = 5; // how many followups to one email address will we do before giving up, and can the followup count be reset or overrided somehow?
-  var r = OAB_Request.findOne(rid);
+  var r = oab_request.findOne(rid);
   if (r.followup === undefined) r.followup = [];
   var thisfollows = 0;
   for ( var i in r.followup ) {
     if ( r.followup[i].email === r.email) thisfollows += 1;
   }
   var today = new Date().getTime();
-  var dnr = OAB_DNR.findOne({email:r.email});
+  var dnr = oab_dnr.findOne({email:r.email});
   if (dnr) {
     return {status:'error',data:'The email address for this request has been placed on the do-not-request list, and can no longer be contacted'}
   } else if (r.hold && r.hold.until > today) { // check that this date comparison works
@@ -475,7 +551,7 @@ CLapi.internals.service.oabutton.followup = function(rid) {
   } else {
     //CLapi.internals.sendmail(); //email the request email contact with the followup request
     r.followup.push({date:today,email:r.email});
-    OAB_Request.update(r._id,{$set:{followup:r.followup,status:'progress'}});
+    oab_request.update(r._id,{$set:{followup:r.followup,status:'progress'}});
     return {status:'success',data:r}
   }
 }
@@ -484,7 +560,7 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
   // TODO this currently only works via the UI, after file uploads are set as complete, this is triggered
   // an actuall call to this on the API would trigger emails and deposits for files that had already been processed
   // and also could fail on cluster deployment because only the root machine would actually be able to find the files
-  var r = OAB_Request.findOne({receiver:rid});
+  var r = oab_request.findOne({receiver:rid});
   if (!r) {
     return {status: 'error', data: 'no request matching that response ID'}
   } else if (r.received) {
@@ -516,7 +592,7 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
     },mu);
     // email everyone who wanted it
     var wants = [];
-    OAB_Support.find({url:r.url}).forEach(function(b) {
+    oab_support.find({url:r.url}).forEach(function(b) {
       var u = Meteor.users.findOne(b.user);
       var addr = u.emails[0].address;
       if (wants.indexOf(addr) === -1) wants.push(addr);
@@ -566,7 +642,7 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
       // submit articles to zenodo
     }
 
-    OAB_Request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
+    oab_request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
   }
 }

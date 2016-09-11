@@ -24,8 +24,8 @@ upstream clapi {
     #ip_hash;
     keepalive 16;
     server localhost:3333 max_fails=1 fail_timeout=60;
-    server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
-    server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
+    server 10.131.20.129:3000 max_fails=1 fail_timeout=60 down;
+    server 10.131.11.72:3000 max_fails=1 fail_timeout=60 down;
 }
 server {
     listen      80;
@@ -43,6 +43,7 @@ server {
 #    ssl_certificate_key /etc/letsencrypt/live/api.cottagelabs.com/privkey.pem;
   
     location / {
+        add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://clapi/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
@@ -98,6 +99,7 @@ server {
 #    ssl_certificate_key /etc/letsencrypt/live/lapi.cottagelabs.com/privkey.pem;
 
     location / {
+        add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://clapilocal/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
@@ -116,6 +118,7 @@ server {
     server_name     dev.api.cottagelabs.com;
 
     location / {
+        add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://localhost:3002/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
@@ -141,6 +144,7 @@ server {
     add_header Strict-Transport-Security "max-age=31536000;";
 
     location / {
+        add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://localhost:3002/api/;
         proxy_redirect off;
         proxy_set_header Host $host;

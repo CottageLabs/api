@@ -1,4 +1,6 @@
 
+var Future = Npm.require('fibers/future');
+
 Role_requests = new Mongo.Collection("role_request");
 CLapi.addCollection(Role_requests);
 
@@ -11,6 +13,25 @@ CLapi.addRoute('accounts', {
       } else {
         return {status: 'success', data: Meteor.users.find({},{fields:{_id:1}}).fetch() };      
       }
+    }
+  }
+});
+CLapi.addRoute('accounts/token', {
+  get: {
+    action: function() {
+      return CLapi.internals.accounts.token(this.queryParams.email);
+    }
+  },
+  post: {
+    action: function() {
+      return CLapi.internals.accounts.token(this.request.body.email);
+    }
+  }
+});
+CLapi.addRoute('accounts/login', {
+  post: {
+    action: function() {
+      return CLapi.internals.accounts.login(this.request.body)
     }
   }
 });
@@ -326,6 +347,139 @@ CLapi.addRoute('accounts/:id/request/:grouprole/deny', {
 // if the gif name matches, and the fingerprint of the device asking for it matches, serve a 1x1 gif along with the necessary 
 // cookie set for the domain being called from, if that domain is within a set of allowed domains.
 
+
+CLapi.internals.accounts.token = function(email,loc) {
+  // should this allow token sends just on account registration? How to stop spamming of any email address?
+  // check that loc is in the allowed signin locations list
+  if ( Meteor.settings.accounts.loginpages.indexOf(loc) === -1) {
+    console.log('BAD LOGIN ATTEMPT FROM ' + loc);
+    return {}; // throw some sort of warning, should not be logging in from a page we don't set as being able to provide login functionality
+  }
+  console.log("API accounts token request for email address: " + email + " on loc " + loc);
+  email = email.toLowerCase();
+  var user = Meteor.users.findOne({'emails.address':email});
+  console.log(email + " user = " + user);
+
+  // create a loginCodes record, with a new LOGIN_CODE_LENGTH-digit code, to expire in LOGIN_CODE_TIMEOUT_MINUTES
+  // make the code be LOGIN_CODE_LENGTH digits, not start with a 0, and not have any repeating digits
+  var random_code = "";
+  for ( ; random_code.length < Meteor.settings.LOGIN_CODE_LENGTH; ) {
+    var chr = Random.choice("0123456789abcdef");
+    if ( random_code.length === 0 ) {
+      if ( (chr === "0") ) {
+        continue;
+      }
+    } else {
+      if ( chr === random_code.charAt(random_code.length-1) ) {
+        continue;
+      }
+    }
+    random_code += chr;
+  }
+  console.log(email + " random code = " + random_code);
+
+  // for those who prefer to login with a link, also create a random string SECURITY_CODE_HASH_LENGTH
+  // characters long
+  var random_hash = "";
+  for ( ; random_hash.length < Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH; ) {
+    var chr = Random.choice("23456789ABCDEFGHJKLMNPQESTUVWXYZ");
+    if ( random_hash.length !== 0 ) {
+      if ( chr === random_hash.charAt(random_hash.length-1) ) {
+        continue;
+      }
+    }
+    random_hash += chr;
+  }
+
+  var qr_hash = "";
+  for ( ; qr_hash.length < Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH; ) {
+    var chr = Random.choice("23456789ABCDEFGHJKLMNPQESTUVWXYZ");
+    if ( qr_hash.length !== 0 ) {
+      if ( chr === qr_hash.charAt(qr_hash.length-1) ) {
+        continue;
+      }
+    }
+    qr_hash += chr;
+  }
+
+  var login_link_url = loc;
+  if ( login_services[loc] !== undefined && login_services[loc].hashurl ) login_link_url = login_services[loc].hashurl;
+  login_link_url += "/#" + random_hash;
+
+  var service = 'cottagelabs';
+  if ( login_services[loc] !== undefined && login_services[loc].service ) service = login_services[loc].service; 
+
+  // add new record to timeout in LOGIN_CODE_TIMEOUT_MINUTES
+  var tmot = Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES;
+  if ( login_services[loc] !== undefined && login_services[loc].timeout ) tmot = login_services[loc].timeout; 
+  var timeout = (new Date()).valueOf() + (tmot * 60 * 1000);
+  var up = {email:email,code:random_code,hash:random_hash,timeout:timeout,service:service};
+  if ( user && user.security && user.security.regdevice ) {
+    up.qr = qr_hash;
+    up.fp = user.security.regdevice;
+  }
+  
+  loginCodes.upsert({email:email},up);
+  var codeType = user ? "login" : "registration";
+
+  var name = 'Cottage Labs';
+  if ( login_services[loc] !== undefined && login_services[loc].name ) name = login_services[loc].name;
+  var fr = Meteor.settings.ADMIN_ACCOUNT_ID;
+  if ( login_services[loc] !== undefined && login_services[loc].from ) fr = login_services[loc].from; 
+  var tmott = tmot >= 60 ? (tmot/60) + ' hour(s)' : tmot + ' minutes';
+  var txt = "Your Cottage Labs " + codeType + " security code is:\r\n\r\n      " + random_code + "\r\n\r\n" +
+              "or use this link:\r\n\r\n      " + login_link_url + "\r\n\r\n" +
+              "note: this single-use code is only valid for " + tmott + " minutes.";
+  if ( login_services[loc] !== undefined && login_services[loc].text ) txt = login_services[loc].text; 
+  var htm = "<html><body>" +
+              '<p>Your <b><i>Cottage Labs</i></b> ' + codeType + ' security code is:</p>' +
+              '<p style="margin-left:2em;"><font size="+1"><b>' + random_code + '</b></font></p>' +
+              '<p>or click on this link</p>' +
+              '<p style="margin-left:2em;"><font size="-1"><a href="' + login_link_url + '">' + login_link_url + '</a></font></p>' +
+              '<p><font size="-1">note: this single-use code is only valid for ' + tmott + '.</font></p>' +
+              '</body></html>';
+  if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html;
+  txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
+  htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
+
+  CLapi.internals.sendmail({
+    from: fr,
+    to: email,
+    subject: name + " " + codeType + " security code",
+    text: ( txt ),
+    html: ( htm )
+  });
+
+  var future = new Future();
+  setTimeout(function() { future.return(); }, 333);
+  future.wait();
+
+  var ret = { known:(user !== undefined) };
+  if ( user && user.security && user.security.regddevice ) ret.qr_hash = qr_hash;
+  return ret;
+}
+
+CLapi.internals.accounts.login = function(email,token,hash,fingerprint) {
+  // given an email address and a token or a url hash, login the user
+  console.log("API login for email address: " + email + " - with token: " + token + " or hash: " + hash + " and fingerprint: " + fingerprint);
+  email = email.toLowerCase();
+  remove_expired_login_codes();
+  var loginCode;
+  if (token !== undefined) loginCode = loginCodes.findOne({email:email,code:code});
+  if (!loginCode && hash !== undefined) loginCodes.findOne({hash:hash});
+  if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { qr:hash, fp:fingerprint } ] } );
+  if ( !loginCode ) throw "API login refused for invalid code";
+  login_only_gets_one_chance(email);
+  var future = new Future();
+  setTimeout(function() { future.return(); }, 333);
+  future.wait();
+  var password = login_or_register_user_with_new_password(this,email,fingerprint,loginCode.service);
+  if (password) {
+    return {status:'success', data:{password:password}}
+  } else {
+    return {statusCode: 401, body: {status: 'error', data:'401 unauthorized'}}
+  }
+}
 
 CLapi.internals.accounts.count = function(filter) {
   if (filter === undefined) filter = {};

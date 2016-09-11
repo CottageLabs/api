@@ -401,7 +401,14 @@ CLapi.internals.academic.doiresolve = function(doi) {
     var resp = Meteor.http.call('GET',doiresolver);
     if (resp.data) {
       for ( var r in resp.data.values) {
-        if ( resp.data.values[r].type.toLowerCase() === 'url' ) url = resp.data.values[r].data.value;
+        if ( resp.data.values[r].type.toLowerCase() === 'url' ) {
+          url = resp.data.values[r].data.value;
+          if ( resp.data.values[r].format === 'base64' ) {
+            // like these stupid chinese ones, which end up throwing 404 anyway, but, just in case...
+            // http://doi.org/api/handles/10.7688/j.issn.1000-1646.2014.05.20
+            url = new Buffer(url,'base64').toString('utf-8');
+          }
+        }
       }
     }
   } catch(err) {}

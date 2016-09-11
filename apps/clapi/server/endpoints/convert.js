@@ -7,6 +7,8 @@ CLapi.addRoute('convert', {
       if ( this.queryParams.url) {
         var opts = {};
         if (this.queryParams.subset) opts.subset = this.queryParams.subset;
+        if (this.queryParams.start) opts.start = this.queryParams.start;
+        if (this.queryParams.end) opts.end = this.queryParams.end;
         if (this.queryParams.fields) opts.fields = this.queryParams.fields.split(',');
         var to = 'text/plain';
         if (this.queryParams.to === 'csv') to = 'text/csv';
@@ -38,7 +40,13 @@ CLapi.addRoute('convert', {
 
 CLapi.internals.convert.run = function(url,from,to,content,opts) {
   var which, proc, output;
-  if ( from === 'csv' ) {
+  if ( from === 'table' ) { // convert html table in web page
+    if ( to === 'json' ) {
+      output = CLapi.internals.convert.table2json(url,undefined,opts);
+    } else if ( to === 'csv' ) {
+      output = CLapi.internals.convert.table2csv(url,undefined,opts);      
+    }
+  } else if ( from === 'csv' ) {
     if ( to === 'json' ) {
       url ? output = CLapi.internals.convert.csv2json(url) : CLapi.internals.convert.csv2json(undefined,content);
     } else if ( to === 'txt' ) {
@@ -60,7 +68,8 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     } else if ( to === 'json' ) {
       output = CLapi.internals.convert.xml2json(url,undefined);
     }
-  } else if ( from === 'file' || from === 'pdf' ) {
+  }
+  if ( from === 'file' || from === 'pdf' ) {
     if ( to === 'txt' ) {
       output = CLapi.internals.convert.file2txt(url,undefined,opts);
     }    
@@ -96,6 +105,68 @@ var _csv2json = function(url,content,callback) {
 }
 CLapi.internals.convert.csv2json = Async.wrap(_csv2json);
 
+CLapi.internals.convert.table2json = function(url,content,opts) {
+  if ( url !== undefined) {
+    var res = Meteor.http.call('GET', url);
+    content = res.content;
+  }
+  if ( opts.start ) {
+    content = content.split(opts.start)[1];
+  } else {
+    if ( content.indexOf('<table') !== -1 ) {
+      content = '<table' + content.split('<table')[1];
+    } else if ( content.indexOf('<TABLE') !== -1 ) {
+      content = '<TABLE' + content.split('<TABLE')[1];      
+    }
+  }
+  if ( opts.end ) {
+    content = content.split(opts.end)[0];
+  } else {
+    if ( content.indexOf('</table') !== -1 ) {
+      content = content.split('</table')[0] + '</table>';
+    } else if ( content.indexOf('</TABLE') !== -1 ) {
+      content = content.split('</TABLE')[1] + '</TABLE>';
+    }
+  }
+  var ths = content.match(/<th.*?<\/th/gi);
+  var headers = [];
+  var results = [];
+  for ( var h in ths ) {
+    var str = ths[h].replace(/<th.*?>/i,'').replace(/<\/th.*?/i,'');
+    str = str.replace(/<.*?>/gi,'').replace(/&nbsp;/gi,'');
+    if (str.replace(/ /g,'').length === 0) str = 'UNKNOWN';
+    headers.push(str);
+  }
+  var rows = content.match(/<tr.*?<\/tr/gi);
+  for ( var r in rows ) {
+    if ( rows[r].toLowerCase().indexOf('<th') === -1 ) {
+      var result = {};
+      var row = rows[r].replace(/<tr.*?>/i,'').replace(/<\/tr.*?/i,'');
+      var vals = row.match(/<td.*?<\/td/gi);
+      for ( var d = 0; d < vals.length; d++ ) {
+        var keycounter = d;
+        if ( vals[d].toLowerCase().indexOf('colspan') !== -1 ) {
+          try {
+            var count = parseInt(vals[d].toLowerCase().split('colspan')[1].split('>')[0].replace(/[^0-9]/,''));
+            keycounter += (count-1);
+          } catch(err) {}
+        }
+        var val = vals[d].replace(/<.*?>/gi,'').replace('</td','');
+        if (headers.length > keycounter) {
+          result[headers[keycounter]] = val;
+        }
+      }
+      if (result.UNKNOWN !== undefined) delete result.UNKNOWN;
+      results.push(result);
+    }
+  }
+  return results;
+}
+
+CLapi.internals.convert.table2csv = function(url,content,opts) {
+  var d = CLapi.internals.convert.table2json(url,content,opts);
+  return CLapi.internals.convert.json2csv(undefined,undefined,d);
+}
 
 CLapi.internals.convert.html2txt = function(url,content) {
   // TODO should we use some server-side page rendering here? 

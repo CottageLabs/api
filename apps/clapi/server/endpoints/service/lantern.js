@@ -1631,9 +1631,13 @@ CLapi.internals.service.lantern.alertdone = function() {
 CLapi.internals.service.lantern.alertstuck = function() {
   var prev = lantern_meta.findOne('previous_processing_check');
   if (prev === undefined) {
-    prev = {_id:'previous_processing_check',list:[],same:false,since:0};
+    prev = {_id:'previous_processing_check',list:[],same:false,since:0,howmany:0,change:0};
     lantern_meta.insert(prev);
   }
+  if (prev.howmany === undefined) prev.howmany = 0;
+  var howmany = lantern_process.find().count();
+  prev.change = howmany - prev.howmany;
+  prev.howmany = howmany;
   var procs = lantern_processes.find({processing:{$eq:true}}).fetch();
   var currents = [];
   var same = true;
@@ -1647,13 +1651,25 @@ CLapi.internals.service.lantern.alertstuck = function() {
   lantern_meta.update('previous_processing_check',{$set:prev});
   console.log("Stuck lantern processes check")
   console.log(prev);
+  var txt = ''
   if (same && currents.length !== 0 && prev.since >= 30) {
-    var txt = 'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes';
+    txt = 'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes';
     txt += '\n\nResetting the processes may help, if you are sure you do not want to check the situation first:\n\n';
     txt += 'https://api.cottagelabs.com/service/lantern/processes/reset';
     CLapi.internals.sendmail({
       to:'sysadmin@cottagelabs.com',
       subject:'CL ALERT: Lantern processes stuck',
+      text:txt
+    });
+    return true;
+  } else if ( howmany !== 0 && procs.length === 0 && prev.change >= 0 ) {
+    txt = 'There appear to be ' + howmany + ' processes in the system but there appear to be no processes running.';
+    txt += '\n\nThe amount of processes has changed by ' + prev.change + ' since last check';
+    txt += '\n\nResetting the processes is unlikely to help, but you can try, if you do not want to check the situation first:\n\n';
+    txt += 'https://api.cottagelabs.com/service/lantern/processes/reset';
+    CLapi.internals.sendmail({
+      to:'sysadmin@cottagelabs.com',
+      subject:'CL ALERT: Lantern processes may not be running',
       text:txt
     });
     return true;

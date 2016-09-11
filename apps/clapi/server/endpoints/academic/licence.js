@@ -151,9 +151,10 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     console.log('Getting ' + url + ' which resolved to ' + resolved + ' for licence check');
     var info = Async.wrap(function(resolved, callback) {
       // yes, there is a meteor call that is sync, but it is not returning here properly for some reason
-      Meteor.http.call('GET',resolved, function(err,res) { // this shuold perhaps become a phantomjs render
+      Meteor.http.call('GET',resolved, {timeout:120000}, function(err,res) { // this shuold perhaps become a phantomjs render
         if (err) {
           console.log('Error while fetching ' + resolved + ' for academic licence check.');
+          console.log(err);
           return callback(null,{retrievable:false});
         } else {
           var lic = findlicences(res.content,resolved);
