@@ -151,8 +151,16 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     console.log('Getting ' + url + ' which resolved to ' + resolved + ' for licence check');
     var info = Async.wrap(function(resolved, callback) {
       // yes, there is a meteor call that is sync, but it is not returning here properly for some reason
+      // timeout added on 11092016 because of URLs that seem to cause infinite hangs but do not throw errors
+      // such as http://biopolymers.org.ua/content/28/4/285/
+      // here is an example of one that timed out since adding the timeout:
+      // http://iopscience.iop.org/article/10.1088/0004-637X/737/1/9/meta
       Meteor.http.call('GET',resolved, {timeout:120000}, function(err,res) { // this shuold perhaps become a phantomjs render
         if (err) {
+          // elsevier linkinghub URLs are still sometimes causing maxredirect loops which spin out
+          // multiple event listeners. This is being caught, so not a big problem, but means we are 
+          // still failing to successfully find out where these URLs redirect to. But it seems to be 
+          // intermittent - it is not clear that it is all linkinghub URLs, or what causes the wrong ones, yet
           console.log('Error while fetching ' + resolved + ' for academic licence check.');
           console.log(err);
           return callback(null,{retrievable:false});

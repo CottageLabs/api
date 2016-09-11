@@ -1128,7 +1128,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       url = CLapi.internals.academic.resolve('pmid' + result.pmid).url;
     }
     if (url && url.length > 1) {
-      var lic = CLapi.internals.academic.licence(url,false,undefined,undefined,undefined,true);
+      var lic = CLapi.internals.academic.licence(url,true,undefined,undefined,undefined,true);
       if (lic.licence && lic.licence !== 'unknown') {
         result.licence = lic.licence;
         result.licence_source = 'publisher_splash_page';
