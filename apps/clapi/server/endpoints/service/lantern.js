@@ -1635,7 +1635,7 @@ CLapi.internals.service.lantern.alertstuck = function() {
     lantern_meta.insert(prev);
   }
   if (prev.howmany === undefined) prev.howmany = 0;
-  var howmany = lantern_process.find().count();
+  var howmany = lantern_processes.find().count();
   prev.change = howmany - prev.howmany;
   prev.howmany = howmany;
   var procs = lantern_processes.find({processing:{$eq:true}}).fetch();
