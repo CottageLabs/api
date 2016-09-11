@@ -363,8 +363,12 @@ CLapi.addRoute('service/lantern/jobs/todo', {
       var results = [];
       var jobs = lantern_jobs.find({done:{$not:{$eq:true}}});
       jobs.forEach(function(job) {
-        job.processes = job.list.length;
-        delete job.list;
+        if (job.list) { // some old or incorrectly created jobs could have no list
+          job.processes = job.list.length;
+          delete job.list;
+        } else {
+          job.processes = 0;
+        }
         results.push(job);
       });
       return {status: 'success', data: {total:results.length, jobs: results} }
