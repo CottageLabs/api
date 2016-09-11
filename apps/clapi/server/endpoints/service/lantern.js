@@ -373,6 +373,14 @@ CLapi.addRoute('service/lantern/jobs/todo', {
       });
       return {status: 'success', data: {total:results.length, jobs: results} }
     }
+  },
+  delete: {
+    roleRequired: 'root',
+    action: function() {
+      var count = lantern_jobs.find({done:{$not:{$eq:true}}}).count();
+      lantern_jobs.remove({done:{$not:{$eq:true}}});
+      return {status: 'success', total: count}
+    }
   }
 });
 
