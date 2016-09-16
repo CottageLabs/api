@@ -695,7 +695,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       eissn: undefined // do we want eissn separate from issn? for now just uses issn
     },
     publisher: undefined,
-    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results
+    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results, 0 if unknown article
     in_epmc: false, // set to true if found
     is_aam: false, // set to true if is an eupmc author manuscript
     is_oa: false, // set to true if eupmc or other source says is oa
@@ -799,7 +799,7 @@ CLapi.internals.service.lantern.process = function(processid) {
               prst = prst.replace('"','');
               var res2 = CLapi.internals.use.europepmc[stt](prst);
               if (res2.total && res2.total === 1) {
-                eupmc = res.data[0];
+                eupmc = res2.data[0];
                 result.confidence = 0.7;                
               }
             }
