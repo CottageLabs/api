@@ -65,11 +65,10 @@ CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
       var ft_envelope;
       ft_envelope = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
       if(ft_envelope.error) {
-        if (ft_envelope.error === 'NOT_FOUND_IN_EPMC') {
+        if (ft_envelope.error == 404) {
           console.log(this.urlParams.qry + ' not found when fetching EPMC full text XML.');
           return {statusCode: 404, body: {status: 'error', data: '404 not found. Not found in EPMC.' }};
-        }
-        if (ft_envelope.error === 'EPMC_ERROR') {
+        } else {
           console.log('Error while fetching EPMC full text XML for ' + this.urlParams.qry + '. Most probably EPMC is temporarily down.');
           return {statusCode: 404, body: {status: 'error', data: '404 not found. Error when getting from EPMC.'}};
         }
@@ -356,11 +355,7 @@ CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
     var r = Meteor.http.call('GET', url);
     if (r.statusCode === 200) result.fulltext = r.content;
   } catch(err) {
-    if(err.response.statusCode === 404) {
-      result.error = 'NOT_FOUND_IN_EPMC';
-    } else {
-      result.error = 'EPMC_ERROR';
-    }
+    result.error = err.response.statusCode;
   }
   return result;
 }

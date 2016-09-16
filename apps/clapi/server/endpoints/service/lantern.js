@@ -855,8 +855,11 @@ CLapi.internals.service.lantern.process = function(processid) {
     if (!ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
 
     if(ft_envelope.error) {
-      if (ft_envelope.error === 'NOT_FOUND_IN_EPMC') result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
-      if (ft_envelope.error === 'EPMC_ERROR') result.provenance.push('Encountered an error while retrieving the EUPMC full text XML. One possible reason is EUPMC being temporarily unavailable.');
+      if (ft_envelope.error == 404) {
+        result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
+      } else {
+        result.provenance.push('Encountered an error while retrieving the EUPMC full text XML. One possible reason is EUPMC being temporarily unavailable.');
+      }
     }
     
     var ft = ft_envelope.fulltext;
