@@ -866,9 +866,9 @@ CLapi.internals.service.lantern.process = function(processid) {
 
     var ft_envelope;
     if (result.is_oa && result.in_epmc) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
-    if (!ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
+    if (ft_envelope && !ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
 
-    if(ft_envelope.error) {
+    if (ft_envelope && ft_envelope.error) {
       if (ft_envelope.error == 404) {
         result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
       } else {
@@ -876,7 +876,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       }
     }
     
-    var ft = ft_envelope.fulltext;
+    var ft = ft_envelope ? ft_envelope.fulltext : false;
     if (ft) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
