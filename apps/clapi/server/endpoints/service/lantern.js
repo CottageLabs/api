@@ -76,6 +76,7 @@ lantern_results.findFreshById = function(id,refresh) {
   return lantern_results.findOne({$and:[{'_id':id},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
 }
 
+
 CLapi.addRoute('service/lantern', {
   get: {
     action: function() {
@@ -96,34 +97,41 @@ CLapi.addRoute('service/lantern', {
       }
     }
   },
-  post: function() {
-    var maxallowedlength = 3000; // this could be in config or a per user setting...
-    var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
-    var email = this.request.body.email ? this.request.body.email : '';
-    var quota = this.queryParams.wellcome !== undefined ? {available:10000000,wellcome:true} : CLapi.internals.service.lantern.quota(email);
-    // TODO should partial jobs be accepted, up to remaining quota available / max length?
-    // for now jobs that are too big are refused
-    if (checklength > maxallowedlength) {
-      return {statusCode: 413, body: {status: 'error', data: {length: checklength, max: maxallowedlength, info: checklength + ' too long, max rows allowed is ' + maxallowedlength}}}
-    } else if (checklength > quota.available) {
-      return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
-    } else {
-      var j = lantern_jobs.insert({new:true});
-      var b = this.request.body;
-      var u = this.userId;
-      var r = this.queryParams.refresh;
-      var w = this.queryParams.wellcome;
-      Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
-      return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
+  post: {
+    roleRequired: 'lantern.user',
+    action: function() {
+      console.log(this.request.body)
+      console.log(this.request.body.email)
+      var maxallowedlength = 3000; // this could be in config or a per user setting...
+      var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
+      var quota = this.request.body.email !== undefined ? {available:10000000,wellcome:true} : CLapi.internals.service.lantern.quota(this.userId);
+      // TODO should partial jobs be accepted, up to remaining quota available / max length?
+      // for now jobs that are too big are refused
+      if (checklength > maxallowedlength) {
+        return {statusCode: 413, body: {status: 'error', data: {length: checklength, max: maxallowedlength, info: checklength + ' too long, max rows allowed is ' + maxallowedlength}}}
+      } else if (checklength > quota.available) {
+        return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
+      } else {
+        var j = lantern_jobs.insert({new:true});
+        var b = this.request.body;
+        var u = this.userId;
+        var r = this.queryParams.refresh;
+        var w = this.request.body.email ? true : false;
+        Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
+        return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
+      }
     }
   }
 });
 
 CLapi.addRoute('service/lantern/:job', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       // return the info of the job - the job metadata and the progress so far
+      // TODO if user is not the job creator or is not admin, 401
       var job = lantern_jobs.findOne(this.urlParams.job);
+      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var p = CLapi.internals.service.lantern.progress(this.urlParams.job);
         job.progress = p ? p : 0;
@@ -137,6 +145,7 @@ CLapi.addRoute('service/lantern/:job', {
 
 CLapi.addRoute('service/lantern/:job/reload', {
   get: {
+    roleRequired: 'lantern.admin',
     action: function() {
       return {status: 'success', data: CLapi.internals.service.lantern.reload(this.urlParams.job) }
     }
@@ -145,9 +154,11 @@ CLapi.addRoute('service/lantern/:job/reload', {
 
 CLapi.addRoute('service/lantern/:job/progress', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       // return the info of the job - the job metadata and the progress so far
       var job = lantern_jobs.findOne(this.urlParams.job);
+      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var progress = CLapi.internals.service.lantern.progress(this.urlParams.job);
         return {status: 'success', data: progress}
@@ -160,9 +171,11 @@ CLapi.addRoute('service/lantern/:job/progress', {
 
 CLapi.addRoute('service/lantern/:job/todo', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       // return the parts of the job still to do, does not check for results found since last progress check
       var job = lantern_jobs.findOne(this.urlParams.job);
+      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var todo = CLapi.internals.service.lantern.todo(this.urlParams.job);
         return {status: 'success', data: todo}
@@ -174,11 +187,12 @@ CLapi.addRoute('service/lantern/:job/todo', {
 });
 
 CLapi.addRoute('service/lantern/:job/results', {
-  // can anyone retrieve results of a job or just the submitter or some other set?
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       // return the results for this job as JSON
       var job = lantern_jobs.findOne(this.urlParams.job);
+      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       // TODO may add restriction on how long old jobs can be returned for 
       // could be implemented by deleting them, or by checking here for how long the user can 
       // retrieve jobs (to be saved in a user config)
@@ -294,10 +308,12 @@ CLapi.addRoute('service/lantern/:job/results', {
 
 CLapi.addRoute('service/lantern/:job/original', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       // wellcome found it useful to be able to download the original file, 
       // so this route should just find the job and return the file without any results
       var job = lantern_jobs.findOne(this.urlParams.job);
+      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       var fl = [];
       for ( var j in job.list ) {
         var jb = job.list[j];
@@ -334,16 +350,9 @@ CLapi.addRoute('service/lantern/:job/original', {
   }
 });
 
-CLapi.addRoute('service/lantern/result/:res', {
-  get: {
-    action: function() {
-      // find and return the result - could just expose the collection?
-    }
-  }
-});
-
 CLapi.addRoute('service/lantern/jobs', {
   get: {
+    roleRequired: 'lantern.admin',
     action: function() {
       var results = [];
       var jobs = lantern_jobs.find();
@@ -359,6 +368,7 @@ CLapi.addRoute('service/lantern/jobs', {
 
 CLapi.addRoute('service/lantern/jobs/todo', {
   get: {
+    roleRequired: 'lantern.admin',
     action: function() {
       var results = [];
       var jobs = lantern_jobs.find({done:{$not:{$eq:true}}});
@@ -379,6 +389,7 @@ CLapi.addRoute('service/lantern/jobs/todo', {
     action: function() {
       var count = lantern_jobs.find({done:{$not:{$eq:true}}}).count();
       lantern_jobs.remove({done:{$not:{$eq:true}}});
+      // TODO should this remove all processes associated with the jobs being deleted?
       return {status: 'success', total: count}
     }
   }
@@ -386,6 +397,7 @@ CLapi.addRoute('service/lantern/jobs/todo', {
 
 CLapi.addRoute('service/lantern/jobs/reload', {
   get: {
+    roleRequired: 'root',
     action: function() {
       return {status: 'success', data: CLapi.internals.service.lantern.reload() }
     }
@@ -394,8 +406,10 @@ CLapi.addRoute('service/lantern/jobs/reload', {
 
 CLapi.addRoute('service/lantern/jobs/:email', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
       var results = [];
+      if ( !( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) ) return {statusCode:401,body:{}}
       var jobs = lantern_jobs.find({email:this.urlParams.email});
       jobs.forEach(function(job) {
         job.processes = job.list.length;
@@ -425,6 +439,7 @@ CLapi.addRoute('service/lantern/processes/running', {
 });
 CLapi.addRoute('service/lantern/processes/reset', {
   get: {
+    roleRequired: 'lantern.admin',
     action: function() {
       return {status: 'success', data: CLapi.internals.service.lantern.reset() }
     }
@@ -434,6 +449,7 @@ CLapi.addRoute('service/lantern/processes/reset', {
 // a route to trigger a specific process - should probably have admin auth or be removed
 CLapi.addRoute('service/lantern/process/:proc', {
   get: {
+    roleRequired: 'lantern.admin',
     action: function() {
       return {status: 'success', data: CLapi.internals.service.lantern.process(this.urlParams.proc) }
     }
@@ -453,23 +469,34 @@ CLapi.addRoute('service/lantern/status', {
 
 CLapi.addRoute('service/lantern/quota/:email', {
   get: {
+    roleRequired: 'lantern.user',
     action: function() {
-      return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
+      // TODO restrict to user or admin else 401
+      console.log(this.urlParams.email)
+      if ( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) {
+        return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
+      } else {
+        return {statusCode:401, body:{}}
+      }
     }
   }
 });
 
 CLapi.internals.service.lantern = {};
 
-CLapi.internals.service.lantern.quota = function(email) {
-  var acc = Meteor.users.findOne({'emails.address':email});
+CLapi.internals.service.lantern.allowed = function(job,uacc) {
+  // short function to bounce users if not allowed certain actions
+  // can change later to customise certain sorts of access to groups etc
+  return job.user !== uacc._id || CLapi.cauth('lantern.admin',uacc) || job.wellcome === true;
+}
+
+CLapi.internals.service.lantern.quota = function(uid) {
+  var acc = CLapi.internals.accounts.retrieve(uid);
+  var email = acc.emails[0].address;
   var max = 100;
-  var admin = acc !== undefined ? CLapi.cauth('lantern.admin',acc) : false;
-  var premium = acc !== undefined ? CLapi.cauth('lantern.premium',acc,false ) : false;
-  // for now if no acc assume wellcome user and set max huge
-  if (acc === undefined) {
-    max = 100000;
-  } else if ( admin ) {
+  var admin = CLapi.internals.accounts.auth('lantern.admin',acc);
+  var premium = CLapi.internals.accounts.auth('lantern.premium',acc,false );
+  if ( admin ) {
     max = 500000;
   } else if ( premium ) {
     max = 5000;
@@ -570,25 +597,15 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
-  var user;
-  var job = {};
-  // oddities controlling wellcome compliance submission appear here - remove once no longer necessary
-  if (input.email) {
-    job.email = input.email;
-    if (!uid && wellcome === undefined) {
-      user = Meteor.users.findOne({"emails.address":input.email});
-      if (user) job.user = user._id;
-    }
-  }
-  if (uid && wellcome === undefined) {
-    user = Meteor.users.findOne(uid);
-    job.email = user.emails[0].address;
-    job.user = uid;
-  }
-  if (user === undefined) wellcome = true;
-  if (wellcome !== undefined) {
+  console.log(wellcome)
+  var user = CLapi.internals.accounts.retrieve(uid);
+  var job = {user:uid};
+  if (wellcome) {
     if (refresh === undefined) refresh = 1;
     job.wellcome = true;
+    job.email = input.email;
+  } else {
+    job.email = user.emails[0].address;
   }
   if (refresh !== undefined) job.refresh = parseInt(refresh);
   var list;
@@ -662,21 +679,6 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
 
 CLapi.internals.service.lantern.process = function(processid) {
   // process a job from the lantern_processes job list
-  /*var proc;
-  if ( processid !== undefined ) {
-    proc = lantern_processes.findOne(processid);
-  } else {
-    return false;
-  }
-  var result = lantern_results.findByIdentifier(proc);
-  if (result) {
-    lantern_processes.remove(proc._id);
-    return result;
-  } else {
-    proc.processing = true;
-    lantern_processes.update(proc._id, {$set:{processing:true}});
-  }*/
-
   var proc = lantern_processes.findOne(processid);
   if (!proc) return false;
   lantern_processes.update(proc._id, {$set:{processing:true}});
@@ -1268,20 +1270,10 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
   // for a job, get all the results for it and return them as an object
   var job = lantern_jobs.findOne(jobid);
   if (job) {
-    //var update;
     var results = [];
     for ( var i in job.list ) {
       var ji = job.list[i];
-      //var found;
-      //if (ji.result) {
       var found = lantern_results.findOne(ji.process);
-    /*} else {
-      found = lantern_results.findOne(ji.process);
-      if (found) {
-        job.list[i].result = found._id;
-        update = true;
-      }
-    }*/
       if ( found ) {
         for ( var lf in ji) {
           if (!found[lf]) found[lf] = ji[lf];
@@ -1289,9 +1281,7 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
         if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
         results.push(found);
       }
-      //}
     }
-    //if (update) lantern_jobs.update(job._id, {$set:{list:job.list}});
     return results;
   } else {
     return false;

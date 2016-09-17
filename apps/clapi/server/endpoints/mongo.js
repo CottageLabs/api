@@ -115,6 +115,7 @@ CLapi.internals.mongo.delete = function(coll,rec) {
   if ( coll === 'academic_licence' ) academic_licence.remove(rec);
   if ( coll === 'academic_resolved' ) academic_resolved.remove(rec);
   if ( coll === 'hidden_gems' ) hidden_gems.remove(rec);
+  if ( coll === 'users' ) Meteor.users.remove(rec);
   return {status: 'success'}
 }
 

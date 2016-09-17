@@ -103,6 +103,7 @@ CLapi.addRoute('tdm/match', {
 });
 
 
+CLapi.internals.tdm = {};
 
 CLapi.internals.tdm.levenshtein = function(a,b) {
 	function minimator(x, y, z) {

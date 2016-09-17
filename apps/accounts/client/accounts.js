@@ -95,7 +95,7 @@ function watch_for_login_hashcode(one_time_only) {
       if ( hash.length === Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH ) {
         new Fingerprint2().get(function(result, components){
           console.log(result); //a hash, representing device fingerprint
-          Meteor.call("login_via_url",hash.toUpperCase(),result,function(error,loginInfo){
+          Meteor.call("login_via_url",hash,result,function(error,loginInfo){
             if ( error ) {
               // not much we can do with such an error
             } else {
@@ -213,9 +213,9 @@ Meteor.startup(function() {
 var logged = LoginState.get('clogins');
 if ( logged && !Meteor.userId() ) {
   console.log('logging back in via cookie for user ' + logged.email);
-  Meteor.call("login_via_cookie",logged.email.toLowerCase(),function(error,pwd){
+  Meteor.call("login_via_cookie",logged.email,function(error,pwd){
     if ( !error ) {
-      Meteor.loginWithPassword({email:logged.email.toLowerCase()},pwd);
+      Meteor.loginWithPassword({email:logged.email},pwd);
     }
   });
 }

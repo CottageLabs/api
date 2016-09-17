@@ -1,8 +1,8 @@
 
 var Future = Npm.require('fibers/future');
-
-Role_requests = new Mongo.Collection("role_request");
-CLapi.addCollection(Role_requests);
+loginCodes = new Meteor.Collection("logincodes");
+role_request = new Mongo.Collection("role_request");
+CLapi.addCollection(loginCodes);
 
 CLapi.addRoute('accounts', {
   get: {
@@ -19,19 +19,26 @@ CLapi.addRoute('accounts', {
 CLapi.addRoute('accounts/token', {
   get: {
     action: function() {
-      return CLapi.internals.accounts.token(this.queryParams.email);
+      return CLapi.internals.accounts.token(this.queryParams.email,this.queryParams.location,this.queryParams.fingerprint);
     }
   },
   post: {
     action: function() {
-      return CLapi.internals.accounts.token(this.request.body.email);
+      return CLapi.internals.accounts.token(this.request.body.email,this.request.body.location,this.request.body.fingerprint);
     }
   }
 });
 CLapi.addRoute('accounts/login', {
   post: {
     action: function() {
-      return CLapi.internals.accounts.login(this.request.body)
+      return CLapi.internals.accounts.login(this.request.body.email,this.request.body.location,this.request.body.token,this.request.body.hash,this.request.body.fingerprint,this.request.body.resume,this.request.body.timestamp)
+    }
+  }
+});
+CLapi.addRoute('accounts/logout', {
+  post: {
+    action: function() {
+      return CLapi.internals.accounts.logout(this.request.body.email,this.request.body.resume,this.request.body.timestamp,this.request.body.location)
     }
   }
 });
@@ -62,54 +69,43 @@ CLapi.addRoute('accounts/:id', {
   get: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
-      if (!u) return {statusCode:404, body:{info: '404 not found'}}
-      var rls = u.roles;
-      if (rls && rls.__global_roles__) delete rls.__global_roles__;
-      if ( CLapi.cauth('root', this.user) ) {
-        // only root can get full user data
-        return {status: 'success', data: u };
-      } else if ( u._id === this.user._id || CLapi.cauth(u._id + '.read', this.user) ) {
-        // user (or people delegated to in the user group) can get profile, roles, username, emails
-        return {status: 'success', data: {profile: u.profile, roles: rls, username: u.username, emails: u.emails }}
-      } else {
-        // return a profile and system data for system role holders
-        var ud = {profile: u.profile, roles: rls, username: u.username, emails: u.emails, system: {}};
-        var authd = false;
-        for ( var r in this.user.roles ) {
-          if ( CLapi.cauth(r + '.system', this.user) ) {
-            authd = true;
-            if ( u.system[r] ) ud.system[r] = u.system[r];
-          }
-        }
-        if ( authd ) {
-          return {status: 'success', data: ud };
-        } else {
-          return {statusCode: 403, body:{} }
-        }
-      }
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      return u ? CLapi.internals.accounts.details(this.urlParams.id,this.user) : {statusCode: 404, body:{} };
     }
   },
   post: {
     authRequired: true,
     action: function() {
-      // TODO who should be able to write to the full user object? Which parts can be written by whom?
-      // or only allow POSTing of particular parts to dedicated endpoints?
-      var u = CLapi.getuser(this.urlParams.id);
-      return {status: 'success', data: {} };
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      if (!u) {
+        return {statusCode: 404, body:{} };
+      } else {
+        var updated = CLapi.internals.accounts.update(this.urlParams.id,this.user,this.request.body);
+        return updated ? {status: 'success'} : {status: 'error'};
+      }
+    }
+  },
+  put: {
+    authRequired: true,
+    action: function() {
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      if (!u) {
+        return {statusCode: 404, body:{} };
+      } else {
+        var updated = CLapi.internals.accounts.update(this.urlParams.id,this.user,this.request.body,true);
+        return updated ? {status: 'success'} : {status: 'error'};
+      }
     }
   },
   delete: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
-      // TODO can anyone else delete, can user delete themselves, is delete an actual delete or set to disabled?
-      if ( CLapi.cauth('root',this.user) ) {
-        Meteor.users.remove(u._id);
-        return {status: 'success', data: {} };
-      // TODO certain system accounts must be able to delete system data from a user account
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      if (!u) {
+        return {statusCode: 404, body:{} };
       } else {
-        return {statusCode: 403, body:{} }
+        var deleted = CLapi.internals.accounts.delete(this.urlParams.id,this.user,this.urlParams.service);
+        return deleted ? {status: 'success'} : {status: 'error'};
       }
     }
   }
@@ -118,14 +114,14 @@ CLapi.addRoute('accounts/:id/status', {
   get: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       return {status: 'success', data: {online:u.status.online, idle:u.status.idle}}
     }
   },
   post: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if ( false ) {
         // TODO this should be a route for external systems that may be using this user account
         // to just POST to this endpoint as notification that this user is doing something
@@ -139,11 +135,14 @@ CLapi.addRoute('accounts/:id/status', {
     }
   }
 });
-CLapi.addRoute('accounts/:id/profile', {
+// user needs to be able to update username too - or put username inside profile
+// user also needs to be able to control api keys, and perhaps see / change security settings
+// also need to be able to register devices for user, and see registered devices, and unregister them
+/*CLapi.addRoute('accounts/:id/profile', {
   post: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if ( u._id === this.user._id || CLapi.cauth(u._id + '.edit', this.user) ) {
         var profile = u.profile;
         if ( profile === undefined ) profile = {};
@@ -160,7 +159,7 @@ CLapi.addRoute('accounts/:id/profile', {
   put: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if ( u._id === this.user._id || CLapi.cauth(u._id + '.edit', this.user) ) {
         Meteor.users.update(u._id, {$set: {'profile': {} } } ); // TODO where to get the incoming request data?
         return {status: 'success', data: {profile:u.profile}}
@@ -169,23 +168,23 @@ CLapi.addRoute('accounts/:id/profile', {
       }
     }
   }
-});
-CLapi.addRoute('accounts/:id/system/:sys', {
+});*/
+CLapi.addRoute('accounts/:id/service/:sys', {
   post: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
-      if ( CLapi.cauth(this.urlParams.sys + '.system', this.user) ) {
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      if ( CLapi.cauth(this.urlParams.sys + '.service', this.user) ) {
         var sys = {};
         if ( u.system ) sys = u.system;
         if ( sys[this.urlParams.sys] === undefined ) sys[this.urlParams.sys] = {};
         for ( var k in {} ) { // TODO where to get the incoming request data?
           sys[this.urlParams.sys][k] = '';
         }
-        Meteor.users.update(u._id, {$set: {'system': sys } } );
-        var rsys = {system:{}};
-        rsys.system[this.urlParams.sys] = sys[this.urlParams.sys];
-        return {status: 'success', data: {system:rsys}}
+        Meteor.users.update(u._id, {$set: {service: sys } } );
+        var rsys = {service:{}};
+        rsys.service[this.urlParams.sys] = sys[this.urlParams.sys];
+        return {status: 'success', data: {service:rsys}}
       } else {
         return {statusCode: 403, body:{} }        
       }
@@ -194,15 +193,15 @@ CLapi.addRoute('accounts/:id/system/:sys', {
   put: {
     authRequired: true,
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
-      if ( CLapi.cauth(this.urlParams.sys + '.system', this.user) ) {
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
+      if ( CLapi.cauth(this.urlParams.sys + '.service', this.user) ) {
         var sys = {};
         if ( u.system ) sys = u.system;
         u.system[this.urlParams.sys] = {}; // TODO where to get the incoming request data?
-        Meteor.users.update(u._id, {$set: {'system': sys } } ); 
-        var rsys = {system:{}};
-        rsys.system[this.urlParams.sys] = sys[this.urlParams.sys];
-        return {status: 'success', data: {system:rsys}}
+        Meteor.users.update(u._id, {$set: {service: sys } } ); 
+        var rsys = {service:{}};
+        rsys.service[this.urlParams.sys] = sys[this.urlParams.sys];
+        return {status: 'success', data: {service:rsys}}
       } else {
         return {statusCode: 403, body:{} }        
       }
@@ -277,7 +276,7 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
 CLapi.addRoute('accounts/:id/auth/:grouproles', {
   get: {
     action: function() {
-      var u = CLapi.getuser(this.urlParams.id);
+      var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       var authd = CLapi.rcauth(this.urlParams.grouproles.split(','), u);
       if ( authd ) {
         return {status: 'success', data: {auth: authd} };
@@ -305,7 +304,7 @@ CLapi.addRoute('accounts/:id/request/:grouprole', {
       if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
       grp = grpts[0];
       role = grpts[1];
-      var r = Role_requests.insert({role:role, group:grp, uid:this.userId});
+      var r = role_request.insert({role:role, group:grp, uid:this.userId});
       return {status: 'success', data: r };
     }
   }
@@ -348,134 +347,219 @@ CLapi.addRoute('accounts/:id/request/:grouprole/deny', {
 // cookie set for the domain being called from, if that domain is within a set of allowed domains.
 
 
-CLapi.internals.accounts.token = function(email,loc) {
-  // should this allow token sends just on account registration? How to stop spamming of any email address?
-  // check that loc is in the allowed signin locations list
-  if ( Meteor.settings.accounts.loginpages.indexOf(loc) === -1) {
-    console.log('BAD LOGIN ATTEMPT FROM ' + loc);
-    return {}; // throw some sort of warning, should not be logging in from a page we don't set as being able to provide login functionality
-  }
-  console.log("API accounts token request for email address: " + email + " on loc " + loc);
-  email = email.toLowerCase();
-  var user = Meteor.users.findOne({'emails.address':email});
-  console.log(email + " user = " + user);
 
-  // create a loginCodes record, with a new LOGIN_CODE_LENGTH-digit code, to expire in LOGIN_CODE_TIMEOUT_MINUTES
-  // make the code be LOGIN_CODE_LENGTH digits, not start with a 0, and not have any repeating digits
-  var random_code = "";
-  for ( ; random_code.length < Meteor.settings.LOGIN_CODE_LENGTH; ) {
-    var chr = Random.choice("0123456789abcdef");
-    if ( random_code.length === 0 ) {
-      if ( (chr === "0") ) {
-        continue;
-      }
-    } else {
-      if ( chr === random_code.charAt(random_code.length-1) ) {
-        continue;
-      }
-    }
-    random_code += chr;
-  }
-  console.log(email + " random code = " + random_code);
 
-  // for those who prefer to login with a link, also create a random string SECURITY_CODE_HASH_LENGTH
-  // characters long
+function generate_random_code(length,set) {
+  if (length === undefined) length = Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH;
+  if (set === undefined) set = "23456789abcdef";
   var random_hash = "";
-  for ( ; random_hash.length < Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH; ) {
-    var chr = Random.choice("23456789ABCDEFGHJKLMNPQESTUVWXYZ");
-    if ( random_hash.length !== 0 ) {
-      if ( chr === random_hash.charAt(random_hash.length-1) ) {
-        continue;
-      }
-    }
+  for ( ; random_hash.length < length; ) {
+    var chr = Random.choice(set);
+    if ( random_hash.length !== 0 && chr === random_hash.charAt(random_hash.length-1) ) continue;
     random_hash += chr;
   }
-
-  var qr_hash = "";
-  for ( ; qr_hash.length < Meteor.settings.public.accounts.SECURITY_CODE_HASH_LENGTH; ) {
-    var chr = Random.choice("23456789ABCDEFGHJKLMNPQESTUVWXYZ");
-    if ( qr_hash.length !== 0 ) {
-      if ( chr === qr_hash.charAt(qr_hash.length-1) ) {
-        continue;
-      }
-    }
-    qr_hash += chr;
-  }
-
-  var login_link_url = loc;
-  if ( login_services[loc] !== undefined && login_services[loc].hashurl ) login_link_url = login_services[loc].hashurl;
-  login_link_url += "/#" + random_hash;
-
-  var service = 'cottagelabs';
-  if ( login_services[loc] !== undefined && login_services[loc].service ) service = login_services[loc].service; 
-
-  // add new record to timeout in LOGIN_CODE_TIMEOUT_MINUTES
-  var tmot = Meteor.settings.LOGIN_CODE_TIMEOUT_MINUTES;
-  if ( login_services[loc] !== undefined && login_services[loc].timeout ) tmot = login_services[loc].timeout; 
-  var timeout = (new Date()).valueOf() + (tmot * 60 * 1000);
-  var up = {email:email,code:random_code,hash:random_hash,timeout:timeout,service:service};
-  if ( user && user.security && user.security.regdevice ) {
-    up.qr = qr_hash;
-    up.fp = user.security.regdevice;
-  }
-  
-  loginCodes.upsert({email:email},up);
-  var codeType = user ? "login" : "registration";
-
-  var name = 'Cottage Labs';
-  if ( login_services[loc] !== undefined && login_services[loc].name ) name = login_services[loc].name;
-  var fr = Meteor.settings.ADMIN_ACCOUNT_ID;
-  if ( login_services[loc] !== undefined && login_services[loc].from ) fr = login_services[loc].from; 
-  var tmott = tmot >= 60 ? (tmot/60) + ' hour(s)' : tmot + ' minutes';
-  var txt = "Your Cottage Labs " + codeType + " security code is:\r\n\r\n      " + random_code + "\r\n\r\n" +
-              "or use this link:\r\n\r\n      " + login_link_url + "\r\n\r\n" +
-              "note: this single-use code is only valid for " + tmott + " minutes.";
-  if ( login_services[loc] !== undefined && login_services[loc].text ) txt = login_services[loc].text; 
-  var htm = "<html><body>" +
-              '<p>Your <b><i>Cottage Labs</i></b> ' + codeType + ' security code is:</p>' +
-              '<p style="margin-left:2em;"><font size="+1"><b>' + random_code + '</b></font></p>' +
-              '<p>or click on this link</p>' +
-              '<p style="margin-left:2em;"><font size="-1"><a href="' + login_link_url + '">' + login_link_url + '</a></font></p>' +
-              '<p><font size="-1">note: this single-use code is only valid for ' + tmott + '.</font></p>' +
-              '</body></html>';
-  if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html;
-  txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
-  htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
-
-  CLapi.internals.sendmail({
-    from: fr,
-    to: email,
-    subject: name + " " + codeType + " security code",
-    text: ( txt ),
-    html: ( htm )
-  });
-
-  var future = new Future();
-  setTimeout(function() { future.return(); }, 333);
-  future.wait();
-
-  var ret = { known:(user !== undefined) };
-  if ( user && user.security && user.security.regddevice ) ret.qr_hash = qr_hash;
-  return ret;
+  return random_hash;
 }
 
-CLapi.internals.accounts.login = function(email,token,hash,fingerprint) {
-  // given an email address and a token or a url hash, login the user
-  console.log("API login for email address: " + email + " - with token: " + token + " or hash: " + hash + " and fingerprint: " + fingerprint);
-  email = email.toLowerCase();
-  remove_expired_login_codes();
+function template(str,opts) {
+  for ( var k in opts ) {
+    var re = new RegExp('\{\{' + k.toUpperCase() + '\}\}','g');
+    str = str.replace(re,opts[k]);
+  }
+  return str;
+}
+
+CLapi.internals.accounts = {};
+
+CLapi.internals.accounts.service = function(location) {
+  // update this to accept settings object too, which should update the service settings
+  // at which point perhaps service settings should be on mongo rather than in a text file
+  // return the options for a given location
+  location = location.trim('/');
+  if ( login_services[location] === undefined) {
+    console.log('BAD TOKEN ATTEMPT FROM ' + location);
+    return false;
+    // should not be logging in from a page we don't set as being able to provide login functionality. 
+    // Say nothing, no explanation. Worth sending a sysadmin email?
+  } else {
+    var opts = {};
+    for ( var o in login_services.default ) opts[o] = login_services.default[o];
+    for ( var k in login_services[location] ) opts[k] = login_services[location][k];
+    return opts;
+  }
+}
+
+// receive a device fingerprint and perhaps some settings (e.g. to make it a registered / named device)
+CLapi.internals.accounts.fingerprint = function(uid,fingerprint) {
+  // TODO fingerprint should go in devices area of account, with mutliple fingerprints and useful info possible
+  // for now just sets the fingerprint
+  var user = CLapi.internals.accounts.retrieve(uid);
+  var set = {}
+  if (user.security) {
+    set['security.fingerprint'] = fingerprint;    
+  } else {
+    set.security = {fingerprint:fingerprint}
+  }
+  Meteor.users.update(user._id, {$set: set});
+}
+
+// require email string, optional fingerprint string
+// expect service object, containing a service key pointing to service object data
+// which can contain a role - or get role from service options now?
+CLapi.internals.accounts.register = function(opts) {
+  if (opts.email === undefined) return false;
+  // fingerprint cannot be mandatory because it can not be used easily on APIs
+  var user = CLapi.internals.accounts.retrieve(opts.email);
+  if ( !user ) {
+    var set = { email: opts.email };
+    if (opts.fingerprint) {
+      //set.devices = {};
+      //set.devices[opts.fingerprint] = {};
+      set.security = {fingerprint:opts.fingerprint};
+      // TODO should have a devices area with mutliple fingerprints and device info possible
+    }
+    set.service = {};
+    if ( opts.service ) set.service[opts.service.service] = {profile:{}}; // TODO this should save service info if necessary
+    var creds = CLapi.internals.accounts.create( set );
+    user = CLapi.internals.accounts.retrieve(creds._id);
+  } else {
+    if (opts.fingerprint) CLapi.internals.accounts.fingerprint(user._id,opts.fingerprint);
+  }
+  if ( opts.service ) {
+    if ( user.service === undefined ) user.service = {};
+    if ( user.service[opts.service.service] === undefined ) user.service[opts.service.service] = {profile:{}};
+    // TODO are there any values in service settings that should be saved into the service object on account creation?
+    Meteor.users.update(user._id, {$set: {'service':user.service}});
+    if (opts.service.role && ( !user.roles || !user.roles[opts.service.service] || user.roles[opts.service.service].indexOf(opts.service.role) === -1 ) ) {
+      Roles.addUsersToRoles(user._id, opts.service.role, opts.service.service);
+    }
+  }
+}
+
+CLapi.internals.accounts.token = function(email,loc,fingerprint) {
+  // check that loc is in the allowed signin locations list (can be faked, but worthwhile)
+  // TODO need a check to see if the location they want to sign in to is one that allows registrations without confirmation
+  // if it does not, and if the user account is not already known and with access to the requested service name, then the token should be denied
+  // if this does happen, then an account request for the specified service should probably be generated somehow
+  var opts = CLapi.internals.accounts.service(loc);
+  if (!opts) return {};
+  console.log(email + ' token request via API');
+  opts.logincode = generate_random_code(Meteor.settings.LOGIN_CODE_LENGTH);
+  var loginhash = generate_random_code();
+  if (opts.loginurl === undefined) opts.loginurl = loc;
+  opts.loginurl += "#" + loginhash;
+  var until = (new Date()).valueOf() + (opts.timeout * 60 * 1000);
+  opts.timeout = opts.timeout >= 60 ? (opts.timeout/60) + ' hour(s)' : opts.timeout + ' minute(s)';
+  var user = CLapi.internals.accounts.retrieve(email);
+  opts.action = user && CLapi.cauth(opts.service.service+'.user',user) ? "login" : "registration";
+  console.log(opts);
+
+  if (opts.action === "registration" && !opts.registration) {
+    // TODO could register a registration request somehow, and then email whoever should be in charge of those for this service
+    // should be a group role request, which should trigger a request email which should have an allow/deny link
+    return { known:(user !== undefined), registration:opts.registration };
+  } else {
+    var known = false;
+    if (user) {
+      known = true;
+    } else {
+      if (!opts.role) opts.role = 'user';
+      user = CLapi.internals.accounts.register({email:email,service:opts,fingerprint:fingerprint});
+    }
+    
+    var up = {email:email,code:opts.logincode,hash:loginhash,timeout:until,service:opts.service};
+    if ( fingerprint ) up.fp = fingerprint;
+    loginCodes.upsert({email:email},up);
+
+    CLapi.internals.sendmail({ from: opts.from, to: email, subject: template(opts.subject,opts), text: template(opts.text,opts), html: template(opts.html,opts) });
+
+    var future = new Future(); // a delay here helps stop spamming of the login mechanisms
+    setTimeout(function() { future.return(); }, 333);
+    future.wait();
+    return { known:known };
+  }
+}
+
+CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resume,timestamp) {
+  var opts = CLapi.internals.accounts.service(loc);
+  if (!opts) return {};
+  // given an email address or token or hash, plus a fingerprint, login the user
+  console.log("API login for email address: " + email + " - with token: " + token + " or hash: " + hash + " or fingerprint: " + fingerprint + " or resume " + resume + " and timestamp " + timestamp);
+  loginCodes.remove({ timeout: { $lt: (new Date()).valueOf() } }); // remove old logincodes
   var loginCode;
-  if (token !== undefined) loginCode = loginCodes.findOne({email:email,code:code});
-  if (!loginCode && hash !== undefined) loginCodes.findOne({hash:hash});
-  if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { qr:hash, fp:fingerprint } ] } );
-  if ( !loginCode ) throw "API login refused for invalid code";
-  login_only_gets_one_chance(email);
-  var future = new Future();
+  var user;
+  // TODO update this
+  // a logincode should contain a token and a hash, with a timestamp and fingerprint of the device they were set for
+  // the timeout of the logincode should be the login timeout of the service, or the maxage of a cookie
+  // so when logging someone in, create a long-lasting logincode too
+  // the search for a logincode should match email+token OR email+hash+timestamp OR hash and all must provide matching fingerprint
+  // what about cookie use on the actual API itself though? The cookie has to allow actions without resetting the hash every time, if on the API
+  if (token !== undefined && email !== undefined) loginCode = loginCodes.findOne({email:email,code:token});
+  if (!loginCode && fingerprint !== undefined && email !== undefined) loginCode = loginCodes.findOne( { $and: [ { email:email, fp:fingerprint } ] } );
+  if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { hash:hash, fp:fingerprint } ] } );
+  if (!loginCode && hash !== undefined) loginCode = loginCodes.findOne({hash:hash});
+  if (!loginCode && email !== undefined && resume !== undefined && timestamp !== undefined) {
+    user = Meteor.users.findOne({'emails.address':email,'security.resume.token':Accounts._hashLoginToken(resume),'security.resume.timestamp':timestamp});
+  }
+  var future = new Future(); // a delay here helps stop spamming of the login mechanisms
   setTimeout(function() { future.return(); }, 333);
   future.wait();
-  var password = login_or_register_user_with_new_password(this,email,fingerprint,loginCode.service);
-  if (password) {
-    return {status:'success', data:{password:password}}
+  if (loginCode || user) {
+    if (email === undefined && loginCode) email = loginCode.email;
+    if (fingerprint === undefined && loginCode && loginCode.fingerprint) fingerprint = loginCode.fingerprint;
+    if (loginCode) loginCodes.remove({email:email}); // login only gets one chance
+    if (!user) {
+      CLapi.internals.accounts.register(email,fingerprint,{name:loginCode.service});
+      user = CLapi.internals.accounts.retrieve(email);
+    }
+    var newresume = generate_random_code();
+    var newtimestamp = Date.now();
+    Meteor.users.update(user._id, {$set: {'security.resume':{token:Accounts._hashLoginToken(newresume),timestamp:newtimestamp}}});
+    return {
+      status:'success', 
+      data: {
+        apikey: user.api.keys[0].key,
+        account: {
+          username:user.username,
+          profile:user.profile
+        },
+        cookie: {
+          email:email,
+          userId:user._id,
+          timestamp:newtimestamp,
+          resume: newresume
+        },
+        settings: {
+          path:'/',
+          domain: opts.domain,
+          expires: Meteor.settings.public.loginState.maxage,
+          httponly: Meteor.settings.public.loginState.HTTPONLY_COOKIES,
+          secure: opts.secure !== undefined ? opts.secure : Meteor.settings.public.loginState.SECURE_COOKIES
+        }
+      }
+    }
+  } else {
+    return {statusCode: 401, body: {status: 'error', data:'401 unauthorized'}}
+  }
+}
+
+CLapi.internals.accounts.logout = function(email,resume,timestamp,loc) {
+  if ( login_services[loc] === undefined) {
+    console.log('BAD LOGOUT ATTEMPT FROM ' + loc);
+    return {}; // should not be logging in from a page we don't set as being able to provide login functionality. Say nothing, no explanation. Worth sending a sysadmin email?
+  }
+  // may want an option to logout of all sessions...
+  if (email !== undefined && resume !== undefined && timestamp !== undefined) {
+    var user = Meteor.users.findOne({'emails.address':email,'security.resume.token':Accounts._hashLoginToken(resume),'security.resume.timestamp':timestamp});
+    if (user) {
+      var opts = {};
+      for ( var o in login_services.default ) opts[o] = login_services.default[o];
+      for ( var k in login_services[loc] ) opts[k] = login_services[loc][k];
+      Meteor.users.update(user._id, {$set: {'security.resume':{}}}); // TODO what else could be thrown away here? resume tokens?
+      return {status:'success',data:{domain:opts.domain}} // so far this is all that is needed to clear the user login cookie
+    } else {
+      return {statusCode: 401, body: {status: 'error', data:'401 unauthorized'}}
+    }
   } else {
     return {statusCode: 401, body: {status: 'error', data:'401 unauthorized'}}
   }
@@ -516,57 +600,235 @@ CLapi.internals.accounts.onlinecount = function(filter) {
 
 // no auth control on these actions, cos any code with the ability to call them directly will also have the ability to write directly to the accounts db
 // auth is handled within the API layer above, though
-CLapi.internals.accounts.create = function(data,opts) {
+// create can receive the following:
+// email REQUIRED
+// password, apikey
+// devices can be an object keyed by device fingerprint, pointing to objects containing whatever is useful about them
+// service can be an object keyed by service name, pointing to objects of info about the services. 
+// If role is set in the service objects, the roles will be set but not saved as part of the data
+CLapi.internals.accounts.create = function(data) {
   if (data.email === undefined) throw new Error('At least email field required');
   if (data.password === undefined) data.password = Random.hexString(30);
   var userId = Accounts.createUser({email:data.email,password:data.password});
   console.log("CREATED userId = " + userId);
   // create a group for this user, that they own?
-  var apikey = Random.hexString(30);
-  var apihash = Accounts._hashLoginToken(apikey);
+  if (data.apikey === undefined) data.apikey = Random.hexString(30);
   // need checks for profile data, service data, and other special fields in the incoming data
-  // update with the data that is allowed
-  Meteor.users.update(userId, {$set: {'profile':{},'security':{'fingerprint':fingerprint,'httponly':!Meteor.settings.public.loginState.HTTPONLY_COOKIES}, 'api': {'keys': [{'key':apikey, 'hashedToken': apihash, 'name':'default'}] }, 'emails.0.verified': true}});
-  // give first created user the root global role!
+  var sets = {
+    username: data.username, // a username that the user can set and change
+    profile: data.profile ? data.profile : {}, // profile data, all of which can be changed by the user
+    devices: data.devices ? data.devices : {}, // user devices associated by device fingerprint
+    security: data.security ? data.security : {}, // user devices associated by device fingerprint
+    service: {}, // services identified by service name, which can be changed by those in control of the service
+    api: {
+      keys: [
+        {
+          key: data.apikey, 
+          hashedToken: Accounts._hashLoginToken(data.apikey), 
+          name: 'default'
+        }
+      ] 
+    }, 
+    'emails.0.verified': true
+  }
+  if (data.service) {
+    for ( var s in data.service ) {
+      if ( data.service[s].role ) {
+        Roles.addUsersToRoles(userId, data.service[s].role, s);
+        delete data.service[s].role;
+      }
+      sets.service[s] = data.service[s];
+    }
+  }
+  Meteor.users.update(userId, {$set: sets});
   if ( Meteor.users.find().count() === 1 ) Roles.addUsersToRoles(userId, 'root', Roles.GLOBAL_GROUP);
-
+  return {_id:userId,password:data.password,apikey:data.apikey};
 }
+
 CLapi.internals.accounts.retrieve = function(uid) {
+  // finds and returns the full user account - NOT what should be returned to a user
   var u = Meteor.users.findOne(uid);
   if (!u) u = Accounts.findUserByUsername(uid);
   if (!u) u = Accounts.findUserByEmail(uid);
   return u;
 }
-CLapi.internals.accounts.update = function(uid,keys) {
-  Meteor.users.update(uid, {$set: keys});
+
+CLapi.internals.accounts.details = function(uid,user) {
+  // controls what should be returned about a user account based on the permission of the account asking
+  // this is for use via API access - any code with access to this lib on the server could just call accounts directly to get everything anyway
+  var uacc = user._id === uid ? user : CLapi.internals.accounts.retrieve(uid);
+  var ret = {};
+  if ( CLapi.cauth('root', user) ) {
+    // any administrative account that is allowed full access to the user account can get it here
+    ret = user;
+  } else if (user._id === uacc._id || CLapi.cauth(uacc._id + '.read', user) ) {
+    // this is the user requesting their own account - they do not get everything
+    // a user should also have a group associated to their ID, and anyone with read on that group can get this data too
+    ret._id = uacc._id;
+    ret.profile = uacc.profile;
+    ret.username = uacc.username;
+    ret.emails = uacc.emails;
+    ret.security = uacc.security; // this is security settings and info
+    ret.api = uacc.api;
+    ret.roles = uacc.roles;
+    ret.status = uacc.status;
+    if (uacc.service) {
+      ret.service = {};
+      for ( var s in uacc.service ) {
+        if ( uacc.service[s].profile ) ret.service[s] = {profile: uacc.service[s].profile}
+      }
+    }
+  } else if (uacc.service) {
+    for ( var r in uacc.service ) {
+      if ( CLapi.cauth(r + '.service', user) ) {
+        ret._id = uacc._id;
+        ret.profile = uacc.profile;
+        ret.username = uacc.username;
+        ret.emails = uacc.emails;
+        ret.roles = uacc.roles; // should roles on other services be private?
+        ret.status = uacc.status;
+        ret.service = {}
+        ret.service[r] = uacc.service[r];
+        return ret;
+      }
+    }
+  }
+  return ret;
 }
-CLapi.internals.accounts.delete = function(uid) {
+
+CLapi.internals.accounts.update = function(uid,user,keys,replace) {
+  // account update does NOT handle emails, security, api, or roles
+  var uacc = user._id === uid ? user : CLapi.internals.accounts.retrieve(uid);
+  var allowed = {};
+  if ( user._id === uacc._id || CLapi.cauth(uacc._id + '.edit', user) || CLapi.cauth('root', user) ) {
+    // this is the user requesting their own account, or anyone with edit access on the group matching the user account ID
+    // users can also edit the profile settings in a service they are a member of, if that service defined a profile for its users
+    if (keys.username) allowed.username = keys.username
+    if ( replace ) {
+      if ( keys.profile ) allowed.profile = keys.profile;
+      if ( keys.service ) {
+        for ( var k in keys.service ) {
+          if ( keys.service[k].profile ) allowed['service.'+k+'.profile'] = keys.service[k].profile
+        }
+      }
+    } else {
+      if ( keys.profile ) {
+        for ( var kp in keys.profile ) allowed['profile.'+kp] = keys.profile[kp];
+      }
+      if ( keys.service ) {
+        for ( var ks in keys.service ) {
+          if ( keys.service[ks].profile ) {
+            for ( var kk in keys.service[ks].profile ) allowed['service.'+ks+'.profile.'+kk] = keys.service[ks].profile[kk];
+          }
+        }
+      }
+    }
+    if ( CLapi.cauth('root', user) ) {
+      // the root user could also set a bunch of other things perhaps
+    }
+    Meteor.users.update(uid, {$set: allowed});
+    return true;
+  } else if ( uacc.service ) {
+    for ( var r in uacc.service ) {
+      if ( CLapi.cauth(r + '.service', user) && keys.service && keys.service[r] ) {
+        // can edit this service section of the user account
+        if (replace) {
+          allowed['service.'+r] = keys.service[r];        
+        } else {
+          allowed['service.'+r] = {}
+          for ( var kr in keys.service[r] ) allowed['service.'+r][kr] = keys.service[r][kr];
+        }
+        Meteor.users.update(uid, {$set: allowed});
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+CLapi.internals.accounts.delete = function(uid,user,service) {
   // need to remove anything else? groups they own?
   // does delete actually delete, or just set as disabled?
-  // system accounts should never delete, should just remove system section and groups/roles
-  Meteor.users.remove(uid);
+  // service accounts should never delete, should just remove service section and groups/roles
+  if ( CLapi.internals.accounts.auth('root',user) ) {
+    console.log('TODO accounts API should delete user ' + uid);
+    //Meteor.users.remove(uid);
+    return true;
+  } else {
+    return false;
+  }
 }
-CLapi.internals.accounts.auth = function() {}
-CLapi.internals.accounts.addrole = function(uid,group,role) {
-  var u = CLapi.getuser(uid);
-  Roles.addUsersToRoles(u, role, group);
+
+CLapi.internals.accounts.auth = function(gr,user,cascade) {
+  if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
+  if ( !user.roles ) return false; // if no roles can't have any auth, except on own group (above)
+  // override if user has global root always return true
+  if ( user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1 ) {
+    console.log('user ' + user._id + ' has role root');
+    return 'root';
+  }
+  // otherwise get group and role from gr or assume global role
+  var role, grp;
+  var rp = gr.split('.');
+  if ( rp.length === 1 ) {
+    grp = '__global_roles__';
+    role = rp[0];
+  } else {
+    grp = rp[0];
+    role = rp[1];
+  }
+  // check if user has group role specified
+  if ( user.roles[grp] && user.roles[grp].indexOf(role) !== -1 ) {
+    console.log('user ' + user._id + ' has role ' + gr);
+    return role;
+  }
+  // or else check for higher authority in cascading roles for group
+  // TODO ALLOW CASCADE ON GLOBAL OR NOT?
+  // cascading roles, most senior on left, allowing access to all those to the right
+  var cascading = ['root','service','super','owner','auth','admin','publish','edit','read','user','info','public'];
+  if ( cascade === undefined ) cascade = true;
+  if ( cascade ) {
+    var ri = cascading.indexOf(role);
+    if ( ri !== -1 ) {
+      var cascs = cascading.splice(0,ri);
+      for ( var r in cascs) {
+        var rl = cascs[r];
+        if ( user.roles[grp] && user.roles[grp].indexOf(rl) !== -1 ) {
+          console.log('user ' + user._id + ' has cascaded role ' + grp + '.' + rl + ' overriding ' + gr);
+          return rl;
+        }
+      }
+    }
+  }
+  // otherwise user fails role check
+  console.log('user ' + user._id + ' does not have role ' + gr);
+  return false;
+}
+
+CLapi.internals.accounts.addrole = function(uid,user,group,role) {
+  var uacc = CLapi.internals.accounts.retrieve(uid);
+  Roles.addUsersToRoles(uacc, role, group);
   return {status: 'success'};
 }
-CLapi.internals.accounts.removerole = function(uid,group,role) {
-  var u = CLapi.getuser(uid);
-  Roles.removeUsersFromRoles(u, role, group);
+
+CLapi.internals.accounts.removerole = function(uid,user,group,role) {
+  var uacc = CLapi.internals.accounts.retrieve(uid);
+  Roles.removeUsersFromRoles(uacc, role, group);
+  // remove the related service data here?
   return {status: 'success'};
 }
-CLapi.internals.accounts.allowrole = function(uid,group,role,reason) {
+
+CLapi.internals.accounts.allowrole = function(uid,user,group,role,reason) {
+  // ensure the person allowing has the right to do so
   CLapi.internals.accounts.addrole(uid,group,role);
-  var r = Role_requests.findOne({uid:uid,group:group,role:role});
-  Role_requests.remove(r);
+  role_request.remove({uid:uid,group:group,role:role});
   // TODO email the user and inform them of group added, with reason if present
   return {status: 'success'}
 }
-CLapi.internals.accounts.denyrole = function(uid,group,role,reason) {
-  var r = Role_requests.findOne({uid:uid,group:group,role:role});
-  Role_requests.update(r,{$set:{denied:true}}); // TODO should be denied date?
+
+CLapi.internals.accounts.denyrole = function(uid,user,group,role,reason) {
+  var r = role_request.findOne({uid:uid,group:group,role:role});
+  role_request.update(r,{$set:{denied:true}}); // TODO should be denied date?
   // TODO email the user and inform them of group denied, with reason if present
   return {status: 'success'}  
 }

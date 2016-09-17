@@ -38,6 +38,9 @@ CLapi.addRoute('convert', {
 });
 
 
+
+CLapi.internals.convert = {};
+
 CLapi.internals.convert.run = function(url,from,to,content,opts) {
   var which, proc, output;
   if ( from === 'table' ) { // convert html table in web page

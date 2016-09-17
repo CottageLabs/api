@@ -1,6 +1,6 @@
 // javascript server code for managing user registration/login/logout
 
-var loginCodes = new Meteor.Collection("logincodes");
+//var loginCodes = new Meteor.Collection("logincodes");
 var Future = Npm.require('fibers/future');
 
 function remove_expired_login_codes() {
@@ -39,7 +39,7 @@ function login_or_register_user_with_new_password(callbackObj,email,fingerprint,
     Meteor.users.update(userId, {$set: {'service':user.service}});
     Roles.addUsersToRoles(userId, 'user', service);
   }
-  callbackObj.setUserId(userId);
+  //callbackObj.setUserId(userId);
   return password;
 }
 
@@ -197,9 +197,7 @@ Meteor.methods({
   login_via_cookie: function (email) {
     check(email,String);
     console.log("login via cookie for email address: " + email);
-    email = email.toLowerCase();
-    var password = login_or_register_user_with_new_password(this,email);
-    return password;
+    return login_or_register_user_with_new_password(this,email);
   },
 
   cancel_login_code: function (email) {
@@ -219,21 +217,12 @@ Meteor.methods({
 
     var loginCode = loginCodes.findOne({hash:hash});
     if (!loginCode) loginCode = loginCodes.findOne( { $and: [ { qr:hash, fp:fingerprint } ] } );
-    if ( loginCode ) {
-      login_only_gets_one_chance(loginCode.email);
-    }
-
-    // I don't want bots just brute-force attacking the server to guess the login access. To prevent
-    // that I'll force a minor little delay, minor enough to not bother a real user but enough to
-    // relay annoy a billion bots. The make-it-look-synchronous part of this delate is taken from
-    // what I learned at: https://gist.github.com/possibilities/3443021
+    if ( loginCode ) login_only_gets_one_chance(loginCode.email);
     var future = new Future();
     setTimeout(function() { future.return(); }, 333);
     future.wait();
 
-    if ( !loginCode ) {
-      throw "blech; invalid code";
-    }
+    if ( !loginCode ) throw "blech; invalid code";
     return {email:loginCode.email,pwd:login_or_register_user_with_new_password(this,loginCode.email,fingerprint,loginCode.service)};
   }
 

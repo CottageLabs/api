@@ -6,7 +6,6 @@
 
 CLapi.addRoute('es/check', {
   get: {
-    authRequired: true,
     roleRequired: 'root', // decide which roles should get access - probably within the function, depending on membership of corresponding groups
     action: function() {
       return {status: 'success', data:CLapi.internals.es.check()};
@@ -16,7 +15,6 @@ CLapi.addRoute('es/check', {
 
 CLapi.addRoute('es/import', {
   post: {
-    authRequired: true,
     roleRequired: 'root', // decide which roles should get access - probably within the function, depending on membership of corresponding groups
     action: function() {
       return {status: 'success', data:CLapi.internals.es.import(this.request.body)};

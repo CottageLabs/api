@@ -69,13 +69,9 @@ CLapi.addRoute('service/oab', {
     }
   },
   post: {
-    authRequired:true,
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.user',this.user ) ) {
-        return {status: 'success', data: {info: 'You are authenticated'} };
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return {status: 'success', data: {info: 'You are authenticated'} };
     }
   }
 });
@@ -119,25 +115,17 @@ CLapi.addRoute('service/oab/availability', {
 
 CLapi.addRoute('service/oab/request', {
   get: {
-    authRequired: true,
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.user',this.user ) ) {
-        return {status: 'success', data: 'You have access :)'}
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return {status: 'success', data: 'You have access :)'}
     }
   },
   post: {
-    authRequired: true,
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
-        var req = this.request.body;
-        req.test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
-        return CLapi.internals.service.oab.request(req,this.userId);
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      var req = this.request.body;
+      req.test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
+      return CLapi.internals.service.oab.request(req,this.userId);
     }
   }
 });
@@ -156,23 +144,15 @@ CLapi.addRoute('service/oab/request/:rid', {
 
 CLapi.addRoute('service/oab/support/:rid', {
   get: {
-    authRequired: true,
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
-        return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId);
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId);
     }
   },
   post: {
-    authRequired: true,
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.user',this.user) ) {
-        return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId); // this post could contain data to add to the support note
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId); // this post could contain data to add to the support note
     }
   }
 });
@@ -245,23 +225,15 @@ CLapi.addRoute('service/oab/embed/:rid', {
 
 CLapi.addRoute('service/oab/accepts', {
   get: {
-    authRequired:true,
+    roleRequired:'openaccessbutton.admin',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.admin',this.user ) ) {
-        return {status:'success',data:CLapi.internals.service.oab.accepts()};
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return {status:'success',data:CLapi.internals.service.oab.accepts()};
     }
   },
   post: {
-    authRequired:true,
+    roleRequired:'openaccessbutton.admin',
     action: function() {
-      if ( CLapi.cauth('openaccessbutton.admin',this.user ) ) {
-        return {status:'success',data:CLapi.internals.service.oab.accepts(this.request.body)};
-      } else {
-        return {statusCode: 401, body: {status: 'error', data: {info: 'You are not a member of the necessary group'}}}
-      }
+      return {status:'success',data:CLapi.internals.service.oab.accepts(this.request.body)};
     }
   }
 });

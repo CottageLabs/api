@@ -87,8 +87,7 @@ CLapi = new Restivus({
           xapikey = this.request.query.apikey;
         } catch(err) {}
       }
-      
-      if ( !xapikey ) { // this is for oabutton mostly, as it passes apikey as api_key in the request body
+      if ( !xapikey ) { // this is for oabutton mostly, as the old oabutton system passes apikey as api_key in the request body
         try {
           xapikey = this.request.query.api_key;
         } catch(err) {}
@@ -104,17 +103,14 @@ CLapi = new Restivus({
         } catch(err) {}
       }
       if ( xid === undefined && xapikey ) {
-        // allow user login just by apikey - check then that they are an oabutton user?
-        console.log('User providing apikey only - checking. This ability should be deprecated, only in use by oabutton');
+        console.log('User providing apikey only - checking. This ability should be removed');
         try {
           var acc = Meteor.users.findOne({'api.keys.key':xapikey});
           xid = acc._id;
         } catch(err) {}
-      } // end of oabutton oddity
+      }
 
-      if (!xid && !Meteor.settings.public.loginState.HTTPONLY_COOKIES && this.request.headers.cookie) { 
-        // and check if user allows non-http cookies 
-        // May not matter because if not allowed they won't get sent anyway = UNLESS someone is being evil, so check anyway
+      if (!xid && !Meteor.settings.public.loginState.HTTPONLY_COOKIES && this.request.headers.cookie) {
         var name = Meteor.settings.public.loginState.cookieName + "=";
         var ca = this.request.headers.cookie.split(';');
         var cookie;
@@ -127,29 +123,23 @@ CLapi = new Restivus({
             }
             return "";
           }()));
-          u = Meteor.users.findOne(cookie.userId);
-        } catch(err) {
-          u = false;
-        }
-        // TODO some way to check device fingerprint? then confirm against that stored in cookie
-        if (u) {
-          if (true) {//} !(u.profile && u.profile.security && (u.profile.security.httponly === undefined || !u.profile.security.httponly) ) ) {
-            var fp = '';
-            try {
-              fp = u.security.fingerprint;
-            } catch(err) {}
-            if ( cookie.fp === fp) {
-              console.log('User authenticated by cookie - WHICH IS WEAK!');
-              xid = u._id;
-              xapikey = u.api.keys[0].key;              
-            } else {
-              console.log('POTENTIAL COOKIE THEFT!!! ' + cookie.userId);            
-            }
+          console.log(cookie);
+          u = Meteor.users.findOne({'emails.address':cookie.email,'security.resume.token':Accounts._hashLoginToken(cookie.resume),'security.resume.timestamp':cookie.timestamp});
+          if (u) {
+            console.log('User authenticated by cookie with timestamped resume token');
           } else {
-            console.log('POTENTIAL COOKIE THEFT!!! ' + cookie.userId);
+            u = Meteor.users.findOne({'emails.address':cookie.email,'security.fingerprint':cookie.fp,'security.resume.timestamp':cookie.timestamp});          
+            if (u) console.log('User authenticated by cookie with timestamp and fingerprint');
           }
-        }
+          if (u) {
+            xid = u._id;
+            xapikey = u.api.keys[0].key;
+          } else {
+            console.log('POTENTIAL COOKIE THEFT!!! ' + cookie.userId);            
+          }
+        } catch(err) {}
       }
+      
       if ( xid === undefined ) xid = '';
       if ( xapikey === undefined ) xapikey = '';
       // TODO could add login logging here...
@@ -163,7 +153,8 @@ CLapi = new Restivus({
 });
 
 // set a place to store internal methods - add a key whenever a new folder is added into the API endpoints folder
-CLapi.internals = {accounts:{}, academic:{}, use:{}, service:{}, convert:{}, scripts:{}, tdm: {}};
+// or these can be declared in one of the files that needs them too - but useful to have here perhaps
+CLapi.internals = {academic:{}, use:{}, service:{}, scripts:{}};
 
 CLapi.addRoute('/', {
   get: {
@@ -195,50 +186,9 @@ CLapi.addRoute('list', {
   }
 });
 
+// TODO these functions should be removed once all the code is checked to not rely on them any more
 CLapi.cauth = function(gr, user, cascade) {
-  if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
-  if ( !user.roles ) return false; // if no roles can't have any auth, except on own group (above)
-  // override if user has global root always return true
-  if ( user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1 ) {
-    console.log('user ' + user._id + ' has role root');
-    return 'root';
-  }
-  // otherwise get group and role from gr or assume global role
-  var role, grp;
-  var rp = gr.split('.');
-  if ( rp.length === 1 ) {
-    grp = '__global_roles__';
-    role = rp[0];
-  } else {
-    grp = rp[0];
-    role = rp[1];
-  }
-  // check if user has group role specified
-  if ( user.roles[grp] && user.roles[grp].indexOf(role) !== -1 ) {
-    console.log('user ' + user._id + ' has role ' + gr);
-    return role;
-  }
-  // or else check for higher authority in cascading roles for group
-  // TODO ALLOW CASCADE ON GLOBAL OR NOT?
-  // cascading roles, most senior on left, allowing access to all those to the right
-  var cascading = ['root','system','super','owner','auth','admin','publish','edit','read','user','info','public'];
-  if ( cascade === undefined ) cascade = true;
-  if ( cascade ) {
-    var ri = cascading.indexOf(role);
-    if ( ri !== -1 ) {
-      var cascs = cascading.splice(0,ri);
-      for ( var r in cascs) {
-        var rl = cascs[r];
-        if ( user.roles[grp] && user.roles[grp].indexOf(rl) !== -1 ) {
-          console.log('user ' + user._id + ' has cascaded role ' + grp + '.' + rl + ' overriding ' + gr);
-          return rl;
-        }
-      }
-    }
-  }
-  // otherwise user fails role check
-  console.log('user ' + user._id + ' does not have role ' + gr);
-  return false;
+  return CLapi.internals.accounts.auth(gr, user, cascade);
 }
 CLapi.rcauth = function(grs, user, cascade) {
   for ( var ro in grs ) {
@@ -249,10 +199,7 @@ CLapi.rcauth = function(grs, user, cascade) {
 }
 
 CLapi.getuser = function(uid) {
-  var u = Meteor.users.findOne({_id:uid});
-  if (!u) u = Accounts.findUserByUsername(uid);
-  if (!u) u = Accounts.findUserByEmail(uid);
-  return u;
+  return CLapi.internals.accounts.retrieve(uid);
 }
 
 
