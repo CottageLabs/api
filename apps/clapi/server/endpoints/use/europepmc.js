@@ -62,19 +62,24 @@ CLapi.addRoute('use/europepmc/pmc/:qry', {
 CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
   get: {
     action: function() {
-      var res = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
-      if (res) {
-        return {status: 'success', data: res.data.resultList.result[0] }
-        this.response.writeHead(200, {
-          'Content-type': 'application/xml',
-          'Content-length': res.length
-        });        
-        this.response.write(res);
-        this.done();
-        return {};
-      } else {
-        return {statusCode: 404, body: {status: 'error', data: '404 not found' }}        
+      var ft_envelope;
+      ft_envelope = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
+      if(ft_envelope.error) {
+        if (ft_envelope.error == 404) {
+          console.log(this.urlParams.qry + ' not found when fetching EPMC full text XML.');
+          return {statusCode: 404, body: {status: 'error', data: '404 not found. Not found in EPMC.' }};
+        } else {
+          console.log('Error while fetching EPMC full text XML for ' + this.urlParams.qry + '. Most probably EPMC is temporarily down.');
+          return {statusCode: 404, body: {status: 'error', data: '404 not found. Error when getting from EPMC.'}};
+        }
       }
+      this.response.writeHead(200, {
+        'Content-type': 'application/xml',
+        'Content-length': ft_envelope.fulltext.length
+      });
+      this.response.write(ft_envelope.fulltext);
+      this.done();
+      return {};
     }
   }
 });
@@ -223,7 +228,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+    if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
     if (fulltext) {
       var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
       // console.log(pmcid + ' licinperms XML check: ' + licinperms);
@@ -282,11 +287,21 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    if (fulltext && fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
-      // console.log("First call for AAM XML");
-      return 'Y_IN_EPMC_FULLTEXT';
-    } else if ( pmcid ) {
-      var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid);
+    var ft_arg_checked = false;
+    if (fulltext) {
+      if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+        // console.log("First call for AAM XML");
+        // ft_arg_checked = true;  // technically true but not necessary since we return
+        return 'Y_IN_EPMC_FULLTEXT';
+      } else {
+        // so far AAM is false
+        ft_arg_checked = true;  // but don't return yet - in case both pmcid and fulltext args are passed in, we should try using the pmcid next before deciding "false"
+      }
+    }
+    
+    if ( pmcid ) {
+      var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
+
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
         // console.log("Different call for AAM XML");
         return 'Y_IN_EPMC_FULLTEXT';
@@ -311,14 +326,20 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
             return false;
           }
         } catch(err) {
-          return false;
+          if(err.response.statusCode === 404) {
+            return 'unknown-not-found-in-epmc'
+          } else {
+            return 'unknown-error-accessing-epmc';
+          }
         }
       }
     } else {
-      return false;
+      if (ft_arg_checked) return false;
+      return 'unknown';
     }
   } else {
-    return false;
+    if (ft_arg_checked) return false;
+    return 'unknown';
   }
 }
 
@@ -329,11 +350,13 @@ CLapi.internals.use.europepmc.fulltextXML = function(pmcid,rec) {
   if (!pmcid) pmcid = rec.pmcid;
   if (pmcid) pmcid = pmcid.toLowerCase().replace('pmc','');
   var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/PMC' + pmcid + '/fullTextXML';
-  var fulltext = false;
+  var result = {fulltext: undefined, error: false};
   try {
-    var r = Meteor.http.call('GET',url);
-    if (r.statusCode === 200) fulltext = r.content;
-  } catch(err) {}// meteor http call get will throw error on 404
-  return fulltext;
+    var r = Meteor.http.call('GET', url);
+    if (r.statusCode === 200) result.fulltext = r.content;
+  } catch(err) {
+    result.error = err.response.statusCode;
+  }
+  return result;
 }
 

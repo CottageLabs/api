@@ -697,7 +697,7 @@ CLapi.internals.service.lantern.process = function(processid) {
       eissn: undefined // do we want eissn separate from issn? for now just uses issn
     },
     publisher: undefined,
-    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results
+    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results, 0 if unknown article
     in_epmc: false, // set to true if found
     is_aam: false, // set to true if is an eupmc author manuscript
     is_oa: false, // set to true if eupmc or other source says is oa
@@ -801,7 +801,7 @@ CLapi.internals.service.lantern.process = function(processid) {
               prst = prst.replace('"','');
               var res2 = CLapi.internals.use.europepmc[stt](prst);
               if (res2.total && res2.total === 1) {
-                eupmc = res.data[0];
+                eupmc = res2.data[0];
                 result.confidence = 0.7;                
               }
             }
@@ -863,9 +863,20 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.electronicPublicationDate = _formatepmcdate(eupmc.electronicPublicationDate);
       result.provenance.push('Added electronic publication date from EUPMC');
     }
-    var ft;
-    if (result.is_oa && result.in_epmc) ft = CLapi.internals.use.europepmc.fulltextXML(undefined,eupmc);
-    if (!ft && result.pmcid) { ft = CLapi.internals.use.europepmc.fulltextXML(result.pmcid); }
+
+    var ft_envelope;
+    if (result.is_oa && result.in_epmc) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
+    if (!ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
+
+    if(ft_envelope.error) {
+      if (ft_envelope.error == 404) {
+        result.provenance.push('Not found in EUPMC when trying to fetch full text XML.');
+      } else {
+        result.provenance.push('Encountered an error while retrieving the EUPMC full text XML. One possible reason is EUPMC being temporarily unavailable.');
+      }
+    }
+    
+    var ft = ft_envelope.fulltext;
     if (ft) {
       result.has_fulltext_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
@@ -893,11 +904,20 @@ CLapi.internals.service.lantern.process = function(processid) {
     }
     if (result.in_epmc) {
       var aam = CLapi.internals.use.europepmc.authorManuscript(result.pmcid,eupmc);
-      if (aam !== false) {
+      if (aam === false) {
+        result.is_aam = false;
+        result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');
+      } else if (aam.startsWith('Y')) {
         result.is_aam = true;
         result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
+      } else if (aam === 'unknown-not-found-in-epmc') {
+        result.is_aam = 'unknown';
+        result.provenance.push('Unable to locate Author Manuscript information in EUPMC - could not find the article in EUPMC.');
+      } else if (aam === 'unknown-error-accessing-epmc') {
+        result.is_aam = 'unknown';
+        result.provenance.push('Error accessing EUPMC while trying to locate Author Manuscript information. EUPMC could be temporarily unavailable.');
       } else {
-        result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');      
+        result.is_aam = 'unknown';
       }
     }
   } else {
@@ -1352,10 +1372,12 @@ var _formatwellcome = function(result) {
   }
   if (!result.in_epmc) {
     result['Author Manuscript?'] = "not applicable";
-  } else if (result.is_aam) {
+  } else if (result.is_aam === true) {
     result['Author Manuscript?'] = "TRUE";
-  } else {
+  } else if (result.is_aam === false) {
     result['Author Manuscript?'] = "FALSE";
+  } else {
+    result['Author Manuscript?'] = "unknown";
   }
   if (result.aheadofprint === false) {
     result['Ahead of Print?'] = 'FALSE';

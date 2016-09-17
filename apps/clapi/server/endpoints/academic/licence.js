@@ -88,7 +88,8 @@ CLapi.internals.academic.licence = function(url,resolve,content,start,end,refres
     
     var text;
     try {
-      text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');
+      // text = CLapi.internals.convert.xml2txt(undefined,content).toLowerCase().replace(/[^a-z0-9]/g,'');  / seems to munge up the XML somehow, TODO alternative xml2txt
+      text = content.toLowerCase().replace(/[^a-z0-9]/g,'');
     } catch(err) {}
     if (text) {
       for ( var i in licences ) {
