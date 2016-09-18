@@ -70,7 +70,7 @@ CLapi.addRoute('accounts/:id', {
     authRequired: true,
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      return u ? CLapi.internals.accounts.details(this.urlParams.id,this.user) : {statusCode: 404, body:{} };
+      return u ? CLapi.internals.accounts.details(u._id,this.user) : {statusCode: 404, body:'404 NOT FOUND' };
     }
   },
   post: {
@@ -78,9 +78,9 @@ CLapi.addRoute('accounts/:id', {
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if (!u) {
-        return {statusCode: 404, body:{} };
+        return {statusCode: 404, body:'404 NOT FOUND' };
       } else {
-        var updated = CLapi.internals.accounts.update(this.urlParams.id,this.user,this.request.body);
+        var updated = CLapi.internals.accounts.update(u._id,this.user,this.request.body);
         return updated ? {status: 'success'} : {status: 'error'};
       }
     }
@@ -90,9 +90,9 @@ CLapi.addRoute('accounts/:id', {
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if (!u) {
-        return {statusCode: 404, body:{} };
+        return {statusCode: 404, body:'404 NOT FOUND' };
       } else {
-        var updated = CLapi.internals.accounts.update(this.urlParams.id,this.user,this.request.body,true);
+        var updated = CLapi.internals.accounts.update(u._id,this.user,this.request.body,true);
         return updated ? {status: 'success'} : {status: 'error'};
       }
     }
@@ -102,9 +102,9 @@ CLapi.addRoute('accounts/:id', {
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
       if (!u) {
-        return {statusCode: 404, body:{} };
+        return {statusCode: 404, body:'404 NOT FOUND' };
       } else {
-        var deleted = CLapi.internals.accounts.delete(this.urlParams.id,this.user,this.urlParams.service);
+        var deleted = CLapi.internals.accounts.delete(u._id,this.user,this.urlParams.service);
         return deleted ? {status: 'success'} : {status: 'error'};
       }
     }
@@ -660,7 +660,7 @@ CLapi.internals.accounts.details = function(uid,user) {
   var ret = {};
   if ( CLapi.cauth('root', user) ) {
     // any administrative account that is allowed full access to the user account can get it here
-    ret = user;
+    ret = uacc;
   } else if (user._id === uacc._id || CLapi.cauth(uacc._id + '.read', user) ) {
     // this is the user requesting their own account - they do not get everything
     // a user should also have a group associated to their ID, and anyone with read on that group can get this data too
