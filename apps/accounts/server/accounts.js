@@ -157,8 +157,8 @@ Meteor.methods({
                 '<p><font size="-1">note: this single-use code is only valid for ' + tmott + '.</font></p>' +
                 '</body></html>';
     if ( login_services[loc] !== undefined && login_services[loc].html ) htm = login_services[loc].html;
-    txt = txt.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
-    htm = htm.replace('{{CODE}}',random_code).replace(/\{\{URL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
+    txt = txt.replace('{{LOGINCODE}}',random_code).replace(/\{\{LOGINURL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
+    htm = htm.replace('{{LOGINCODE}}',random_code).replace(/\{\{LOGINURL\}\}/g,login_link_url).replace('{{TIMEOUT}}',tmott);
 
     Email.send({
       from: fr,
