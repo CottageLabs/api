@@ -1,10 +1,10 @@
 CLapi.addRoute('scripts/fixme', {
-  post: {
-    authRequired: true,
+  get: {
+    //authRequired: true,
     roleRequired: 'root',
     action: function() {
-      var u = CLapi.internals.accounts.retrieve('mark@cottagelabs.com');
-      Meteor.users.update(u._id,{$set:{'security.httponly':false}});
+      Meteor.users.remove({api:{$exists:false}});
+      //Meteor.users.update(u._id,{$set:{'security.httponly':false}});
       return {};
     }
   }

@@ -42,6 +42,7 @@ CLapi.addRoute('accounts/logout', {
     }
   }
 });
+
 CLapi.addRoute('accounts/count', {
   get: {
     action: function() {
@@ -65,6 +66,24 @@ CLapi.addRoute('accounts/online/count', {
     }
   }
 });
+
+CLapi.addRoute('accounts/query/count/:query', {
+  get: {
+    //roleRequired: 'root',
+    action: function() {
+      return Meteor.users.find(JSON.parse(this.urlParams.query)).count();
+    }
+  }
+});
+CLapi.addRoute('accounts/query/:query', {
+  get: {
+    roleRequired: 'root',
+    action: function() {
+      return Meteor.users.find(JSON.parse(this.urlParams.query)).fetch();
+    }
+  }
+});
+
 CLapi.addRoute('accounts/:id', {
   get: {
     authRequired: true,
@@ -169,6 +188,7 @@ CLapi.addRoute('accounts/:id/status', {
     }
   }
 });*/
+
 CLapi.addRoute('accounts/:id/service/:sys', {
   post: {
     authRequired: true,
@@ -208,6 +228,7 @@ CLapi.addRoute('accounts/:id/service/:sys', {
     }
   }
 });
+
 CLapi.addRoute('accounts/:id/roles/:grouprole', {
   post: {
     authRequired: true,
