@@ -2,7 +2,7 @@
 var Future = Npm.require('fibers/future');
 loginCodes = new Meteor.Collection("logincodes");
 role_request = new Mongo.Collection("role_request");
-CLapi.addCollection(loginCodes);
+//CLapi.addCollection(loginCodes);
 
 CLapi.addRoute('accounts', {
   get: {
@@ -615,7 +615,6 @@ CLapi.internals.accounts.create = function(data) {
   if (data.apikey === undefined) data.apikey = Random.hexString(30);
   // need checks for profile data, service data, and other special fields in the incoming data
   var sets = {
-    username: data.username, // a username that the user can set and change
     profile: data.profile ? data.profile : {}, // profile data, all of which can be changed by the user
     devices: data.devices ? data.devices : {}, // user devices associated by device fingerprint
     security: data.security ? data.security : {}, // user devices associated by device fingerprint
@@ -631,6 +630,7 @@ CLapi.internals.accounts.create = function(data) {
     }, 
     'emails.0.verified': true
   }
+  if (data.username) sets.username = data.username;
   if (data.service) {
     for ( var s in data.service ) {
       if ( data.service[s].role ) {

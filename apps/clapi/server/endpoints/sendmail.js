@@ -28,6 +28,15 @@ CLapi.addRoute('sendmail/test', {
   }
 });
 
+CLapi.addRoute('sendmail/error', {
+  post: {
+    action: function() {
+      CLapi.internals.sendmail_error(this.request.body);
+      return {};
+    }
+  }
+});
+
 CLapi.internals.sendmail = function(opts,mail_url) {
   console.log('Sending an email');
   // should change this to use mailgun API instead of smtp
@@ -59,4 +68,12 @@ CLapi.internals.sendmail_test = function() {
   });
 }
 
+CLapi.internals.sendmail_error = function(content) {
+  CLapi.internals.sendmail({
+    from: "mark@cottagelabs.com",
+    to: "mark@cottagelabs.com",
+    subject: 'An error dump',
+    text: JSON.stringify(content,undefined,2)
+  });
+}
 
