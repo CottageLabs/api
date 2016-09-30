@@ -289,7 +289,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
     if (!pmcid && rec) pmcid = rec.pmcid;
     var ft_arg_checked = false;
     if (fulltext) {
-      if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+      if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1 && fulltext.indexOf('pub-id-type="manuscript"') !== -1) {
         // console.log("First call for AAM XML");
         // ft_arg_checked = true;  // technically true but not necessary since we return
         return 'Y_IN_EPMC_FULLTEXT';
@@ -302,7 +302,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
     if ( pmcid ) {
       var ft = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
 
-      if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1) {
+      if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1 && fulltext.indexOf('pub-id-type="manuscript"') !== -1) {
         // console.log("Different call for AAM XML");
         return 'Y_IN_EPMC_FULLTEXT';
       } else {
