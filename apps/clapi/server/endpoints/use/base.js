@@ -10,11 +10,7 @@
 CLapi.addRoute('use/base', {
   get: {
     action: function() {
-			if ( this.queryParams.q ) {
-				return CLapi.internals.use.base.search(this.queryParams.q);
-			} else {
-	      return {status: 'success', data: {info: 'Provides access to a subset of the BASE API'} };
-			}
+			return {status: 'success', data: {info: 'Provides access to a subset of the BASE API'} };
     }
   }
 });

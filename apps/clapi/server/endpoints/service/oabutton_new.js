@@ -11,7 +11,7 @@ oab_availability = new Mongo.Collection("oab_availability"); // records use of t
 oab_request = new Mongo.Collection("oab_request"); // records use of that endpoint
 
 oab_availability.before.insert(function (userId, doc) {
-  doc.createdAt = Date.now();
+  if (!doc.createdAt) doc.createdAt = Date.now();
 });
 oab_availability.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/availability/' + this._id, doc);
@@ -27,7 +27,7 @@ oab_availability.after.remove(function (userId, doc) {
 });
 
 oab_request.before.insert(function (userId, doc) {
-  doc.createdAt = Date.now();
+  if (!doc.createdAt) doc.createdAt = Date.now();
 });
 oab_request.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/request/' + this._id, doc);
@@ -43,7 +43,7 @@ oab_request.after.remove(function (userId, doc) {
 });
 
 oab_support.before.insert(function (userId, doc) {
-  doc.createdAt = Date.now();
+  if (!doc.createdAt) doc.createdAt = Date.now();
 });
 oab_support.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/support/' + this._id, doc);
@@ -82,12 +82,10 @@ CLapi.addRoute('service/oab/availability', {
       var opts = {url:this.queryParams.url}
       if ( this.request.headers['x-apikey'] ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
-        var acc = Meteor.users.findOne({'api.keys.key':this.request.headers['x-apikey']});
+        var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
         if (acc) opts.uid = acc._id;
       }
-      if (opts.url && false) {
-        // check if this is a URL on the blacklist and if this is not a test submission, then return 400 so the plugin 
-        // can warn of unwillingness to accept
+      if (!this.queryParams.debug && CLapi.internals.service.oab.blacklist(opts.url)) {
         return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
       } else {
         return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
@@ -99,12 +97,10 @@ CLapi.addRoute('service/oab/availability', {
       var opts = this.request.body;
       if ( this.request.headers['x-apikey'] ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
-        var acc = Meteor.users.findOne({'api.keys.key':this.request.headers['x-apikey']});
+        var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
         if (acc) opts.uid = acc._id;
       }
-      if (opts.url && false) {
-        // check if this is a URL on the blacklist and if this is not a test submission, then return 400 so the plugin 
-        // can warn of unwillingness to accept
+      if (!opts.test && CLapi.internals.service.oab.blacklist(opts.url)) {
         return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
       } else {
         return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
@@ -134,10 +130,73 @@ CLapi.addRoute('service/oab/request/:rid', {
     action: function() {
       var r = oab_request.findOne(this.urlParams.rid);
       if (r) {
+        var uid;
+        if (this.queryParams.apikey || this.request.headers['x-apikey']) {
+          var l = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+          var u = CLapi.internals.accounts.retrieve(l);
+          if (u) uid = u._id;
+        }
+        if (!uid) {
+          try {
+            var name = Meteor.settings.public.loginState.cookieName + "=";
+            var ca = this.request.headers.cookie.split(';');
+            var cookie;
+            cookie = JSON.parse(decodeURIComponent(function() {
+              for(var i=0; i<ca.length; i++) {
+                var c = ca[i];
+                while (c.charAt(0)==' ') c = c.substring(1);
+                if (c.indexOf(name) != -1) return c.substring(name.length,c.length);
+              }
+              return "";
+            }()));
+            uid = cookie.userId;
+          } catch (err) {}
+        }
+        if (uid) r.supports = CLapi.internals.service.oab.supports(this.urlParams.rid,uid);
         return {status: 'success', data: r}
       } else {
         return {statusCode: 404, body: {status: 'error', data:'404 not found'}}
       }
+    }
+  },
+  post: {
+    roleRequired:'openaccessbutton.user',
+    action: function() {
+      var r = oab_request.findOne(this.urlParams.rid);
+      if (r) {
+        // depending on whether user, creator, or admin, affects what things can be updated
+        var n = {};
+        if (CLapi.internals.accounts.auth('openaccessbutton.admin',this.user)) {
+          if (this.request.body.test !== undefined) n.test = this.request.body.test;
+          if (this.request.body.status !== undefined) n.status = this.request.body.status;
+          if (this.request.body.email !== undefined) n.email = this.request.body.email;
+          if (this.request.body.story !== undefined) n.story = this.request.body.story;
+        }
+        if (this.request.body.email !== undefined && ( CLapi.internals.accounts.auth('openaccessbutton.admin',this.user) || r.status === undefined || r.status === 'help' || r.status === 'moderate' || r.status === 'refused' ) ) n.email = this.request.body.email;
+        if (this.userId === r.user.id && this.request.body.story !== undefined) n.story = this.request.body.story;
+        if (this.request.body.url !== undefined) n.url = this.request.body.url;
+        if (this.request.body.title !== undefined) n.title = this.request.body.title;
+        if (this.request.body.doi !== undefined) n.doi = this.request.body.doi;
+        if (n.status === undefined) {
+          if ( (!r.title && !n.title) || (!r.email && !n.email) ) {
+            n.status = 'help';
+          } else if (r.status === 'help' && ( (r.title || n.title) && (r.email || n.email) ) ) {
+            n.status = 'moderate';
+          }
+        }
+        if (JSON.stringify(n) !== '{}') oab_request.update(r._id,{$set:n});
+        return oab_request.findOne(r._id); // return how it now looks? or just return success?
+      } else {
+        return {statusCode: 404, body: {status: 'error', data:'404 not found'}}
+      }
+    }
+  },
+  delete: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      oab_request.remove(this.urlParams.rid);
+      // remove support? No, keep, in case the URL gets requested in future, we can match to it again perhaps
+      return {}
     }
   }
 });
@@ -146,21 +205,30 @@ CLapi.addRoute('service/oab/support/:rid', {
   get: {
     roleRequired:'openaccessbutton.user',
     action: function() {
-      return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId);
+      return CLapi.internals.service.oab.support(this.urlParams.rid,this.queryParams.story,this.userId);
     }
   },
   post: {
     roleRequired:'openaccessbutton.user',
     action: function() {
-      return CLapi.internals.service.oab.support(this.urlParams.rid,this.userId); // this post could contain data to add to the support note
+      return CLapi.internals.service.oab.support(this.urlParams.rid,this.request.body.story,this.userId);
     }
   }
 });
 
-CLapi.addRoute('service/oab/query', {
+CLapi.addRoute('service/oab/supports/:rid', {
+  get: {
+    roleRequired:'openaccessbutton.user',
+    action: function() {
+      return CLapi.internals.service.oab.supports(this.urlParams.rid,this.userId);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/supports', {
   get: {
     action: function() {
-      var rt = '/oabutton/request/_search';
+      var rt = '/oab/support/_search';
       if (this.queryParams) {
         rt += '?';
         for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
@@ -168,6 +236,59 @@ CLapi.addRoute('service/oab/query', {
       var data;
       if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
       return CLapi.internals.es.query('GET',rt,data);
+    }
+  },
+  post: {
+    action: function() {
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('POST','/oab/support/_search',data);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/query', {
+  get: {
+    action: function() {
+      var rt = '/oab/request/_search';
+      if (this.queryParams) {
+        rt += '?';
+        for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
+      }
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('GET',rt,data);
+    }
+  },
+  post: {
+    action: function() {
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('POST','/oab/request/_search',data);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/users', {
+  get: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      var rt = '/clapi/accounts/_search';
+      if (this.queryParams) {
+        rt += '?';
+        for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
+      }
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('GET',rt,data);
+    }
+  },
+  post: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('POST','/clapi/accounts/_search',data);
     }
   }
 });
@@ -180,10 +301,10 @@ CLapi.addRoute('service/oab/embed/:rid', {
       if (b) {
         b.count = 0; // TODO this shold be stored in the request object
         var title = b.url;
-        if ( b.metadata && b.metadata.title ) title = b.metadata.title;
+        if ( b.title ) title = b.title;
         var template = '<div style="width:800px;padding:0;margin:0;"> \
   <div style="padding:0;margin:0;float:left;width:150px;height:200px;background-color:white;border:2px solid #398bc5;;"> \
-    <img src="//openaccessbutton.org/static/oabutton_logo_final200.png" style="height:100%;width:100%;"> \
+    <img src="//openaccessbutton.org/static/icon_OAB.png" style="height:100%;width:100%;"> \
   </div> \
   <div style="padding:0;margin:0;float:left;width:400px;height:200px;background-color:#398bc5;;"> \
     <div style="height:166px;"> \
@@ -194,7 +315,7 @@ CLapi.addRoute('service/oab/embed/:rid', {
       </p> \
       <p style="margin:2px;color:white;font-size:16px;text-align:center;font-family:Sans-Serif;"> \
         Request for content related to the article <br> \
-        <a target="_blank" id="odb_article" href="https://openaccessbutton.org/request/' + rid + '" style="font-style:italic;color:white;font-family:Sans-Serif;"> \
+        <a target="_blank" id="oab_article" href="https://openaccessbutton.org/request/' + rid + '" style="font-style:italic;color:white;font-family:Sans-Serif;"> \
         ' + title + '</a> \
       </p> \
     </div> \
@@ -207,7 +328,7 @@ CLapi.addRoute('service/oab/embed/:rid', {
     </div> \
   </div> \
   <div style="padding:0;margin:0;float:left;width:200px;height:200px;background-color:#212f3f;"> \
-    <h1 style="text-align:center;font-size:50px;color:#f04717;font-family:Sans-Serif;" id="odb_counter"> \
+    <h1 style="text-align:center;font-size:50px;color:#f04717;font-family:Sans-Serif;" id="oab_counter"> \
     ' + b.count + '</h1> \
     <p style="text-align:center;color:white;font-size:14px;font-family:Sans-Serif;"> \
       people have been unable to access this content, and support this request \
@@ -223,9 +344,17 @@ CLapi.addRoute('service/oab/embed/:rid', {
   },
 });
 
+CLapi.addRoute('service/oab/scrape', {
+  get: {
+    //roleRequired:'openaccessbutton.user',
+    action: function() {
+      return {status:'success',data:CLapi.internals.service.oab.scrape(this.queryParams.url,this.queryParams.content,this.queryParams.refresh,this.queryParams.doi)};
+    }
+  }
+});
+
 CLapi.addRoute('service/oab/accepts', {
   get: {
-    roleRequired:'openaccessbutton.admin',
     action: function() {
       return {status:'success',data:CLapi.internals.service.oab.accepts()};
     }
@@ -234,6 +363,53 @@ CLapi.addRoute('service/oab/accepts', {
     roleRequired:'openaccessbutton.admin',
     action: function() {
       return {status:'success',data:CLapi.internals.service.oab.accepts(this.request.body)};
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/blacklist', {
+  get: {
+    action: function() {
+      return {status:'success',data:CLapi.internals.service.oab.blacklist()};
+    }
+  },
+  post: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      var url = this.queryParams.url ? this.queryParams.url : this.request.body.url;
+      return {status:'success',data:CLapi.internals.service.oab.blacklist(url,true)};
+    }
+  },
+  delete: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      var url = this.queryParams.url ? this.queryParams.url : this.request.body.url;
+      return {status:'success',data:CLapi.internals.service.oab.blacklist(url,false)};
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/templates', {
+  get: {
+    action: function() {
+      return {status:'success',data:CLapi.internals.service.oab.template()};
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/substitute', {
+  post: {
+    action: function() {
+      return {status:'success',data:CLapi.internals.service.oab.substitute(this.request.body.content,this.request.body.vars,this.request.body.markdown)};
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/sendmail', {
+  post: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      return {status:'success',data:CLapi.internals.service.oab.sendmail(this.request.body)};
     }
   }
 });
@@ -252,31 +428,19 @@ CLapi.internals.service.oab = {};
 
 CLapi.internals.service.oab.status = function() {
   return {
-    article: {
-      requests:{
-        total: oab_request.find({type:'article'}).count(),
-        test: oab_request.find({$and:[{type:'article'},{test:true}]}).count(),
-        users: oab_request.aggregate( [ { $match: { type: "article"}  }, { $group: { _id: "$user"}  } ] ).length,
-        moderate: oab_request.find({$and:[{type:'article'},{status:'moderate'}]}).count(),
-        progress: oab_request.find({$and:[{type:'article'},{status:'progress'}]}).count(),
-        hold: oab_request.find({$and:[{type:'article'},{status:'hold'}]}).count(),
-        refused: oab_request.find({$and:[{type:'article'},{status:'refused'}]}).count(),
-        received: oab_request.find({$and:[{type:'article'},{status:'received'}]}).count()
-      }
-    },
-    data: {
-      requests:{
-        total: oab_request.find({type:'data'}).count(),
-        test: oab_request.find({$and:[{type:'data'},{test:true}]}).count(),
-        users: oab_request.aggregate( [ { $match: { type: "data"}  }, { $group: { _id: "$user"}  } ] ).length,
-        moderate: oab_request.find({$and:[{type:'data'},{status:'moderate'}]}).count(),
-        progress: oab_request.find({$and:[{type:'data'},{status:'progress'}]}).count(),
-        hold: oab_request.find({$and:[{type:'data'},{status:'hold'}]}).count(),
-        refused: oab_request.find({$and:[{type:'data'},{status:'refused'}]}).count(),
-        received: oab_request.find({$and:[{type:'data'},{status:'received'}]}).count()
-      }
-    },
-    users: CLapi.internals.accounts.count({"roles.openaccessbutton":{$exists:true}})    
+    requests: oab_request.find().count(),
+    article: oab_request.find({type:'article'}).count(),
+    data: oab_request.find({type:'data'}).count(),
+    test: oab_request.find({test:true}).count(),
+    help: oab_request.find({status:'help'}).count(),
+    moderate: oab_request.find({status:'moderate'}).count(),
+    progress: oab_request.find({status:'progress'}).count(),
+    hold: oab_request.find({status:'hold'}).count(),
+    refused: oab_request.find({status:'refused'}).count(),
+    received: oab_request.find({status:'received'}).count(),    
+    supports: oab_support.find().count(),
+    users: CLapi.internals.accounts.count({"roles.openaccessbutton":{$exists:true}}),
+    requested: oab_request.aggregate( [ { $group: { _id: "$user"}  } ] ).length,
   }
 }
 
@@ -291,6 +455,7 @@ and conditions is dependent on type - later it will probably be to do with ILLs
 CLapi.internals.service.oab.accepts = function(addition) {
   var meta = oab_meta.findOne('meta');
   if (!meta) meta = {_id: oab_meta.insert({_id:'meta',accepts:[]}), accepts:[] };
+  if (!meta.accepts) meta.accepts = [];
   if (addition) {
     var exists = false;
     for ( var a in meta.accepts ) {
@@ -306,6 +471,62 @@ CLapi.internals.service.oab.accepts = function(addition) {
   return meta.accepts;
 }
 
+CLapi.internals.service.oab.blacklist = function(url,add) {
+  if (url !== undefined && url.length < 4 || url.indexOf('.') === -1) return false;
+  // TODO could make this a load from a google sheet...
+  var bd = [
+    'chrome://',
+    'chrome-extension',
+    'about:',
+    'file://',
+    'resource://',
+    'openaccessbutton.org',
+    'opendatabutton.org',
+    'twitter.com',
+    'dropbox.com',
+    'mail.google',
+    'drive.google',
+    'docs.google',
+    'calendar.google',
+    'google.com/maps',
+    'gmail.com',
+    'netflix.com',
+    'youtube.com',
+    'addons.mozilla.org',
+    'facebook.com',
+    'github.com',
+    'amazon.com',
+    'w3schools.com',
+    'soundcloud.com'
+  ];
+  var meta = oab_meta.findOne('meta');
+  if (!meta) meta = {_id: oab_meta.insert({_id:'meta',accepts:[],blacklist:[]}), accepts:[], blacklist:bd };
+  if (!meta.blacklist) {
+    meta.blacklist = bd;
+    oab_meta.update('meta',{$set:{blacklist:meta.blacklist}});
+  }
+  var listed = meta.blacklist.indexOf(url);
+  if (add === true && listed === -1) {
+    url = url.replace('https://','').replace('http://','').split('?')[0].split('#')[0];
+    meta.blacklist.push(url);
+    oab_meta.update('meta',{$set:{blacklist:meta.blacklist}});
+    return true;
+  } else if (add === false) {
+    if (listed !== -1) {
+      meta.blacklist.splice(listed,1);
+      oab_meta.update('meta',{$set:{blacklist:meta.blacklist}});
+    }
+    return listed !== -1;
+  } else if (url) {
+    for ( var b in meta.blacklist ) {
+      if (url.indexOf(meta.blacklist[b]) !== -1) return true;
+    }
+    return false;
+  } else {
+    return meta.blacklist;
+  }
+}
+
 /*
 to create a request the url and type are required, What about story?
 {
@@ -315,11 +536,10 @@ to create a request the url and type are required, What about story?
   email: "email address of person to contact to request",
   count: "the count of how many people support this request",
   createdAt: "date request was created",
-  status: "moderate OR progress OR hold OR refused OR received",
+  status: "help OR moderate OR progress OR hold OR refused OR received",
   receiver: "unique ID that the receive endpoint will use to accept one-time submission of content",
-  metadata: {
-    // the bibjson metadata object, to be extracted from the url
-  },
+  title: "article title",
+  doi: "article doi",
   user: {
     id: "user ID of user who created request",
     username: "username of user who created request",
@@ -354,29 +574,74 @@ to create a request the url and type are required, What about story?
 }
 */
 CLapi.internals.service.oab.request = function(req,uid) {
+  // a blacklisted URL should not be sent to request, because the availability check would have returned 400
+  // the request endpoint will accept blacklisted URLs, but here they just get bounced to false
+  // we could do something else with them here if we wanted, but for now just false them
+  if (!req.test && CLapi.internals.service.oab.blacklist(req.url)) return false;
   console.log('Creating oabutton request notification');
   var user = Meteor.users.findOne(uid);
-  req.user = {
-    id: user._id,
-    username: user.username,
-    email: user.emails[0].address
+  if (!req.user && user) { // this should actually never be the case but is useful for loading old data into test system
+    req.user = {
+      id: user._id,
+      username: user.username,
+      email: user.emails[0].address
+    }
   }
-  req.status = "new";
-  req.count = 0;
-  req.metadata = CLapi.internals.academic.catalogue.extract(req.url);
-  // check if an email was provided in the request object. If so, see if not on dnr. If not, need to use one from extraction of metadata
-  req.test = true; // set if meets some test criteria
+  try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
+  try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
+  req.count = 1;
+  if (!req.title || !req.email || !req.keywords) { // worth scraping on any other circumstance?
+    var meta = CLapi.internals.academic.catalogue.extract(req.url,req.dom,undefined,req.doi);
+    req.keywords = meta && meta.keywords ? meta.keywords : [];
+    req.title = meta && meta.title ? meta.title : "";
+    req.doi = meta && meta.doi ? meta.doi : "";
+
+    // TODO should check DNR list for emails before using them
+    req.email = meta && meta.email && meta.email.length > 0 ? meta.email[0] : "";
+    
+    // some optional extract that the extract can return
+    req.author = meta && meta.author ? meta.author : [];
+    req.journal = meta && meta.journal ? meta.journal : "";
+    req.issn = meta && meta.issn ? meta.issn : "";
+    req.publisher = meta && meta.publisher ? meta.publisher : "";
+  }
+
+  req.status = !req.title || !req.email ? "help" : "moderate";
+  
+  // shorten the geolocation if present
+  // http://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude
+  // three or four dp would do, lets go with three for now
+  if (req.location && req.location.geo) {
+    if (req.location.geo.lat) req.location.geo.lat = Math.round(req.location.geo.lat*1000)/1000
+    if (req.location.geo.lon) req.location.geo.lon = Math.round(req.location.geo.lon*1000)/1000
+  } else {
+    // TODO worth trying to grab location via IP or anything else?
+  }
+
+  if (req.doi) req.doi = decodeURIComponent(req.doi); // just a clean-up
+  if (req.dom) {
+    console.log('dom of length ' + req.dom.length + ' was provided, but removed before saving');
+    delete req.dom;
+  }
   req.receiver = CLapi.internals.store.receiver(req); // is store receiver really necessary here?
   req._id = oab_request.insert(req);
   return req;
 }
 
+CLapi.internals.service.oab.scrape = function(url,content,refresh,doi) {
+  return CLapi.internals.academic.catalogue.extract(url,content,refresh,doi);
+}
+
 CLapi.internals.service.oab.support = function(rid,story,uid) {
   var r = oab_request.findOne(rid);
-  if ( !CLapi.internals.service.oab.supports(rid,uid) ) {
+  console.log('creating oab support')
+  console.log(rid)
+  console.log(story)
+  console.log(uid)
+  if ( r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
     oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
-    oab_support.insert({url:r.url,uid:uid,username:user.username,email:user.emails[0].address,story:story});
+    oab_support.insert({url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story});
     return true;
   } else {
     return false;
@@ -385,18 +650,20 @@ CLapi.internals.service.oab.support = function(rid,story,uid) {
 
 CLapi.internals.service.oab.supports = function(rid,uid,url) {
   var matcher = {};
-  if (rid) matcher._id = rid;
-  if (uid) matcher.uid = uid;
+  if (rid && uid) {
+    matcher.$and = [{uid:uid},{rid:rid}];
+  } else if (rid) {
+    matcher._id = rid;
+  } else if (uid && url) {
+    matcher.$and = [{uid:uid},{url:url}];
+  } else if (uid) {
+    matcher.uid = uid;
+  }
   return oab_support.find(matcher).fetch();
-  // return all the records of users supporting this request ID, or all supports by a given user, or all supports of a given request, 
-  // or all supports by url, or supports by user of url (by url could have multiples, because types)
 }
 
 /*
 {
-  blacklist: [
-    <blacklist sites where the user should be told they cannot use the button>
-  ],
   availability: [
     {
       type: 'article',
@@ -430,7 +697,9 @@ CLapi.internals.service.oab.availability = function(opts) {
   oab_availability.insert(opts); // just records usage of this endpoint
   
   var ret = {availability:[],requests:[],accepts:[]};
+  var already = [];
   
+  console.log('OAB availability checking for sources');
   // when something is found, should we save the fact that we know where it is?
   if ( opts.type === 'data' || opts.type === undefined ) {
     // any useful places to check - append discoveries to availability
@@ -438,15 +707,15 @@ CLapi.internals.service.oab.availability = function(opts) {
     // {type:'data',url:<URL>}
   }
   if ( opts.type === 'article' || opts.type === undefined ) {
-    // check with dissemin
-    // worth checking with core?
-    // any useful places to check - append discoveries to availability
-    // if found, push 'article' into already
-    // {type:'article',url:<URL>}
+    var res = CLapi.internals.academic.resolve(opts.url);
+    if (res.url) {
+      ret.availability.push({type:'article',url:res.url});
+      already.push('article')
+    }
   }
   // TODO add availability checkers for any new types that are added to the accepts list  
 
-  var already = [];
+  console.log('OAB availability checking for requests');
   var matcher = {url:opts.url};
   if (opts.type) matcher.type = opts.type;
   var requests = oab_request.find(matcher).fetch();
@@ -457,25 +726,25 @@ CLapi.internals.service.oab.availability = function(opts) {
         _id: requests[r]._id
       }
       rq.ucreated = opts.uid && requests[r].user && requests[r].user.id === opts.uid ? true : false;
-      var supported = CLapi.internals.service.oab.supports();
-      rq.usupport = supported.length > 0 ? true : false;
+      if (opts.uid) {
+        var supported = CLapi.internals.service.oab.supports(requests[r]._id,opts.uid);
+        rq.usupport = supported.length > 0 ? true : false;
+      }
       ret.requests.push(rq);
       already.push(requests[r].type);
     }
   }
   
+  console.log('OAB availability checking for accepts');
   var accepts = CLapi.internals.service.oab.accepts();
   for ( var a in accepts ) {
     if ( already.indexOf(accepts[a]) === -1) ret.accepts.push(accepts[a]);
   }
 
-  //CLapi.internals.academic.resolve(url); 
-  // TODO make sure academic resolve is updated to handle URLs as well as DOIs/IDs
-  // and make sure academic resolve is updated to check oabutton requests for receied items
   return ret;
 }
 
-CLapi.internals.service.oabutton.hold = function(rid,days) {
+CLapi.internals.service.oab.hold = function(rid,days) {
   var today = new Date().getTime();
   var date = (Math.floor(today/1000) + (days*86400)) * 1000;
   var r = oab_request.findOne(rid);
@@ -488,7 +757,7 @@ CLapi.internals.service.oabutton.hold = function(rid,days) {
   return {status: 'success', data: r};
 }
 
-CLapi.internals.service.oabutton.refuse = function(rid,reason) {
+CLapi.internals.service.oab.refuse = function(rid,reason) {
   var today = new Date().getTime();
   var r = oab_request.findOne(rid);
   if (r.holds === undefined) r.holds = [];
@@ -503,7 +772,7 @@ CLapi.internals.service.oabutton.refuse = function(rid,reason) {
   return {status: 'success', data: r};
 }
 
-CLapi.internals.service.oabutton.followup = function(rid) {
+CLapi.internals.service.oab.followup = function(rid) {
   var MAXEMAILFOLLOWUP = 5; // how many followups to one email address will we do before giving up, and can the followup count be reset or overrided somehow?
   var r = oab_request.findOne(rid);
   if (r.followup === undefined) r.followup = [];
@@ -528,7 +797,7 @@ CLapi.internals.service.oabutton.followup = function(rid) {
   }
 }
 
-CLapi.internals.service.oabutton.receive = function(rid,content,url,description) {
+CLapi.internals.service.oab.receive = function(rid,content,url,description) {
   // TODO this currently only works via the UI, after file uploads are set as complete, this is triggered
   // an actuall call to this on the API would trigger emails and deposits for files that had already been processed
   // and also could fail on cluster deployment because only the root machine would actually be able to find the files
@@ -546,21 +815,20 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
 
     var mu = Meteor.settings.openaccessbutton.mail_url;
     var mf = Meteor.settings.openaccessbutton.mail_from;
-    var w = r.type === 'data' ? 'Opendatabutton' : 'Openaccessbutton';
 
     // email the person that provided the content, confirming receipt
-    CLapi.internals.sendmail({
+    /*CLapi.internals.sendmail({
       from: mf,
       to: r.email,
       subject: w + ' submission received',
-      text: "Hello " + r.email + ",\n\n" + "Thank you very much for your submission to the request at \n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nWe have contacted all the people who needed access to this content to let them know you've been so helpful in making it available.\n\nThanks very much again for your support,\n\nThe " + w + " team."
+      text: "Hello " + r.email + ",\n\n" + "Thank you very much for your submission to the request at \n\nhttps://openaccessbutton.org/request/" + r._id + "\n\nWe have contacted all the people who needed access to this content to let them know you've been so helpful in making it available.\n\nThanks very much again for your support,\n\nThe Open Access Button team."
     },mu);  
     // email the person that started the request
     CLapi.internals.sendmail({
       from: mf,
       to: r.user.email,
       subject: w + ' request successful!',
-      text: "Hello " + r.user.email + ",\n\n" + "Your " + w + " request has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nThanks very much for your support,\n\nThe " + w + " team."
+      text: "Hello " + r.user.email + ",\n\n" + "Your request has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://openaccessbutton.org/request/" + r._id + "\n\nThanks very much for your support,\n\nThe Open Access Button team."
     },mu);
     // email everyone who wanted it
     var wants = [];
@@ -572,9 +840,9 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
     CLapi.internals.sendmail({
       from: mf,
       bcc: wants,
-      subject: w + ' request successful!',
-      text: "Hello!\n\n" + "An " + w + " request for content that you supported has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://" + w.toLowerCase() + '.org/request/' + r._id + "\n\nThanks very much for your support,\n\nThe " + w + " team."
-    },mu);
+      subject: 'Open Access Button request successful!',
+      text: "Hello!\n\n" + "A request for content that you supported has been successful!\n\nThe requested content is now available - check the request page for more information.\n\nhttps://openaccessbutton.org/request/" + r._id + "\n\nThanks very much for your support,\n\nThe Open Access Button team."
+    },mu);*/
     
     if (r.type === 'data') {
       // send to the OSF system via the oabutton project email address
@@ -586,7 +854,7 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
       var titles = [];
       for ( var f in files ) {
         var fl = files[f];
-        var s = r.metadata && r.metadata.title ? r.metadata.title : fl;
+        var s = r.title ? r.title : fl;
         titles.push(s);
         CLapi.internals.sendmail({
           from: r.email,
@@ -622,18 +890,87 @@ CLapi.internals.service.oabutton.receive = function(rid,content,url,description)
 CLapi.internals.service.oab.validate = function(url,type) {
 }
 
-CLapi.internals.service.oabutton.followups = function() {
+CLapi.internals.service.oab.template = function(template,refresh) {
+  // TODO refresh should be some refresh setting - check how old they were perhaps? or just refresh all
+  if (refresh || mail_template.find({service:'openaccessbutton'}).count() === 0) {
+    mail_template.remove({service:'openaccessbutton'});
+    var ghurl = Meteor.settings.openaccessbutton.templates_url;
+    var m = CLapi.internals.tdm.extract({
+      url:ghurl,
+      matchers:['//OAButton/oab_static/blob/develop/emails/.*?title="(.*?[.].*?)">/gi'],
+      start:'<table class="files',
+      end:'</table'
+    });
+    var fls = [];
+    for ( var fm in m.matches ) fls.push(m.matches[fm].result[1]);
+    var flurl = ghurl.replace('github.com','raw.githubusercontent.com').replace('/tree','');
+    for ( var f in fls ) {
+      console.log(flurl+'/'+fls[f]);
+      var content = Meteor.http.call('GET',flurl + '/' + fls[f]).content;
+      CLapi.internals.mail.template(undefined,{filename:fls[f],service:'openaccessbutton',content:content});
+    }
+  }
+  if (template) {
+    return CLapi.internals.mail.template(template);
+  } else {
+    return CLapi.internals.mail.template({service:'openaccessbutton'});
+  }
+}
+
+CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
+  // wraps the mail constructor
+  if (vars && vars.user) {
+    var u = CLapi.internals.accounts.retrieve(vars.user.id);
+    vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : '';
+    vars.affiliation = u.service.openaccessbutton.profile.affiliation ? u.service.openaccessbutton.profile.affiliation : '';
+    vars.userid = vars.user.id;
+    vars.fullname = u.profile.name ? u.profile.name : '';
+    vars.username = vars.user.username ? vars.user.username : vars.user.email;
+    if (!vars.fullname) vars.fullname = vars.username;
+    vars.useremail = vars.user.email
+  }
+  // if on dev api should replace occurrences of https://openaccessbutton.org with http://oab.test.cottagelabs.com
+  return CLapi.internals.mail.substitute(content,vars,markdown);
+}
+
+CLapi.internals.service.oab.sendmail = function(opts) {
+  // who could we ever want to email?
+  // the request creator, the request author contact, the request supporters (bcc)
+  // a particular account email address? a particular set of email accounts (bcc)
+  
+  // opts needs a template name, and some vars to load into it
+  // what are convenience vars to swap in? userid, username, useremail, authoremail, etc?
+  // opts.to should be an email address to send to, or perhaps should be set depending on template?
+  if (!opts.subject) opts.subject = 'Hello from Open Access Button';
+  if (!opts.from) opts.from = Meteor.settings.openaccessbutton.requests_from;
+
+  if (opts.template === 'status_received') {
+    // special cases that send multiple emails will have to be coded here specifically
+    // the main one should be the one to send to the creator of the request
+    // also get and send status_received_author and status_received_supporters
+    //CLapi.internals.sendmail(ml,mu);
+  }
+
+  return CLapi.internals.mail.send(opts,Meteor.settings.openaccessbutton.mail_url);
+}
+
+CLapi.internals.service.oab.cron = function() {
   // look for any request in progress and see how far past progress date it is
   // so need to be able to check when it was set to in progress!
   // send a chase email to the author in question - if not already refused or put on hold or author joined dnr list
   // so call the followup function for each relevant request
+  
+  // also need to email users who have requests at help status
+  // ask them to contribute more info
+  
+  // there are also various auto email checks that the oabutton team want added. add them here
 }
 
 if ( Meteor.settings.cron.oabutton ) {
   SyncedCron.add({
     name: 'oabutton',
     schedule: function(parser) { return parser.recur().every(1).day(); }, // what should schedule of this be?
-    job: CLapi.internals.service.oabutton.followups
+    job: CLapi.internals.service.oabutton.cron
   });
 }
 

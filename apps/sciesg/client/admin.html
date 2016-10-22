@@ -1,0 +1,82 @@
+
+
+
+<template name="sciesgAdmin">
+  <div class="container-fluid" style="margin-top:-70px;">    
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h1 style="text-align:center;">SCI Admin</h1>
+          <p>
+            <a href="/sciesg">Intro</a> 
+            <a href="/sciesg/admin">Admin</a>             
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="well">
+          <p>Create a new security listing on the system</p>
+          <p>
+            Securities will be selected from a dropdown of companies for which we have URLs. 
+            Where companies do not yet exist on the system they must be added by an administrator before a security is created.
+            There are currently 16712 companies in the system, but only 5167 have URLs. It wil  be possible for administrators, and perhaps users, 
+            to add missing URLs. It will also be possible to manually upload files for a new security, if they cannot be retrieved remotely.
+          </p>
+          {{> inputAutocomplete settings=acurls id="addsecurity" class="form-control" placeholder="Select a company"}}
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      {{#each securities}}
+      <div class="col-md-6">
+        <div class="well">
+          <h3>{{this.name}}</h3>
+          <p>{{this.exchange}} {{this.code}}</p>
+          <p>{{this.url}}</p>
+          <p>
+            <a href="/sciesg/security/{{this._id}}" class="btn btn-block btn-primary">Manage this security</a>
+          </p>
+        </div>
+      </div>
+      {{/each}}      
+    </div>
+  
+    <!--<div class="row">
+      <div class="col-md-12">
+        {{> upload_bootstrap multiple=true callbacks=sciesguploadactions}}
+      </div>
+    </div>-->
+ 
+    {{#each session "filedata"}}
+    <div class="row">
+      <h2>{{this.title}}</h2>
+      <div class="col-md-6">
+        <h3>Extracted values for KPI</h3>
+        <p>
+        {{#each this.kpi}}
+        {{this.title}} = {{this.value}}<br>
+        {{/each}}
+        </p>
+      </div>
+      <div class="col-md-6">
+        <h3>Most common document keywords</h3>
+        <p>
+        {{#each this.keywords}}
+        {{this.term}} = {{this.tf}}<br>
+        {{/each}}
+        </p>
+      </div>
+    </div>
+    <hr>
+    {{/each}}
+
+  </div>
+</template>
+
+<template name="urlPill">
+    <span class="label label-info">{{name}} ({{exchange}} {{code}}) {{url}}</span>
+</template>

@@ -34,7 +34,7 @@ login_services = {
   'https://test.cottagelabs.com': {},
   'https://opendatabutton.org/login': {
     domain: '.opendatabutton.org',
-    from: 'contact@openaccessbutton.org',
+    from: 'admin@openaccessbutton.org',
     service: 'openaccessbutton',
     name: 'Open Data Button',
     subject: 'Please Authenticate your Account (+ some other details)',
@@ -43,13 +43,14 @@ login_services = {
     html: '<html><body><p>Hi there!</p><p>Thanks for signing up to get an Open Data Button!</p><p>Please go to the link below to authenticate your account:<p style="margin-left:2em;"><font size="-1"><a href="{{LOGINURL}}">{{LOGINURL}}</a></font></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p><font size="-1">Note: this single-use login link is only valid for {{TIMEOUT}}.</font></p><p>In future you can find your account details, ongoing requests, and instrutions at:</p><p><a href="https://opendatabutton.org/account">https://opendatabutton.org/account</a></p><p>We look forward to helping you find data,</p><p>Joe</p><p>p.s We are still testing and building the Open Data Button. If you have feedback at any point, let us know:</p><p><a href="https://opendatabutton.org/general-feedback">https://opendatabutton.org/general-feedback</a></p></body></html>'
   },
   'https://openaccessbutton.org/login': {
-    profile: ['profession','confirm_public','confirm_terms','mailing_list'],
+    profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
-    from: 'contact@openaccessbutton.org',
+    from: 'admin@openaccessbutton.org',
     service: 'openaccessbutton',
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',
     timeout: 30,
+    template: 'login.txt',
     text: "Hi there!\r\n\r\nThanks for using Open Access Button!\r\n\r\nPlease go to the link below to authenticate your account:\r\n\r\n{{LOGINURL}}\r\nOr enter this code into the login page: {{LOGINCODE}}\r\n\r\n\r\nIn future you can find your account details, ongoing requests, and instrutions at:\r\n\r\nhttps://openaccessbutton.org/account\r\n\r\nWe look forwards to helping you find articles,\r\n\r\nJoe\r\n\r\np.s We are still testing and building the Open Access Button. If you have feedback at any point, let us know:\r\n\r\nhttps://opendatabutton.org/general-feedback\r\n\r\n Note: this single-use login link is only valid for {{TIMEOUT}}.",
     html: '<html><body><p>Hi there!</p><p>Thanks for using Open Access Button!</p><p>Please go to the link below to authenticate your account:<p style="margin-left:2em;"><font size="-1"><a href="{{LOGINURL}}">{{LOGINURL}}</a></font></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p><font size="-1">Note: this single-use login link is only valid for {{TIMEOUT}}.</font></p><p>In future you can find your account details, ongoing requests, and instrutions at:</p><p><a href="https://openaccessbutton.org/account">https://openaccessbutton.org/account</a></p><p>We look forward to helping you find articles,</p><p>Joe</p><p>p.s We are still testing and building the Open Access Button. If you have feedback at any point, let us know:</p><p><a href="https://opendatabutton.org/general-feedback">https://opendatabutton.org/general-feedback</a></p></body></html>'
   },

@@ -29,7 +29,7 @@ CLapi.addRoute('academic/catalogue', {
 CLapi.addRoute('academic/catalogue/extract', {
   get: {
     action: function() {
-      return {status: 'success', data: CLapi.internals.academic.catalogue.extract(this.queryParams.url,this.queryParams.refresh) };
+      return {status: 'success', data: CLapi.internals.academic.catalogue.extract(this.queryParams.url,undefined,this.queryParams.refresh) };
     }
   }
 });
@@ -67,38 +67,147 @@ CLapi.addRoute('academic/daily/retrieve/:date', {
 
 CLapi.internals.academic.catalogue = {}
 
-CLapi.internals.academic.catalogue.extract = function(url,refresh) {
+CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
   // example URLs:
-  // http://www.sciencedirect.com/science/article/pii/S0735109712600734
-  // http://journals.plos.org/plosone/article?id=info%3Adoi%2F10.1371%2Fjournal.pone.0159909
-  var r = Catalogue.findOne({url:url});
+  // https://jcheminf.springeropen.com/articles/10.1186/1758-2946-3-47 (the OBSTM article, open, on jcheminf, findable by CORE and BASE)
+  // http://www.sciencedirect.com/science/article/pii/S0735109712600734 (open on elsevier, not findable by CORE or BASE)
+  // http://journals.plos.org/plosone/article?id=info%3Adoi%2F10.1371%2Fjournal.pone.0159909 (open, on PLOS, findable by BASE)
+  // http://www.tandfonline.com/doi/abs/10.1080/09505431.2014.928678 (closed, not findable by CORE or BASE)
+  var r = Catalogue.findOne({url:url}); // there is not storage yet, so never returns content yet
   if (r && !refresh) {
-    return r.metadata;
+    return r;
   } else {
     var meta = {url:url};
-    // get the URL content then extract metadata from it
-    if (url.indexOf('?') === -1) url += '?';
-    url += '&np=y'; //this forces sciencedirect to load full page - may need to collect a bunch of these sorts of things for different sites. cookies and resolving made no difference
-    //url = CLapi.internals.academic.redirect_chain_resolve(url);
-    //meta.resolved = url;
-    //var res = Meteor.http.call('GET',url);
-    //var cookie = res.headers['set-cookie'] ? res.headers['set-cookie'].join( "; " ) : '';
-    var get = Meteor.http.call('GET',url,{npmRequestHeaders:{
-      //'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
-      //'Set-Cookie': cookie,
-      //'Content-Type': 'text/plain'
-    }});
-    // DC terms in general
-    // og: opengraph terms
-    // http://schema.org/ terms
-    // DOI, PMCID, PMID
-    // ORCIDs if any (probably not)
-    // look for title, authors, journal info etc
-    // should use features similar to academic/licence, which should perhaps be abstracted out. Or perhaps features in service/contentmine are already enough, or the tdm.js tool
-    // what is crucially needed for now, is for oabutton, which is page title and any contact email address for an author on the page
-    //meta.get = get;
-    if (get.content && get.content.indexOf('<title>') !== -1) meta.title = get.content.split('<title>')[1].split('</title>')[0];
-    meta.email = [];
+
+    try { // get content if none was passed in, by phantom (resolving and) rendering the URL
+      if (content === undefined && url !== undefined) content = CLapi.internals.academic.phantom(url,undefined)
+    } catch(err) {}
+    //meta.content = content; // should not return this due to size...
+    
+		// is it worth looking for <meta name="citation_fulltext_html_url" content="" />
+		// and if found what to do with it?
+		
+    if (url) { // quick check to get a DOI if at the end of a URL, as they often are
+			var mr = new RegExp(/\/(10\.[^ &#]+\/[^ &#]+)$/);
+			var ud = mr.exec(decodeURIComponent(url));
+      if (ud && ud.length > 1 && 9 < ud[1].length && ud[1].length < 45) meta.doi = ud[1];
+    }
+    if (!meta.doi && content) { // look for DOI in content
+			// TODO add a check for <meta name="citation_doi" content="DOI" />
+      try {
+        var d = CLapi.internals.tdm.extract({
+          content:content,
+          matchers:[
+            '/dx[.]doi[.]org/(10[.].*?/.*?)("| \')/gi',
+            '/doi[^>;]*?(?:=|:)[^>;]*?(10[.].*?\/.*?)("|\')/gi'
+          ]
+        });
+        for ( var n in d.matches) {
+          if (!meta.doi && 9 < d.matches[n].result[1].length && d.matches[n].result[1].length < 45) {
+            meta.doi = d.matches[n].result[1];
+            if (meta.doi.endsWith('.')) meta.doi = meta.doi.substring(0,meta.doi.length-1);
+          }
+        }
+      } catch(err) {}
+    }
+
+    // try matching pmid OR pubmed id OR pmc plus number regex anywhere in page
+    // this may not be reliable, too high a chance of it being a referenced doc
+    // and so far the matches don't work anyway
+    /*if (content) {
+      try {
+        var p = CLapi.internals.tdm.extract({
+          content:content,
+          //matchers:['/(pmc| pmcid|pmc id|pmid|pubmed|pubmedid|pubmed id)[ :-]*?([0-9]{1,10})/gi'],
+          matchers:['/pmc([0-9]{1,10})/gi'],
+          start:'<head',
+          end:'</head'
+        });
+        meta.p = p;
+        // set pmid or pmc in meta if found - check if 2nd match starts with pmc and if so grab the 3rd
+      } catch(err) {}
+    }*/
+
+    // get a title from the page if not present yet
+		// TODO add a check for <meta name="citation_title" content="TITLE">
+    if (!meta.title && content && content.indexOf('og:title') !== -1) {
+      meta.title = content.split('og:title')[1].split('content')[1].split('=')[1].replace('/>','>').split('>')[0].trim().replace(/"/g,'');
+      if (meta.title.startsWith("'")) meta.title = meta.title.substring(1,meta.title.length-1);
+    } else if (!meta.title && content && content.indexOf('<title') !== -1) {
+      meta.title = content.split('<title')[1].split('>')[1].split('</title')[0].trim();
+    }
+    // if title found but still no DOI could possibly do a crossref title search to get a doi...
+
+    // if a doi is present then look it up in crossref for much more metadata
+    if (meta.doi) {
+      try {
+        var cr = CLapi.internals.use.crossref.works.doi(meta.doi).data;
+        meta.title = cr.title[0]; // because of science diret elsevier article locator, crossref is more reliable
+        if (!meta.author && cr.author) meta.author = cr.author;
+        if (!meta.journal && cr['container-title']) meta.journal = cr['container-title'][0];
+        if (!meta.issn && cr.ISSN) meta.issn = cr.ISSN[0];
+        if (!meta.subject && cr.subject) meta.subject = cr.subject;
+        if (!meta.publisher && cr.publisher) meta.publisher = cr.publisher;
+      } catch(err) {}
+    }
+
+    // pull keywords or extract them if not present
+    if (!meta.keywords) {
+			// TODO add a check for <meta name="citation_keywords" content="KEYWORD" />
+			// in which case the tag can appear multiple times, the keywords are not all in one tag
+      try {
+        var k = CLapi.internals.tdm.extract({
+          content:content,
+          matchers:[
+            '/meta[^>;"\']*?name[^>;"\']*?= *?(?:"|\')keywords(?:"|\')[^>;"\']*?content[^>;"\']*?= *?(?:"|\')(.*?)(?:"|\')/gi'
+          ],
+          start:'<head',
+          end:'</head'
+        });
+        var kk = k.matches[0].result[1];
+        if (kk.indexOf(';') !== -1) {
+          kk = kk.replace(/; /g,';').replace(/ ;/g,';');
+          meta.keywords = kk.split(';');
+        } else {
+          kk = kk.replace(/, /g,',').replace(/ ,/g,',');
+          meta.keywords = kk.split(',');
+        }
+      } catch(err) {}
+      // if still no keywords try just generating some from the page content
+      /*if (content && (!meta.keywords || meta.keywords.length === 0) ) {
+        var tc = '<body'+content.toLowerCase().split('<body')[1].split('</body')[0]+'</body>';
+        if (tc.indexOf('abstract</h') !== -1) {
+          tc = tc.split('abstract</h')[1].split(/>(.+)/)[1].split('<h')[0];
+        }
+        tc = tc.replace(/<a .*?>/gi,'').replace('</a>','');
+        tc = tc.replace(/<img .*?>/gi,'').replace('</img>','');
+        var c = CLapi.internals.convert.html2txt(undefined,tc);
+        //meta.c = c;
+        meta.keywords = CLapi.internals.tdm.keywords(c,{max:10});
+      }*/
+    }
+    
+    // try to get emails out of the page content
+    if (!meta.email) {
+      meta.email = [];
+      try {
+        var m = CLapi.internals.tdm.extract({
+          content:content,
+          matchers:[
+            '/mailto:([^ \'">{}]*?@[^ \'"{}<>]*?[.][a-z.]{3,}?)/gi',
+            '/(?: |>|"|\')([^ \'">{}]*?@[^ \'"{}<>]*?[.][a-z.]{3,}?)(?: |<|"|\')/gi'
+          ]
+          //start:'<body', // splitting on body cannot be relied on - the PLOS option has 4 bodies, for example
+          //end:'</body'
+        });
+        for ( var i in m.matches) {
+          var mm = m.matches[i].result[1].replace('mailto:');
+          if (mm.endsWith('.')) mm = mm.substring(0,mm.length-1);
+          if (meta.email.indexOf(mm) === -1) meta.email.push(mm);
+        }
+      } catch(err) {}
+    }
+    
     //meta._id = Catalogue.insert(meta);
     return meta;
   }

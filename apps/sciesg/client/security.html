@@ -1,0 +1,57 @@
+
+<template name="sciesgSecurity">
+  <div class="container-fluid" style="margin-top:-70px;">    
+    <div class="row">
+      <div class="col-md-12">
+        <div class="jumbotron">
+          <h1 style="text-align:center;">{{security.name}}</h1>
+          <p>
+            <a href="/sciesg">Intro</a> 
+            <a href="/sciesg/admin">Admin</a>             
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-md-12">
+        <p>
+          Indicate whether crawled or not, if not, button to trigger crawl, if so, date of last crawl. 
+          It is currently possible to crawl a large site such as shell.com in about an hour, finding over 2000 PDFs, of which 6 
+          contain the words "annual" and "report" in their title. There are 16 more that also contain those words somewhere in the 
+          URL string that refers to the subdirectory they are stored in. It should soon be possible to automatically crawl a URL and 
+          filter down to just the appropriate PDFs.
+        </p>
+        <p>
+          Indicate whether extracted or not, if not, button to trigger extraction, if so, date of last extraction
+        </p>
+        <p>
+          <a href="#" id="extract" class="btn btn-primary btn-block">Extract KPI from the files available for this security</a>
+        </p>
+      </div>
+    </div>
+    
+    {{#each session "extracted"}}
+    <div class="row">
+      <div class="col-md-12">
+        <p>
+          {{stringify this}}
+        </p>
+      </div>
+    </div>
+    <hr>
+    {{/each}}
+
+    <div class="row" style="margin-top:50px;border-top:2px solid #333;">
+      {{#each keys}}
+      <div class="col-md-4">
+        <p>
+          {{this}} - <input type="text" name="{{this}}" value="{{values this}}">
+        </p>        
+      </div>
+      {{/each}}
+    </div>
+    
+  </div>
+</template>
+

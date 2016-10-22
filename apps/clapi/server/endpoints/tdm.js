@@ -143,10 +143,14 @@ CLapi.internals.tdm.keywords = function(content,opts) {
   var gramophone = Meteor.npmRequire('gramophone');
   var keywords = gramophone.extract(content, opts);
 	var res = [];
-	if (opts.len) {
+	if (opts) {
 		for ( var i in keywords ) {
 			var str = opts.score ? keywords[i].term : keywords[i];
-			if (str.length >= opts.len) res.push(keywords[i]);
+			if (!opts.len || str.length >= opts.len) {
+				if (!opts.max || i < opts.max) {
+					res.push(keywords[i]);
+				}
+			}
 		}
 	} else {
 		res = keywords;
@@ -157,21 +161,12 @@ CLapi.internals.tdm.keywords = function(content,opts) {
 CLapi.internals.tdm.extract = function(opts) {
 	// opts expects url,content,matchers (a list, or singular "match" string),start,end,convert,format,lowercase,ascii
 
-	var resolved = opts.url;
-	if (opts.url && opts.resolve) {
-		opts.url = opts.url.replace(/(^\s*)|(\s*$)/g,'');
-		var tr = CLapi.internals.academic.resolve(opts.url); // what sort of resolving would be suitable here?
-		tr.url ? resolved = tr.url : resolved = tr.source;
-	}
-	
-	if (resolved) {
-		opts.content = Meteor.http.call('GET',resolved).content;
-	}
+	if (opts.url && !opts.content) opts.content = CLapi.internals.academic.phantom(opts.url,undefined);
 
 	var text;
 	try {
 		if (opts.convert) {
-			text = CLapi.internals.convert.run(resolved,opts.convert,'txt',opts.content);
+			text = CLapi.internals.convert.run(opts.url,opts.convert,'txt',opts.content);
 		} else {
 			text = opts.content;
 		}
@@ -182,7 +177,7 @@ CLapi.internals.tdm.extract = function(opts) {
 	if (opts.match) opts.matchers = [opts.match];
 	if (opts.start !== undefined) {
 		var parts = text.split(opts.start);
-		parts[1] !== undefined ? text = parts[1] : text = parts[0];
+		parts.length > 1 ? text = parts[1] : text = parts[0];
 	}
 	if (opts.end !== undefined) text = text.split(opts.end)[0];
 
@@ -190,6 +185,7 @@ CLapi.internals.tdm.extract = function(opts) {
 	if (opts.ascii) text = text.replace(/[^a-z0-9]/g,'');
 	
 	var res = {matched:0,matches:[],matchers:opts.matchers};
+
 	if (text) {
 		for ( var i in opts.matchers ) {
 			// match may sometimes have to be an object to pass in more complex settings
@@ -198,12 +194,12 @@ CLapi.internals.tdm.extract = function(opts) {
 			var match = opts.matchers[i];
 			var mopts = 'g';
 			if (opts.lowercase) mopts += 'i';
-			var msplit = match.split('/');
-			if ( msplit.length > 2 && match.indexOf('/') === 0 ) {
-				mopts = msplit[msplit.length-1];
-				msplit.splice(0,1);
-				msplit.splice(msplit.length-1,1);
-				match = msplit.join("");
+			if ( match.indexOf('/') === 0 ) {
+				var lastslash = match.lastIndexOf('/');
+				if (lastslash+1 !== match.length) {
+					mopts = match.substring(lastslash+1);
+					match = match.substring(1,lastslash);
+				}
 			} else {
 				match = match.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
 			}

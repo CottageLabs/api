@@ -199,8 +199,11 @@ CLapi.internals.store.delete = function(path) {
 
 CLapi.internals.store.receiver = function(meta) {
   if ( meta === undefined ) meta = {};
-  var s = store_receiver.insert(meta);
-  return s;
+  if (meta._id && store_receiver.findOne(meta._id)) {
+    return meta._id;
+  } else {
+    return store_receiver.insert(meta);
+  }
 }
 CLapi.internals.store.receive = function(rid,content,private) {
   var r = store_receiver.findOne(rid);

@@ -81,17 +81,22 @@ CLapi.addRoute('service/lantern', {
   get: {
     action: function() {
       // could trigger a simple GET with query param to submit one URL
-      if ( this.queryParams.doi || this.queryParams.pmid || this.queryParams.pmc ) {
-        var j = lantern_jobs.insert({new:true});
-        var b = [];
-        if (this.queryParams.doi) b.push({doi:this.queryParams.doi});
-        if (this.queryParams.pmid) b.push({pmid:this.queryParams.pmid});
-        if (this.queryParams.pmcid) b.push({pmcid:this.queryParams.pmcid});
-        var u = this.userId;
-        var r = this.queryParams.refresh;
-        var w = this.queryParams.wellcome;
-        Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
-        return {status: 'success', data: {job:j}};
+      if ( this.queryParams.apikey && ( this.queryParams.doi || this.queryParams.pmid || this.queryParams.pmc ) ) {
+        var user = CLapi.internals.accounts.retrieve(this.queryParams.apikey);
+        if (user) {
+          var u = user._id;
+          var j = lantern_jobs.insert({new:true});
+          var b = [];
+          if (this.queryParams.doi) b.push({doi:this.queryParams.doi});
+          if (this.queryParams.pmid) b.push({pmid:this.queryParams.pmid});
+          if (this.queryParams.pmcid) b.push({pmcid:this.queryParams.pmcid});
+          var r = this.queryParams.refresh;
+          var w = this.queryParams.wellcome;
+          Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
+          return {status: 'success', data: {job:j}};
+        } else {
+          return {statusCode: 401, body: {status: 'error', data: 'unauthorised'}}
+        }
       } else {
         return {status: 'success', data: 'The lantern API'}
       }
@@ -357,9 +362,13 @@ CLapi.addRoute('service/lantern/jobs', {
       var results = [];
       var jobs = lantern_jobs.find();
       jobs.forEach(function(job) {
-        job.processes = job.list.length;
-        delete job.list;
-        results.push(job);
+        job.processes = job.list ? job.list.length : 0;
+        if (job.processes === 0) {
+          lantern_jobs.remove(job._id);
+        } else {
+          delete job.list;
+          results.push(job);          
+        }
       });
       return {status: 'success', data: {total:results.length, jobs: results} }
     }
@@ -597,7 +606,6 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
-  console.log(wellcome)
   var user = CLapi.internals.accounts.retrieve(uid);
   var job = {user:uid};
   if (wellcome) {

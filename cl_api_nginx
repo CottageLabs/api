@@ -44,6 +44,7 @@ server {
   
     location / {
         # DO NOT add the usual origin * header to the api and dev api routes, it is already set by the software in a default way, and setting it twice results in errors
+        add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://clapi/api/;
         proxy_redirect off;
@@ -100,6 +101,7 @@ server {
 #    ssl_certificate_key /etc/letsencrypt/live/lapi.cottagelabs.com/privkey.pem;
 
     location / {
+        add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://clapilocal/api/;
         proxy_redirect off;
@@ -119,6 +121,7 @@ server {
     server_name     dev.api.cottagelabs.com;
 
     location / {
+        add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://localhost:3002/api/;
         proxy_redirect off;
@@ -145,6 +148,7 @@ server {
     add_header Strict-Transport-Security "max-age=31536000;";
 
     location / {
+        add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://localhost:3002/api/;
         proxy_redirect off;

@@ -1,0 +1,76 @@
+
+<template name="pdf">
+
+  <!-- see https://www.sitepoint.com/custom-pdf-rendering/ -->
+    
+  <script>
+    var t0 = Date.now()
+    var visualise = function() {
+      var vals = ['4,631','752,539'];
+      for ( var v in vals ) {
+        var val = vals[v];
+        var i = $('tspan:contains("' + val + '")');
+        i.attr('fill','red').attr("class","interesting").attr('dy','-0.5');
+      }
+    }
+    
+    var url = "https://static.cottagelabs.com/sci/6SC2vWuTYcSfnH7Xt/tullow-oil-2015-corporate-responsibility-report.pdf";
+
+    PDFJS.getDocument(url)
+      .then(function(pdf) {
+        return pdf.getPage(32);
+      })
+      /*.then(function(page) {
+        // Set scale (zoom) level
+        var scale = 1.5;
+
+        // Get viewport (dimensions)
+        var viewport = page.getViewport(scale);
+
+        // Get canvas#the-canvas
+        var canvas = document.getElementById('the-canvas');
+
+        // Fetch canvas' 2d context
+        var context = canvas.getContext('2d');
+
+        // Set dimensions to Canvas
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        // Prepare object needed by render method
+        var renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+
+        // Render PDF page
+        page.render(renderContext);
+      });*/
+      .then(function(page) {
+        var scale = 1.5;
+        var viewport = page.getViewport(scale);
+        var container = document.getElementById('the-svg');
+        container.style.width = viewport.width + 'px';
+        container.style.height = viewport.height + 'px';
+        page.getOperatorList()
+          .then(function (opList) {
+            var svgGfx = new PDFJS.SVGGraphics(page.commonObjs, page.objs);
+            return svgGfx.getSVG(opList, viewport);
+          })
+          .then(function (svg) {
+            container.appendChild(svg);
+            visualise();
+          });
+      });
+    
+  </script>
+  
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <canvas id="the-canvas"></canvas>  
+        <div id="the-svg"></div>  
+      </div>
+    </div>
+  </div>
+</template>

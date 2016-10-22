@@ -1,4 +1,14 @@
 
+Meteor.users.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/clapi/accounts/' + this._id, doc);
+});
+Meteor.users.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/clapi/accounts/' + doc._id, doc);
+});
+Meteor.users.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/clapi/accounts/' + doc._id);
+});
+
 var Future = Npm.require('fibers/future');
 loginCodes = new Meteor.Collection("logincodes");
 role_request = new Mongo.Collection("role_request");
@@ -236,27 +246,22 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
       // group and role must not contain . or , because . is used to distinguish group from role, and comma to list them
       // what other characters should be allowed / blocked from groups and roles?
       // should group creation be constrained to groups that are separately created first via a groups API?
-      var grp, role, ath;
+      var grp, role;
       var grpts = this.urlParams.grouprole.split('.');
       if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
       grp = grpts[0];
       role = grpts[1];
-      if ( grp === 'GLOBAL' ) {
-        grp = Roles.GLOBAL_GROUP;
-        ath = CLapi.cauth('root', this.user);
-      } else {
-        ath = CLapi.cauth(grp + '.auth', this.user);
-        // TODO should system users be allowed to manipulate OTHER groups/roles of users in their system
-        // I think not - if some system account wants to make additional groups and roles in relation to some 
-        // operation of said system, and if it needs the ability to manipulate user memberships to those groups, 
-        // then that external system should make its own system user account a root on those new groups that it creates.
-        // So this brings up a new question: what users can create groups? Any? Or is there group control of any sort?
-        if ( role === 'public' ) ath = true;
-        if ( cascading.indexOf(role) !== -1 && cascading.indexOf(role) < cascading.indexOf(ath) ) ath = false;
-      }
+
+      // TODO should system users be allowed to manipulate OTHER groups/roles of users in their system
+      // I think not - if some system account wants to make additional groups and roles in relation to some 
+      // operation of said system, and if it needs the ability to manipulate user memberships to those groups, 
+      // then that external system should make its own system user account a root on those new groups that it creates.
+      // So this brings up a new question: what users can create groups? Any? Or is there group control of any sort?
       // TODO are there groups that users (or their delegates) can assign themselves to?
       // TODO are there groups that anyone can assign anyone to? bit spammy?
-      if ( ath ) {
+      var auth = CLapi.internals.accounts.auth(grp + '.auth', this.user);
+      if ( role === 'public' ) auth = true;
+      if ( auth ) {
         return CLapi.internals.accounts.addrole(this.urlParams.id,grp,role);
       } else {
         return {
@@ -269,21 +274,14 @@ CLapi.addRoute('accounts/:id/roles/:grouprole', {
   delete: {
     authRequired: true,
     action: function() {
-      var grp, role, ath;
+      var grp, role;
       var grpts = this.urlParams.grouprole.split('.');
       if (grpts.length !== 2) return {status: 'error', data: 'grouprole param must be of form group.role'}
       grp = grpts[0];
       role = grpts[1];
-      if ( grp === 'GLOBAL' ) {
-        grp = Roles.GLOBAL_GROUP;
-        ath = CLapi.cauth('root', this.user);
-      } else {
-        ath = CLapi.cauth(grp + '.auth', this.user);
-        if ( role === 'public' ) ath = true;
-        if ( cascading.indexOf(role) !== -1 && cascading.indexOf(role) < cascading.indexOf(ath) ) ath = false;
-      }
-      // TODO can users remove themselves from groups? If they can, how does that affect system data in their user account?
-      if ( ath ) {
+      var auth = CLapi.internals.accounts.auth(grp + '.auth', this.user);
+      if ( role === 'public' ) auth = true;
+      if ( auth ) {
         return CLapi.internals.accounts.removerole(this.urlParams.id,grp,role);
       } else {
         return {
@@ -298,7 +296,11 @@ CLapi.addRoute('accounts/:id/auth/:grouproles', {
   get: {
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      var authd = CLapi.rcauth(this.urlParams.grouproles.split(','), u);
+      var authd = false;
+      var rset = this.urlParams.grouproles.split(',');
+      for (var r in rset) {
+        authd = CLapi.internals.accounts.auth(rset[r], u);
+      }
       if ( authd ) {
         return {status: 'success', data: {auth: authd} };
       } else {
@@ -472,7 +474,7 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
   var until = (new Date()).valueOf() + (opts.timeout * 60 * 1000);
   opts.timeout = opts.timeout >= 60 ? (opts.timeout/60) + ' hour(s)' : opts.timeout + ' minute(s)';
   var user = CLapi.internals.accounts.retrieve(email);
-  opts.action = user && CLapi.cauth(opts.service.service+'.user',user) ? "login" : "registration";
+  opts.action = user && CLapi.internals.accounts.auth(opts.service+'.user',user) ? "login" : "registration";
   console.log(opts);
 
   if (opts.action === "registration" && !opts.registration) {
@@ -492,7 +494,22 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
     if ( fingerprint ) up.fp = fingerprint;
     loginCodes.upsert({email:email},up);
 
-    CLapi.internals.sendmail({ from: opts.from, to: email, subject: template(opts.subject,opts), text: template(opts.text,opts), html: template(opts.html,opts) });
+    //CLapi.internals.sendmail({ from: opts.from, to: email, subject: template(opts.subject,opts), text: template(opts.text,opts), html: template(opts.html,opts) });
+    
+    var snd = {from: opts.from, to: email}
+    if (opts.template) {
+      snd.template = {filename:opts.template,service:opts.service};
+      snd.vars = {
+        useremail:email,
+        loginurl:opts.loginurl,
+        logincode:opts.logincode
+      };
+    } else {
+      opts.subject = template(opts.subject,opts);
+      opts.text = template(opts.text,opts);
+      opts.html = template(opts.html,opts);
+    }
+    CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
 
     var future = new Future(); // a delay here helps stop spamming of the login mechanisms
     setTimeout(function() { future.return(); }, 333);
@@ -509,18 +526,13 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
   loginCodes.remove({ timeout: { $lt: (new Date()).valueOf() } }); // remove old logincodes
   var loginCode;
   var user;
-  // TODO update this
-  // a logincode should contain a token and a hash, with a timestamp and fingerprint of the device they were set for
-  // the timeout of the logincode should be the login timeout of the service, or the maxage of a cookie
-  // so when logging someone in, create a long-lasting logincode too
-  // the search for a logincode should match email+token OR email+hash+timestamp OR hash and all must provide matching fingerprint
-  // what about cookie use on the actual API itself though? The cookie has to allow actions without resetting the hash every time, if on the API
   if (token !== undefined && email !== undefined) loginCode = loginCodes.findOne({email:email,code:token});
   if (!loginCode && fingerprint !== undefined && email !== undefined) loginCode = loginCodes.findOne( { $and: [ { email:email, fp:fingerprint } ] } );
   if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { hash:hash, fp:fingerprint } ] } );
   if (!loginCode && hash !== undefined) loginCode = loginCodes.findOne({hash:hash});
   if (!loginCode && email !== undefined && resume !== undefined && timestamp !== undefined) {
-    user = Meteor.users.findOne({'emails.address':email,'security.resume.token':Accounts._hashLoginToken(resume),'security.resume.timestamp':timestamp});
+    console.log('searching for login via resume token');
+    user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
   }
   var future = new Future(); // a delay here helps stop spamming of the login mechanisms
   setTimeout(function() { future.return(); }, 333);
@@ -530,24 +542,37 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
     if (fingerprint === undefined && loginCode && loginCode.fingerprint) fingerprint = loginCode.fingerprint;
     if (loginCode) loginCodes.remove({email:email}); // login only gets one chance
     if (!user) {
-      CLapi.internals.accounts.register(email,fingerprint,{name:loginCode.service});
+      CLapi.internals.accounts.register({email:email,fingerprint:fingerprint,service:{service:loginCode.service}});
       user = CLapi.internals.accounts.retrieve(email);
     }
     var newresume = generate_random_code();
     var newtimestamp = Date.now();
-    Meteor.users.update(user._id, {$set: {'security.resume':{token:Accounts._hashLoginToken(newresume),timestamp:newtimestamp}}});
+    Meteor.users.update(user._id, {$set: {'security.resume':{token:newresume,timestamp:newtimestamp}}});
+    var service = {};
+    if ( user.service[opts.service] ) {
+      service[opts.service] = {};
+      if (user.service[opts.service].profile) service[opts.service].profile = user.service[opts.service].profile;
+      // which service info can be returned to the user account?
+      // TODO should probably have public and private sections, for now has profile section, 
+      // which can definitely be shared whereas nothing else cannot. Maybe that will do.      
+    }
     return {
       status:'success', 
       data: {
         apikey: user.api.keys[0].key,
         account: {
+          _id:user._id,
           username:user.username,
-          profile:user.profile
+          profile:user.profile,
+          roles:user.roles,
+          service:service
         },
         cookie: {
           email:email,
           userId:user._id,
+          roles:user.roles,
           timestamp:newtimestamp,
+          url:loc,
           resume: newresume
         },
         settings: {
@@ -571,7 +596,7 @@ CLapi.internals.accounts.logout = function(email,resume,timestamp,loc) {
   }
   // may want an option to logout of all sessions...
   if (email !== undefined && resume !== undefined && timestamp !== undefined) {
-    var user = Meteor.users.findOne({'emails.address':email,'security.resume.token':Accounts._hashLoginToken(resume),'security.resume.timestamp':timestamp});
+    var user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
     if (user) {
       var opts = {};
       for ( var o in login_services.default ) opts[o] = login_services.default[o];
@@ -671,6 +696,7 @@ CLapi.internals.accounts.retrieve = function(uid) {
   var u = Meteor.users.findOne(uid);
   if (!u) u = Accounts.findUserByUsername(uid);
   if (!u) u = Accounts.findUserByEmail(uid);
+  if (!u) u = Meteor.users.findOne({'api.keys.key':uid});
   return u;
 }
 
@@ -757,7 +783,8 @@ CLapi.internals.accounts.update = function(uid,user,keys,replace) {
           allowed['service.'+r] = keys.service[r];        
         } else {
           allowed['service.'+r] = {}
-          for ( var kr in keys.service[r] ) allowed['service.'+r][kr] = keys.service[r][kr];
+          // TODO this will not loop down levels at all - so could overwrite stuff in an object, for example
+          for ( var kr in keys.service[r] ) allowed['service.'+r+'.'+kr] = keys.service[r][kr];
         }
         Meteor.users.update(uid, {$set: allowed});
         return true;
@@ -806,7 +833,7 @@ CLapi.internals.accounts.auth = function(gr,user,cascade) {
   // or else check for higher authority in cascading roles for group
   // TODO ALLOW CASCADE ON GLOBAL OR NOT?
   // cascading roles, most senior on left, allowing access to all those to the right
-  var cascading = ['root','service','super','owner','auth','admin','publish','edit','read','user','info','public'];
+  var cascading = ['root','service','super','owner','admin','auth','publish','edit','read','user','info','public'];
   if ( cascade === undefined ) cascade = true;
   if ( cascade ) {
     var ri = cascading.indexOf(role);
@@ -826,20 +853,20 @@ CLapi.internals.accounts.auth = function(gr,user,cascade) {
   return false;
 }
 
-CLapi.internals.accounts.addrole = function(uid,user,group,role) {
+CLapi.internals.accounts.addrole = function(uid,group,role) {
   var uacc = CLapi.internals.accounts.retrieve(uid);
   Roles.addUsersToRoles(uacc, role, group);
   return {status: 'success'};
 }
 
-CLapi.internals.accounts.removerole = function(uid,user,group,role) {
+CLapi.internals.accounts.removerole = function(uid,group,role) {
   var uacc = CLapi.internals.accounts.retrieve(uid);
   Roles.removeUsersFromRoles(uacc, role, group);
   // remove the related service data here?
   return {status: 'success'};
 }
 
-CLapi.internals.accounts.allowrole = function(uid,user,group,role,reason) {
+CLapi.internals.accounts.allowrole = function(uid,group,role,reason) {
   // ensure the person allowing has the right to do so
   CLapi.internals.accounts.addrole(uid,group,role);
   role_request.remove({uid:uid,group:group,role:role});
@@ -847,7 +874,7 @@ CLapi.internals.accounts.allowrole = function(uid,user,group,role,reason) {
   return {status: 'success'}
 }
 
-CLapi.internals.accounts.denyrole = function(uid,user,group,role,reason) {
+CLapi.internals.accounts.denyrole = function(uid,group,role,reason) {
   var r = role_request.findOne({uid:uid,group:group,role:role});
   role_request.update(r,{$set:{denied:true}}); // TODO should be denied date?
   // TODO email the user and inform them of group denied, with reason if present

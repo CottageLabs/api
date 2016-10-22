@@ -126,7 +126,7 @@ CLapi.internals.es.insert = function(route,data,url) {
   return CLapi.internals.es.query('POST',route,data,url);
 }
 CLapi.internals.es.delete = function(route,url) {
-  return CLapi.internals.es.query('DELETE',route,url);
+  return CLapi.internals.es.query('DELETE',route,undefined,url);
 }
 
 CLapi.internals.es.import = function(data,format,index,type,url,bulk,mappings,ids) {

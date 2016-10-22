@@ -7,7 +7,22 @@ CLapi.addCollection(academic_resolved); // temp useful to view all the created l
 CLapi.addRoute('academic/undirect', {
   get: {
     action: function() {
-      return {status:'success', data: CLapi.internals.academic.redirect_chain_resolve(this.queryParams.url) };
+      return {status:'success', data: CLapi.internals.academic.undirect(this.queryParams.url) };
+    }
+  }
+});
+
+CLapi.addRoute('academic/phantom', {
+  get: {
+    action: function() {
+      var format = this.queryParams.format ? this.queryParams.format : 'plain';
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/' + format
+        },
+        body: CLapi.internals.academic.phantom(this.queryParams.url,this.queryParams.delay)
+      };
     }
   }
 });
@@ -39,7 +54,7 @@ CLapi.addRoute('academic/redirect', {
     if ( this.queryParams.pmid ) ident = 'pmid' + this.queryParams.pmid;
     if ( this.queryParams.pmc ) ident = 'pmc' + this.queryParams.pmc;
     if ( ident ) {
-      return CLapi.internals.academic.redirect(ident,this.queryParams.prefer,this.queryParams.refresh);
+      return CLapi.internals.academic.redirect(ident,this.queryParams.refresh);
     } else {
       return {status: 'success', data: {info: 'Resolves an ID to an open access URL and redirects to it. Like dx.doi.org, the DOI resolver. \
         But actually accepts DOI, PMID, or PMC ID, or even tries with just being given a URL in which case it looks for \
@@ -51,12 +66,22 @@ CLapi.addRoute('academic/redirect', {
     }
   }
 });
-CLapi.addRoute('academic/redirect/:doipre/:doipost', {
+CLapi.addRoute('academic/redirect/:pmorpmc', {
   get: function() {
-    return CLapi.internals.academic.redirect(this.urlParams.doipre + '/' + this.urlParams.doipost,this.queryParams.prefer,this.queryParams.refresh);
+    if (this.urlParams.pmorpmc.toLowerCase().indexOf('pm') === 0) {
+      return CLapi.internals.academic.redirect(this.urlParams.pmorpmc,this.queryParams.refresh);
+    } else {
+      return { statusCode: 404, body: {status: 'error', 'data': '404 not found'} }
+    }
   }
 });
-CLapi.addRoute('academic/resolved/:rid', {
+CLapi.addRoute('academic/redirect/:doipre/:doipost', {
+  get: function() {
+    return CLapi.internals.academic.redirect(this.urlParams.doipre + '/' + this.urlParams.doipost,this.queryParams.refresh);
+  }
+});
+
+/*CLapi.addRoute('academic/resolved/:rid', {
   post: function() { // should become a way with authentication for other systems to update the resolvers object, like oabutton
   },
   delete: function() {
@@ -73,7 +98,7 @@ CLapi.addRoute('academic/resolved/:rid', {
       }
     }
   }
-});
+});*/
 
 // TODO add a route to receive notifications that the URL we returned was not open
 // which should also provide a way for someone to inform us of an alternate that is open
@@ -81,36 +106,15 @@ CLapi.addRoute('academic/resolved/:rid', {
 // can be as simple as them signing up with an account and confirming their email so we know who they are and that they are real
 // then we can record who told us of the alternate URL and save it wherever we are saving all this url redirect info
 
-CLapi.internals.academic.redirect = function(ident,prefer,refresh) {
+
+
+CLapi.internals.academic.redirect = function(ident,refresh) {
   var possibles = CLapi.internals.academic.resolve(ident,undefined,refresh);
-  // check for a cookie link to hit first, and if so hit it and get the cookies then add them below
-  // and note this nginx proxy config problem to change settings to compensate:
-  // http://stackoverflow.com/questions/13894386/upstream-too-big-nginx-codeigniter/13896157#13896157
-  var cookie = '';
-  if (possibles.cookie) {
-    var res = Meteor.http.call('GET',possibles.cookie);
-    if (res.headers['set-cookie']) {
-      cookie = res.headers['set-cookie'].join( "; " );
-      console.log('grabbed cookie from ' + possibles.cookie + ' before redirecting to ' + possibles.url);
-    }
-  }
-  if (prefer && possibles[prefer]) {
-    console.log('resolved ' + ident + ' and redirecting to ' + possibles[prefer]);
-    return {
-      statusCode: 302,
-      headers: {
-        'Set-Cookie': cookie,
-        'Content-Type': 'text/plain',
-        'Location': possibles[prefer]
-      },
-      body: 'Location: ' + possibles[prefer]
-    };
-  } else if (possibles.url) {
+  if ( possibles.url ) {
     console.log('resolved ' + ident + ' and redirecting to ' + possibles.url);
     return {
       statusCode: 302,
       headers: {
-        'Set-Cookie': cookie,
         'Content-Type': 'text/plain',
         'Location': possibles.url
       },
@@ -129,266 +133,106 @@ CLapi.internals.academic.redirect = function(ident,prefer,refresh) {
   }
 }
 
-CLapi.internals.academic.resolve = function(ident,possibles,refresh) {
-  // resolve the ID
-  // could be DOI, PMID, PMC... for now
-  // could also be a URL from which we try to find a DOI or PMID or PMC
-  // return the URLs
+CLapi.internals.academic.resolve = function(ident,content,refresh) {
+  // Resolve a URL or an ID to the best guess open alternative. Could be DOI, PMID, PMC... for now
+  console.log('starting academic resolve for ' + ident);
+  var ret = {url:false,original:ident};
+
+  // TODO should a check be added for fulltext url?
+  // <meta name="citation_fulltext_html_url" content="" />
+  // and if found, is that really the url we want, and is it the current page content or not?
+  // if not, worth rendering another phantom call?
   
-  // first should be a lookup against our own catalogue to check for URLs and IDs and links
-  // if we already know it just return it
-  // if we don't already know all the stuff about to be worked out below, we should save it (to catalogue or to resolvers db?)
-  // if we already know it should there be some sort of "force-reload" option where we refresh what we know? Maybe...
+  // should start with check of academic_resolved or catalogue or wherever being stored,
+  // and re-use unless refresh is true (or some number of past days)
   var exists;
-  if (!refresh) {
-    if (ident.indexOf('pm') === 0) {
-      var lookup = ident.replace('pmid','').replace('pmc','');
-      exists = academic_resolved.findOne({identifiers:lookup});
-    } else if ( ident.indexOf('10') === 0 ) {
-      exists = academic_resolved.findOne({identifiers:ident});
-    } else {
-      exists = academic_resolved.findOne({urls:ident});
-    }
-  }
-  if (exists) {
-    console.log('resolvers record found and refresh not requested, returning stored data');
-    return exists;
-  }
   
-  if ( possibles === undefined ) {
-    possibles = {
-      url: false, // best matching open url to content, preferring html then pdf (because this is primarily about viewing)'
-      cookie: false, // if a pdf or xml url is retrieved from within a page, cookies can be required. So here is where to go first to save them
-      xml: false, // open url to xml
-      html: false, // open url to html
-      pdf: false, // open url to pdf
-      splash: false, // url to splash page if known and different (DOIs always go to splash page for example)
-      source: false, // whichever url seems to be the main one for the content, whether open or not
-      doi: false,
-      pmid: false,
-      pmc: false,
-      urls: [], // all links found for this document, whether open or closed
-      identifiers: [] // all identifiers found for this document
-    }
-  }
-  
-  var _addto = function(keys,val) {
-    if (val === undefined || val.length === 0) return;
-    for ( var k in keys ) {
-      var key = keys[k];
-      if (key === 'identifiers' || key === 'pmid' || key === 'pmc' || key === 'doi') {
-        if (key !== 'doi') val = val.toLowerCase();
-        val = val.replace('pmc','').replace('pmid','').replace('pm','');
-        if (possibles.identifiers.indexOf(val) === -1 && possibles.identifiers.indexOf(val.toLowerCase()) === -1) possibles.identifiers.push(val);
-        if (key === 'doi' && !possibles.splash) possibles.splash = 'http://dx.doi.org/' + val;
-        if (key === 'doi' && possibles.urls.indexOf('http://dx.doi.org/' + val) === -1) possibles.urls.push('http://dx.doi.org/' + val);
-        if (key !== 'identifiers') possibles[key] = val;
-      } else {
-        if (val.indexOf('https') === -1) val = 'http://' + val.replace('http://','');
-        if (key !== 'urls') possibles[key] = val;
-        if (possibles.urls.indexOf(val) === -1 && possibles.urls.indexOf(val.toLowerCase()) === -1) possibles.urls.push(val);
-      }      
-    }
-  }
-  
-  var _geteupmc = function(type,ident) {
-    var rec = CLapi.internals.use.europepmc[type](ident);
-    if ( rec.data.fullTextUrlList && rec.data.fullTextUrlList.fullTextUrl ) {
-      for ( var ii in rec.data.fullTextUrlList.fullTextUrl ) {
-        var erl = rec.data.fullTextUrlList.fullTextUrl[ii];
-        _addto(['urls'],erl.url);
-        if ( erl.availabilityCode.toLowerCase() === 'oa') {
-          if (erl.documentStyle.toLowerCase() === 'html') _addto(['html','url','splash'],erl.url);
-          if (erl.documentStyle.toLowerCase() === 'pdf') _addto(['pdf'],erl.url);
-          if (erl.documentStyle.toLowerCase() === 'xml') _addto(['xml'],erl.url);
-        } else {
-          if (erl.documentStyle.toLowerCase() === 'html') _addto(['source'],erl.url);          
-        }
-      }
-    }    
-    if (rec.data.doi) _addto(['doi'],rec.data.doi);
-    if (rec.data.pmid) _addto(['pmid'],rec.data.pmid);
-    if (rec.data.pmcid) _addto(['pmc'],rec.data.pmcid);
-  }
-
-  ident = ident.toLowerCase();
-  if (ident.indexOf('pubmed/') !== -1) {
-    ident = 'pmid' + ident.substring((ident.indexOf('pubmed/')+7)).split('/')[0].split('#')[0].split('?')[0];
+  var res;  
+  var type = 'url';
+  if (!ident && content) {
+    // no problem, content will be used at first check
+  } else if (ident.toLowerCase().indexOf('pubmed/') !== -1) {
+    ident = ident.substring((ident.indexOf('pubmed/')+7)).split('/')[0].split('#')[0].split('?')[0];
+    type = 'pmid';
   } else if ( ident.indexOf('pubmedid=') !== -1 ) {
-    ident = 'pmid' + ident.substring((ident.indexOf('pubmedid=')+9)).split('/')[0].split('#')[0].split('?')[0];
+    ident = ident.substring((ident.indexOf('pubmedid=')+9)).split('/')[0].split('#')[0].split('?')[0];
+    type = 'pmid';
   } else if ( ident.indexOf('/pmc') !== -1 ) {
-    ident = 'pmc' + ident.substring((ident.indexOf('/pmc')+4)).split('/')[0].split('#')[0].split('?')[0];
+    ident = ident.substring((ident.indexOf('/pmc')+4)).split('/')[0].split('#')[0].split('?')[0];
+    type = 'pmc';
+  } else if (ident.indexOf('10.') === 0 || ident.indexOf('dx.doi.org') !== -1) {
+    if (ident.indexOf('10.') !== 0) ident = '10.' + ident.split('10.')[1];
+    type = 'doi';
   }
-  
-  var rec;
-  if ( ident.indexOf('pm') === 0 ) {
-    if ( ident.indexOf('pmc') === 0) {
-      _addto(['pmc'],ident);
-      _geteupmc('pmc',possibles.pmc);
-    } else {
-      _addto(['pmid'],ident);
-      _geteupmc('pmid',possibles.pmid);
+
+  if (type === 'url') {
+    console.log('academic resolve processing for URL')
+    // is it worth doing a licence check on a URL? - if open, this is the URL (if there is a URL - could be content)
+    // else we look for DOIs PMIDs PMC IDs in the page content
+    if (!content) content = CLapi.internals.academic.phantom(ident,undefined);
+    var meta = CLapi.internals.academic.catalogue.extract(undefined,content);
+    if (meta.doi) {
+      type = 'doi';
+      ident = meta.doi;
+      ret.doi = ident;
+    }
+    if (meta.pmc) {
+      type = 'pmc';
+      ident = meta.pmc;
+      ret.pmc = ident;
+    }
+    if (meta.pmid) {
+      type = 'pmid';
+      ident = meta.pmid;
+      ret.pmid = ident;
     }
   }
-  
-  if ( !possibles.url && (possibles.doi || ident.indexOf('10') === 0) ) {
-    if (possibles.doi) ident = possibles.doi;
-    var doiresolvesto = CLapi.internals.academic.doiresolve(ident);
-    _addto(['urls','source'],doiresolvesto);
-    rec = CLapi.internals.use.crossref.works.doi(ident);
-    if ( rec.data.link ) {
-      for ( var i in rec.data.link ) {
-        _addto(['urls'],rec.data.link[i].URL);
-        if (!possibles.source) _addto(['source'],rec.data.link[i].URL);
-        // can any of these be html, xml, or pdf URLs that are likely to be open?
-        // does crossref have any other useful links, like tdm license links etc?
-        // is there any way to easily tell what is at these links or find URLS to fulltexts from them?
+
+  // with a pmid or pmcid look up on eupmc
+  if (type === 'pmid' || type === 'pmc') {
+    console.log('academic resolve processing for URL')
+    ret[type] = ident;
+    res = CLapi.internals.use.europepmc[type](ident);
+    if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
+      for ( var i in res.data.fullTextUrlList.fullTextUrl ) {
+        var erl = res.data.fullTextUrlList.fullTextUrl[i];
+        if ( erl.availabilityCode.toLowerCase() === 'oa' && erl.documentStyle.toLowerCase() === 'html') ret.url = erl.url;
       }
     }
-    if (rec.data.URL) _addto(['urls'],rec.data.URL); // what sort of URL is this, ever anything other than the DOI as a URL?
-    _addto(['doi'],ident);
-    if (!possibles.url) _geteupmc('doi',ident);
+    if (!ret.url && res.data.doi) {
+      ident = res.data.doi;
+      ret.doi = ident;
+      type = 'doi';
+    }
+  }
+
+  if (!ret.url && type === 'doi') {
+    console.log('academic resolve processing for URL')
+    ret.doi = ident;
+    // no use looking up the DOI in crossref because that does not indicate openness of the URLs
+    res = CLapi.internals.use.dissemin.doi(ident); // check dissemin (or does it just subset BASE?)
+    if (res.data.pdf_url) ret.url = res.data.pdf_url;
+    if (!ret.url) { // check BASE
+      res = CLapi.internals.use.base.search(ident);
+      if (res.data && res.data.docs && res.data.docs > 0 && res.data.docs[0].dclink) ret.url = res.data.docs[0].dclink;
+    }
+    // don't bother looking up CORE, it is unstable and subset of BASE
+    /*if (!ret) {
+      res = CLapi.internals.use.core.articles.doi(ident);
+      if (res.data.fulltextIdentifier) ret.url = res.data.fulltextIdentifier;
+    }*/
+    // add other places to check with DOI here, until one of them sets ret to be a value
+  }
     
-  // TODO if new ID types are to be supported ensure there is a way to identify them incoming, before we assume we are resolving a URL
-  } else if ( ident.indexOf('.') !== -1) {
-    // need at least a dot to be a valid url e.g. example.com
-    // move this down to where all other URLs are checked
-    _addto(['urls'],ident);
-  }
-
-  // if still no URL check dissemin data
-  if (!possibles.url && possibles.doi) {
-    rec = CLapi.internals.use.dissemin.doi(possibles.doi);
-    if (rec.data.pdf_url) {
-      // Note that sometimes the dissemin result is actually the splash page, not the pdf page
-      if (rec.data.pdf_url.indexOf('pdf') === -1 ) {
-        _addto(['urls'],rec.data.pdf_url);
-      } else {
-        _addto(['url','pdf'],rec.data.pdf_url);        
-      }
-    }
-    // what other useful URLs may we get from dissemin? It returns info from core etc, but pulls up the most useful link to pdf_url anyway
-  }
-
-  // if still no URL check core data
-  // ignore core, it still returns incorrect results, if any. See the usual obstm example - correct in base, dissemin, eupmc, wrong in core
-  /*if (!possibles.url && possibles.doi) { // can we and is it worth checking core with something other than DOI?
-    rec = CLapi.internals.use.core.articles.doi(possibles.doi);
-    if (rec.data.fulltextIdentifier) _addto(['url','pdf'],rec.data.fulltextIdentifier);
-    // what sort of fulltext does core deliver? only PDF? What could this be pointing at? What other useful links could be here?
-  }*/
-  
-  // if still nothing and have not found at least one sort of URL then check all known URLs for content and/or links to content?
-  // is it possible to know that any URLs are related to APIs that we can also recover content from?
-  console.log('at url checking point');
-  var duds = [];
-  if ( !possibles.url && (!possibles.pmid || !possibles.pmc || !possibles.doi) ) {
-    for ( var c in possibles.urls) {
-      if (possibles.url) break;
-      var curl = possibles.urls[c];
-      if (possibles.doi && curl.indexOf('dx.doi.org') !== -1) break; // do not redo dois
-      console.log('trying URL ' + curl);
-      var content;
-      try {
-        var resp = Meteor.http.call('GET',curl,{npmRequestOptions: {followRedirect:true,followAllRedirects:true,maxRedirects:30}});
-        content = resp.content
-      } catch(err) {
-        duds.push(curl);
-        break;        
-      }
-      var numberregex = new RegExp('[0-9]{1,10}');
-      if (!possibles.pmid) {
-        console.log('looking for pmid in page');
-        content = content.split('pmid');
-        content.length === 1 ? content = content[0] : content = content[1].substring(0,15);
-        if ( content.length < 17 ) {
-          var foundpmid = content.match(numberregex);
-          if (foundpmid) {
-            console.log('found' + foundpmid[0]);
-            _addto(['pmid'],foundpmid[0]);
-            return CLapi.internals.academic.resolve('pmid' + possibles.pmid,possibles);
-          }
-        }
-      }
-      if (!possibles.pmc) {
-        console.log('looking for pmc in page');
-        content = content.split('pmc');
-        content.length === 1 ? content = content[0] : content = content[1].substring(0,15);
-        if ( content.length < 17 ) {
-          var foundpmc = content.match(numberregex);
-          if (foundpmc) {
-            console.log('found' + foundpmc[0]);
-            _addto(['pmc'],foundpmc[0]);
-            return CLapi.internals.academic.resolve('pmc' + possibles.pmc,possibles);
-          }
-        }
-      }
-      if (!possibles.doi) {
-        console.log('looking for doi in page');
-        var doiregex = new RegExp('\b(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?!["&\'])\S)+)\b');
-        var founddoi = content.match(doiregex);
-        if (founddoi) {
-          console.log('found' + founddoi[0]);
-          _addto(['doi'],founddoi[0]);
-          return CLapi.internals.academic.resolve(possibles.doi,possibles);
-        }
-      }
-      // look for a pdf link on the page, or an xml link on the page
-      console.log('looking for pdf or xml URLs in page');
-      content = content.split('<body');
-      content.length === 1 ? content = content[0] : content = content[1];
-      content = content.split('</body')[0];
-      // find any urls containing the strings pdf or xml inside href="" tags
-      var urlregex = new RegExp('href="[^ ]+?(pdf|xml)[^ ]*?"');
-      var foundurl = content.match(urlregex);
-      if (foundurl) {
-        console.log('found ' + foundurl[0]);
-        var turl = foundurl[0].replace('href="','').replace('"','');
-        if (turl.indexOf('/') === 0) turl = curl.replace('://','______').split('/')[0].replace('______','://') + turl;
-        // look for the words "buy" or "purchase" - if they are not found is that enough to guess it is open?
-        // NOTE that even on an open one via sciencedirect, the pdf link will refuse to work without the cookies from hitting the splash page
-        // and that even on the open ones the api calls to elsevier for text mining links fail too without the crossref keys etc
-        // who knows which ones need cookies, so for now any time a link is found this way store the page to hit first for cookies
-        // and code the redirector to look for this and hit that page first then continue with the cookies
-        // for example see http://dx.doi.org/10.1016/j.cell.2011.02.013
-        possibles.cookie = curl;
-        if (content.toLowerCase().indexOf('buy') === -1 && content.toLowerCase().indexOf('purchase') === -1) {
-          _addto(['url'],turl);
-          if (turl.indexOf('xml') !== -1) _addto(['xml'],turl);
-          if (turl.indexOf('pdf') !== -1) _addto(['pdf'],turl);
-        } else {
-          _addto(['urls','source'],turl);
-        }
-      }
-      
-      // if we get to here we found no useful identifiers on the page
-    }
-  }
-
-  for ( var d in duds ) {
-    var dud = duds[d];
-    var loc = possibles.urls.indexOf(dud);
-    if ( loc !== -1 ) possibles.urls.splice(loc,1);
-    if (possibles.url === dud) possibles.url = false;
-  }
-  
-  if (possibles.url) {
-    console.log('Calling a redirect chain resolve for ' + possibles.url)
-    var nurl = CLapi.internals.academic.redirect_chain_resolve(possibles.url);
-    _addto(['url'],nurl);
-  }
-        
-  // if exists (and we got to here then we are rerunning)
   if (exists) {
     console.log('updating resolvers data');
-    academic_resolved.update(exists._id,{$set: possibles}); // does this work?
-  } else if ( possibles.url || possibles.source ) {
+    academic_resolved.update(exists._id,{$set: ret});
+  } else if ( ret.url ) {
     console.log('saving new resolvers data object');
-    academic_resolved.insert(possibles);
+    academic_resolved.insert(ret);
   }
-  
   console.log('done trying to resolve');
-  return possibles;
+  return ret;
 }
 
 CLapi.internals.academic.doiresolve = function(doi) {
@@ -415,38 +259,94 @@ CLapi.internals.academic.doiresolve = function(doi) {
   return url;
 }
 
+CLapi.internals.academic.undirect = CLapi.internals.academic.redirect_chain_resolve;
 CLapi.internals.academic.redirect_chain_resolve = function(url) {
-  // this does not really need to be done here using external dependencey
-  // meteor can use meteor.http.call as shown above, but there is an annoying eventemitter bug in request
-  // tried doing it direct here to maybe catch better but actually makes no difference.
-  // so could revert
-  // https://github.com/request/request/issues/311
-  // can this be done with just Meteor.http.call instead of requiring external request dep? - yes see above
-  // but no not for head requests - Meteor provides no way to access the final url from the request module, annoyingly
+  // using external dependency to call request.head
+  // because Meteor provides no way to access the final url from the request module, annoyingly
+
+  // see this URL:
+  // https://secure.jbs.elsevierhealth.com/action/getSharedSiteSession?rc=9&redirect=http%3A%2F%2Fwww.cell.com%2Fcurrent-biology%2Fabstract%2FS0960-9822%2815%2901167-7%3F%26np%3Dy&code=cell-site
+  // redirects to:
+  // http://www.cell.com/current-biology/abstract/S0960-9822(15)01167-7?&np=y
+  // in a browser BUT in code gets stuck in redirect loop
+
+  // many sites like elsevier ones on cell.com etc even once resolved will actually redirect the user again 
+  // this is done via cookies and url params, and does not seem to accessible programmatically in a reliable fashion
+  // so the best we can get for the end of a redirect chain may not actually be the end of the chain that a user 
+  // goes through, so FOR ACTUALLY ACCESSING THE CONTENT OF THE PAGE PROGRAMMATICALLY, USE THE academic.phantom method instead
   
   // here is an odd one that seems to stick forever:
   // https://kclpure.kcl.ac.uk/portal/en/publications/superior-temporal-activation-as-a-function-of-linguistic-knowledge-insights-from-deaf-native-signers-who-speechread(4a9db251-4c8e-4759-b0eb-396360dc897e).html
   
   console.log('Attempting redirect chain resolve for ' + url);
-  if (url.indexOf('10') === 0) url = 'http://dx.doi.org/' + url;
-  var resolve = function(url, callback) {
-    var request = Meteor.npmRequire('request');
-    request.head(url, {headers: {'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'}}, function (err, res, body) {
-      console.log(err);
-      if ( res === undefined ) {
-        console.log(url);
-        callback(null, url);
-      } else {
-        //console.log(res.request.uri.href);
-        callback(null, res.request.uri.href);        
-      }
-    });
-  };
-  var aresolve = Async.wrap(resolve);
-  var ret = aresolve(url);
+  var ret;
+  if (url.indexOf('10') === 0 || url.indexOf('dx.doi.org') !== -1 ) {
+    ret = CLapi.internals.academic.doiresolve(url);
+  } else {
+    var resolve = function(url, callback) {
+      if ( url.indexOf('?') === -1 ) url += '?';
+      var request = Meteor.npmRequire('request');
+      request.head(url, {jar:true, headers: {'User-Agent':'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'}}, function (err, res, body) {
+        console.log(err);
+        if ( res === undefined ) {
+          callback(null, url);
+        } else {
+          callback(null, res.request.uri.href);
+        }
+      });
+    };
+    var aresolve = Async.wrap(resolve);
+    ret = aresolve(url);
+  }
   console.log('resolved ' + url + ' to ' + ret);
   return ret;
 }
+
+
+
+// return the content of the page at the redirected URL, after js has run
+var _phantom = function(url,delay,callback) {
+  if (url.indexOf('http') === -1) url = 'http://' + url;
+  if (delay === undefined) delay = 2000;
+  var phi,sp;
+  var phantom = Meteor.npmRequire('phantom');
+  console.log('starting phantom retrieval of ' + url);
+  phantom.create()
+    .then(function(ph) {
+      phi = ph;
+      console.log('creating page');
+      return phi.createPage();
+    })
+    .then(function(page) {
+      sp = page;
+      console.log('retrieving page');
+      return sp.open(url);
+    })
+    .then(function(status) {
+      console.log('retrieving content');
+      var Future = Npm.require('fibers/future');
+      var future = new Future();
+      setTimeout(function() { future.return(); }, delay);
+      future.wait();
+      return sp.property('content');
+    })
+    .then(function(content) {
+      console.log('got content');
+      sp.close();
+      phi.exit();
+      return callback(null,content);
+    })
+    .catch(function(error) {
+      console.log('phantom errored');
+      console.log(error);
+      sp.close();
+      phi.exit();
+      return callback(null,'');
+    });
+    
+}
+CLapi.internals.academic.phantom = Async.wrap(_phantom);
+
 
 
 
