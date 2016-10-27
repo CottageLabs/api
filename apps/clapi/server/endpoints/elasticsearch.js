@@ -99,7 +99,7 @@ CLapi.internals.es.facet = function(index,type,key,url) {
 }
 
 CLapi.internals.es.query = function(action,route,data,url) {
-  console.log('Performing elasticsearch ' + action + ' on ' + route);
+  //console.log('Performing elasticsearch ' + action + ' on ' + route);
   var esurl = url ? url : Meteor.settings.es.url;
   var routeparts = route.substring(1,route.length).split('/');
   // check if route to indextype exists, if it does not, autocreate with default mapping

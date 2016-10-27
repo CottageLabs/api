@@ -18,15 +18,22 @@ upstream clapilocal {
     server localhost:3333;
 }
 
+# DEFINE A CLUSTER UPSTREAM CL API FOR CHECKING
+upstream clapicluster {
+    server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
+    server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
+}
+
 # LIVE API PROPER VIA CLUSTER
 # can mark these as not being available by adding down to the line of the server not available
 upstream clapi {
     #ip_hash;
     keepalive 16;
     server localhost:3333 max_fails=1 fail_timeout=60;
-    server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
-    server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
+    server 10.131.20.129:3000 max_fails=1 fail_timeout=60 down;
+    server 10.131.11.72:3000 max_fails=1 fail_timeout=60 down;
 }
+
 server {
     listen      80;
     server_name api.cottagelabs.com;
@@ -104,6 +111,37 @@ server {
         add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
         proxy_pass http://clapilocal/api/;
+        proxy_redirect off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Authorization "";
+        # proxy_buffering off;
+    }
+}
+
+
+
+# LIVE API USING ONLY THE CLUSTER
+server {
+    listen      80;
+    server_name capi.cottagelabs.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen          443 ssl spdy;
+    server_name     capi.cottagelabs.com;
+
+    include includes/cl-wildcard-ssl.conf;
+    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
+#    ssl on;
+#    ssl_certificate /etc/letsencrypt/live/capi.cottagelabs.com/fullchain.pem;
+#    ssl_certificate_key /etc/letsencrypt/live/capi.cottagelabs.com/privkey.pem;
+
+    location / {
+        add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
+        add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+        proxy_pass http://clapicluster/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -331,54 +369,3 @@ server {
         }
 }
 
-#server {
-#    listen      80;
-#    server_name lantern.cottagelabs.com;
-#    return 301 https://lantern.cottagelabs.com$request_uri;
-#}
-#server {
-#        listen 443 ssl;
-#        server_name lantern.cottagelabs.com;
-#        include includes/cl-wildcard-ssl.conf;
-#        root /home/cloo/live/cl;
-#
-#        location /content {
-#            try_files /sub/lantern$uri /sub/lantern$uri.html /sub/lantern$uri/index /sub/lantern/$uri/index.html 404 /404 =404;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#        location /static {
-#            try_files $uri $uri.html $uri/index $uri/index.html 404 /404 =404;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#
-#        location / {
-#            try_files $uri $uri.html /index.html;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#}
-#
-#server {
-#    listen      80;
-#    server_name compliance.cottagelabs.com;
-#    return 301 https://compliance.cottagelabs.com$request_uri;
-#}
-#server {
-#        listen 443 ssl;
-#        server_name compliance.cottagelabs.com;
-#        include includes/cl-wildcard-ssl.conf;
-#        root /home/cloo/live/cl;
-#
-#        location /content {
-#            try_files /sub/wellcome$uri /sub/wellcome$uri.html /sub/wellcome$uri/index /sub/wellcome/$uri/index.html 404 /404 =404;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#        location /static {
-#            try_files $uri $uri.html $uri/index $uri/index.html 404 /404 =404;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#
-#        location / {
-#            try_files $uri $uri.html /index.html;
-#            add_header Access-Control-Allow-Origin *;
-#        }
-#}

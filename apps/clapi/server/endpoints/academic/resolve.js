@@ -310,8 +310,11 @@ var _phantom = function(url,delay,callback) {
   if (delay === undefined) delay = 2000;
   var phi,sp;
   var phantom = Meteor.npmRequire('phantom');
+  var fs = Meteor.npmRequire('fs');
   console.log('starting phantom retrieval of ' + url);
-  phantom.create()
+  var ppath = '/usr/bin/phantomjs';
+  if (!fs.existsSync(ppath)) ppath = '/usr/local/bin/phantomjs';
+  phantom.create([],{phantomPath:ppath})
     .then(function(ph) {
       phi = ph;
       console.log('creating page');
@@ -319,6 +322,7 @@ var _phantom = function(url,delay,callback) {
     })
     .then(function(page) {
       sp = page;
+      sp.setting('resourceTimeout',5000);
       console.log('retrieving page');
       return sp.open(url);
     })
