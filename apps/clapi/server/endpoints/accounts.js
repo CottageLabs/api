@@ -505,9 +505,9 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
         logincode:opts.logincode
       };
     } else {
-      opts.subject = template(opts.subject,opts);
-      opts.text = template(opts.text,opts);
-      opts.html = template(opts.html,opts);
+      snd.subject = template(opts.subject,opts);
+      snd.text = template(opts.text,opts);
+      snd.html = template(opts.html,opts);
     }
     CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
 
