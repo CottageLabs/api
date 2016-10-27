@@ -67,11 +67,11 @@ login_services = {
 
 login_services['https://compliance.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
 
-login_services['http://oab.test.cottagelabs.com/account'] = login_services['https://openaccessbutton.org/account'];
+login_services['http://oab.test.cottagelabs.com/account'] = JSON.parse(JSON.stringify(login_services['https://openaccessbutton.org/account']));
 login_services['http://oab.test.cottagelabs.com/account'].domain = '.cottagelabs.com';
 login_services['http://oab.test.cottagelabs.com/account'].secure = false;
 
-login_services['http://lantern.test.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
+login_services['http://lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['https://lantern.cottagelabs.com']));
 login_services['http://lantern.test.cottagelabs.com'].secure = false;
 login_services['http://wellcome.test.cottagelabs.com'] = login_services['http://lantern.test.cottagelabs.com'];
 
