@@ -42,7 +42,7 @@ login_services = {
     text: "Hi there!\r\n\r\nThanks for using Open Data Button!\r\n\r\nPlease go to the link below to authenticate your account:\r\n\r\n{{LOGINURL}}\r\nOr enter this code into the login page: {{LOGINCODE}}\r\n\r\n\r\nIn future you can find your account details, ongoing requests, and instrutions at:\r\n\r\nhttps://opendatabutton.org/account\r\n\r\nWe look forwards to helping you find data,\r\n\r\nJoe\r\n\r\np.s We are still testing and building the Open Data Button. If you have feedback at any point, let us know:\r\n\r\nhttps://opendatabutton.org/general-feedback\r\n\r\n Note: this single-use login link is only valid for {{TIMEOUT}}.",
     html: '<html><body><p>Hi there!</p><p>Thanks for signing up to get an Open Data Button!</p><p>Please go to the link below to authenticate your account:<p style="margin-left:2em;"><font size="-1"><a href="{{LOGINURL}}">{{LOGINURL}}</a></font></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p><font size="-1">Note: this single-use login link is only valid for {{TIMEOUT}}.</font></p><p>In future you can find your account details, ongoing requests, and instrutions at:</p><p><a href="https://opendatabutton.org/account">https://opendatabutton.org/account</a></p><p>We look forward to helping you find data,</p><p>Joe</p><p>p.s We are still testing and building the Open Data Button. If you have feedback at any point, let us know:</p><p><a href="https://opendatabutton.org/general-feedback">https://opendatabutton.org/general-feedback</a></p></body></html>'
   },
-  'https://openaccessbutton.org/login': {
+  'https://openaccessbutton.org/account': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
     from: 'Open Access Button <admin@openaccessbutton.org>',
@@ -67,7 +67,7 @@ login_services = {
 
 login_services['https://compliance.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
 
-login_services['http://oab.test.cottagelabs.com/account'] = login_services['https://openaccessbutton.org/login'];
+login_services['http://oab.test.cottagelabs.com/account'] = login_services['https://openaccessbutton.org/account'];
 login_services['http://oab.test.cottagelabs.com/account'].domain = '.cottagelabs.com';
 login_services['http://oab.test.cottagelabs.com/account'].secure = false;
 
