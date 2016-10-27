@@ -28,5 +28,5 @@
     "CLUSTER_SERVICE": "web"
     
   },
-  "deployCheckWaitTime": 60
+  "deployCheckWaitTime": 240
 }
