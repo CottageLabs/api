@@ -73,7 +73,9 @@ CLapi.internals.es.map = function(route,map,url) {
   if ( route.indexOf('/') !== 0 ) route = '/' + route;
   var routeparts = route.substring(1,route.length).split('/');
   var esurl = url ? url : Meteor.settings.es.url;
-  var db = esurl + '/' + routeparts[0];
+  var db = esurl + '/';
+  if (Meteor.settings.dev_index && routeparts[0].indexOf('dev') !== 0) db += 'dev';
+  db += routeparts[0];
   try {
     var dbexists = Meteor.http.call('HEAD',db);
   } catch(err) {
@@ -91,6 +93,7 @@ CLapi.internals.es.facet = function(index,type,key,url) {
   var opts = {data:{query:{"match_all":{}},size:0,facets:{}}};
   opts.data.facets[key] = {terms:{field:key,size:size}};
   try {
+    if (Meteor.settings.dev_index) index = 'dev' + index;
     var ret = Meteor.http.call('POST',esurl+'/'+index+'/'+type+'/_search',opts);
     return ret.data.facets[key].terms;
   } catch(err) {
@@ -101,9 +104,13 @@ CLapi.internals.es.facet = function(index,type,key,url) {
 CLapi.internals.es.query = function(action,route,data,url) {
   //console.log('Performing elasticsearch ' + action + ' on ' + route);
   var esurl = url ? url : Meteor.settings.es.url;
+  if (route.indexOf('/') !== 0) route = '/' + route;
+  if (Meteor.settings.dev_index) {
+    route = '/dev' + route.substring(1,route.length);
+  }
   var routeparts = route.substring(1,route.length).split('/');
   // check if route to indextype exists, if it does not, autocreate with default mapping
-  if (route.indexOf('/_') === -1 && routeparts.length >= 1 && (action === 'POST' || action === 'PUT')) {
+  if (route.indexOf('/_') === -1 && routeparts.length >= 1 && action !== 'DELETE') {
     try {
       var turl = esurl + '/' + routeparts[0];
       if (routeparts.length > 1) turl += '/' + routeparts[1];
@@ -118,7 +125,8 @@ CLapi.internals.es.query = function(action,route,data,url) {
   try {
     ret = Meteor.http.call(action,esurl+route,opts).data;
   } catch(err) {
-    ret = {info: 'the call to es returned an error, but that may not necessarily be bad, due to more meteor / node stupidity'}
+    //console.log(err);
+    ret = {info: 'the call to es returned an error, but that may not necessarily be bad, due to more meteor / node stupidity', err:err}
   }
   return ret;
 }
@@ -163,6 +171,10 @@ CLapi.internals.es.import = function(data,format,index,type,url,bulk,mappings,id
     }
     var tp = type !== undefined ? type : rows[i]._type;
     var idx = index !== undefined ? index : rows[i]._index;
+    if (Meteor.settings.dev_index) {
+      idx = 'dev' + idx;
+      if (rows[i]._index) rows[i]._index = idx;
+    }
     var id, addr;
     if (ids) {
       id = ids === true || ids === 'es'? rows[i]._id : rec[ids];

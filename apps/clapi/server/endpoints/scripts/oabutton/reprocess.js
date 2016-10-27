@@ -5,12 +5,13 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
     roleRequired: 'root',
     action: function() {
       // wipe the ES indexes and the oab requests before starting
-      CLapi.internals.es.delete('/oab')
-      oab_support.remove({});
-      oab_availability.remove({});
-      oab_request.remove({});
+      //CLapi.internals.es.delete('/oab');
+      //CLapi.internals.es.delete('/clapi/accounts');
+      //oab_support.remove({});
+      //oab_availability.remove({});
+      //oab_request.remove({});
       var counts = {count:0,requests:0,supports:0,blacklist:0,nouser:0,already:0};
-      var size = '15000';
+      var size = '10';
       
       var users = Meteor.users.find({$and:[{'service.openaccessbutton':{$exists:true}},{'service.openaccessbutton.profile':{$exists:false}}]}).fetch();
       counts.users = users.length;
@@ -31,17 +32,42 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
           delete oab.confirm_public;
         }
         if (oab.mailing_list) delete oab.mailing_list;
-        //Meteor.users.update(uacc._id,{$set:{'service.openaccessbutton':oab}});
+        Meteor.users.update(uacc._id,{$set:{'service.openaccessbutton':oab}});
       }
       
+      // get all old requests too
+      var requests = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/request?q=NOT%20test:true&size='+size).data;
+      counts.oldrequests = requests.hits.total;
+      for ( var r in requests.hits.hits ) {
+      //var requests = OAB_Request.find().fetch();
+      //counts.oldrequests = requests.length;
+      //for ( var r in requests ) {
+        //var ress = requests[r];
+        var ress = requests.hits.hits[r]._source;
+        counts.count += 1;
+        var already = oab_request.findOne(ress._id)
+        if (already) {
+          counts.already += 1
+        } else {
+          var ex = oab_request.findOne({$and:[{url:ress.url},{type:ress.type}]});
+          if (ex) {
+            CLapi.internals.service.oab.support(ex._id,ress.story,ress.user.id);
+            counts.supports += 1;
+          } else {
+            var crtd = CLapi.internals.service.oab.request(ress,ress.user.id);
+            crtd === false ? counts.blacklist += 1 : counts.requests += 1;
+          }
+        }
+      }
+
       // get all non-test blocks
-      /*var blocks = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/blocked?q=NOT%20test:true%20AND%20user:*&size='+size).data;
+      var blocks = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/blocked?q=NOT%20test:true%20AND%20user:*&size='+size).data;
       counts.oldblocks = blocks.hits.total;
       for ( var b in blocks.hits.hits ) {
       //var blocks = OAB_Blocked.find().fetch(); // on live can look up direct
       //counts.oldblocks = blocks.length;
       //for ( var b in blocks ) {
-      //  var res = blocks[b];
+        //var res = blocks[b];
         var res = blocks.hits.hits[b]._source;
         counts.count += 1;
         if (res.url) {
@@ -76,45 +102,25 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
               username: user.username
             }
             try { rec.user.email = user.emails[0].address; } catch(err) {}
-            var exists = oab_request.findOne({$and:[{url:rec.url},{type:rec.type}]});
-            if (exists) {
-              CLapi.internals.service.oab.support(exists._id,rec.story,user._id);
-              counts.supports += 1;
+            var alr = oab_request.findOne(rec._id)
+            if (alr) {
+              counts.already += 1;
             } else {
-              var created = CLapi.internals.service.oab.request(rec,user._id);
-              created === false ? counts.blacklist += 1 : counts.requests += 1;
+              var exists = oab_request.findOne({$and:[{url:rec.url},{type:rec.type}]});
+              if (exists) {
+                CLapi.internals.service.oab.support(exists._id,rec.story,user._id);
+                counts.supports += 1;
+              } else {
+                var created = CLapi.internals.service.oab.request(rec,user._id);
+                created === false ? counts.blacklist += 1 : counts.requests += 1;
+              }
             }
           } else {
             counts.nouser += 1;
           }
         }
-      }*/
-      
-      // get all old requests too
-      var requests = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/request?q=NOT%20test:true&size='+size).data;
-      counts.oldrequests = requests.hits.total;
-      for ( var r in requests.hits.hits ) {
-      //var requests = OAB_Request.find().fetch();
-      //counts.oldrequests = requests.length;
-      //for ( var r in requests ) {
-      //  var ress = requests[r];
-        var ress = requests.hits.hits[r]._source;
-        counts.count += 1;
-        var already = oab_request.findOne(ress._id)
-        if (already) {
-          counts.already += 1
-        } else {
-          var ex = oab_request.findOne({$and:[{url:ress.url},{type:ress.type}]});
-          if (ex) {
-            CLapi.internals.service.oab.support(ex._id,ress.story,ress.user.id);
-            counts.supports += 1;
-          } else {
-            var crtd = CLapi.internals.service.oab.request(ress,ress.user.id);
-            crtd === false ? counts.blacklist += 1 : counts.requests += 1;
-          }
-        }
       }
-      
+            
       CLapi.internals.sendmail({
         from: 'sysadmin@cottagelabs.com',
         to: 'mark@cottagelabs.com',
