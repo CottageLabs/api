@@ -493,7 +493,7 @@ CLapi.internals.service.oab.accepts = function(addition) {
   if (addition) {
     var exists = false;
     for ( var a in meta.accepts ) {
-      if ( addition.accepts.type && meta.accepts[a].type !== addition.type ) {
+      if ( addition.type && meta.accepts[a].type !== addition.type ) {
         exists = true;
       }
     }
