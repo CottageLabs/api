@@ -79,13 +79,17 @@ CLapi.addRoute('service/oab', {
 CLapi.addRoute('service/oab/availability', {
   get: {
     action: function() {
-      var opts = {url:this.queryParams.url}
+      var opts = {url:this.queryParams.url,test:this.queryParams.test}
       if ( this.request.headers['x-apikey'] ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
         var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
-        if (acc) opts.uid = acc._id;
+        if (acc) {
+          opts.uid = acc._id;
+          opts.username = acc.username;
+          opts.email = acc.emails[0].address;
+        }
       }
-      if (!this.queryParams.debug && CLapi.internals.service.oab.blacklist(opts.url)) {
+      if (!opts.test && CLapi.internals.service.oab.blacklist(opts.url)) {
         return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
       } else {
         return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
@@ -94,11 +98,19 @@ CLapi.addRoute('service/oab/availability', {
   },
   post: {
     action: function() {
+      // TODO and NOTE - the plugin will handle errors by response. If it receives a 412, it will display the content of the 
+      // message key of the response object. So, as the first thing the plugin does is an availability check, we can do tests 
+      // here on the incoming request, such as check the plugin being used, or the user account, etc, and if necessary 
+      // return a 412 with an object containing a message key pointing to whatever we want to say to the users
       var opts = this.request.body;
       if ( this.request.headers['x-apikey'] ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
         var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
-        if (acc) opts.uid = acc._id;
+        if (acc) {
+          opts.uid = acc._id;
+          opts.username = acc.username;
+          opts.email = acc.emails[0].address;
+        }
       }
       if (!opts.test && CLapi.internals.service.oab.blacklist(opts.url)) {
         return {statusCode: 400, body: {status: 'error', data: {info: 'The provided URL is not one that availability can be checked for'}}}
@@ -243,6 +255,28 @@ CLapi.addRoute('service/oab/supports', {
       var data;
       if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
       return CLapi.internals.es.query('POST','/oab/support/_search',data);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/availabilities', {
+  get: {
+    action: function() {
+      var rt = '/oab/availability/_search';
+      if (this.queryParams) {
+        rt += '?';
+        for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
+      }
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('GET',rt,data);
+    }
+  },
+  post: {
+    action: function() {
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('POST','/oab/availability/_search',data);
     }
   }
 });
@@ -392,7 +426,7 @@ CLapi.addRoute('service/oab/blacklist', {
 CLapi.addRoute('service/oab/templates', {
   get: {
     action: function() {
-      return {status:'success',data:CLapi.internals.service.oab.template()};
+      return {status:'success',data:CLapi.internals.service.oab.template(this.queryParams.template,this.queryParams.refresh)};
     }
   }
 });
@@ -574,6 +608,9 @@ to create a request the url and type are required, What about story?
 }
 */
 CLapi.internals.service.oab.request = function(req,uid) {
+  if (req.type === undefined) req.type = 'article';
+  var exists = oab_request.findOne({url:req.url,type:req.type});
+  if (exists) return false;
   // a blacklisted URL should not be sent to request, because the availability check would have returned 400
   // the request endpoint will accept blacklisted URLs, but here they just get bounced to false
   // we could do something else with them here if we wanted, but for now just false them
@@ -641,8 +678,9 @@ CLapi.internals.service.oab.support = function(rid,story,uid) {
   if ( r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
     oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
-    oab_support.insert({url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story});
-    return true;
+    var s = {url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story}
+    s._id = oab_support.insert(s);
+    return s;
   } else {
     return false;
   }
@@ -694,7 +732,6 @@ CLapi.internals.service.oab.supports = function(rid,uid,url) {
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
   if (opts.url === undefined) return {}
-  oab_availability.insert(opts); // just records usage of this endpoint
   
   var ret = {availability:[],requests:[],accepts:[]};
   var already = [];
@@ -707,7 +744,7 @@ CLapi.internals.service.oab.availability = function(opts) {
     // {type:'data',url:<URL>}
   }
   if ( opts.type === 'article' || opts.type === undefined ) {
-    var res = CLapi.internals.academic.resolve(opts.url);
+    var res = CLapi.internals.academic.resolve(opts.url,opts.dom);
     if (res.url) {
       ret.availability.push({type:'article',url:res.url});
       already.push('article')
@@ -719,6 +756,7 @@ CLapi.internals.service.oab.availability = function(opts) {
   var matcher = {url:opts.url};
   if (opts.type) matcher.type = opts.type;
   var requests = oab_request.find(matcher).fetch();
+  console.log('found ' + requests.length + ' existing requests');
   for ( var r in requests ) {
     if ( already.indexOf(requests[r].type) === -1 ) {
       var rq = {
@@ -738,8 +776,12 @@ CLapi.internals.service.oab.availability = function(opts) {
   console.log('OAB availability checking for accepts');
   var accepts = CLapi.internals.service.oab.accepts();
   for ( var a in accepts ) {
-    if ( already.indexOf(accepts[a]) === -1) ret.accepts.push(accepts[a]);
+    if ( already.indexOf(accepts[a].type) === -1) ret.accepts.push(accepts[a]);
   }
+
+  // record usage of this endpoint
+  if (opts.dom) delete opts.dom;
+  oab_availability.insert(opts);
 
   return ret;
 }
@@ -921,10 +963,12 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
   // wraps the mail constructor
   if (vars && vars.user) {
     var u = CLapi.internals.accounts.retrieve(vars.user.id);
-    vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : '';
-    vars.affiliation = u.service.openaccessbutton.profile.affiliation ? u.service.openaccessbutton.profile.affiliation : '';
+    if (u) {
+      vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : '';
+      vars.affiliation = u.service.openaccessbutton.profile.affiliation ? u.service.openaccessbutton.profile.affiliation : '';
+    }
     vars.userid = vars.user.id;
-    vars.fullname = u.profile.name ? u.profile.name : '';
+    vars.fullname = u && u.profile && u.profile.name ? u.profile.name : '';
     vars.username = vars.user.username ? vars.user.username : vars.user.email;
     if (!vars.fullname) vars.fullname = vars.username;
     vars.useremail = vars.user.email
@@ -944,6 +988,15 @@ CLapi.internals.service.oab.sendmail = function(opts) {
   if (!opts.subject) opts.subject = 'Hello from Open Access Button';
   if (!opts.from) opts.from = Meteor.settings.openaccessbutton.requests_from;
 
+  if (opts.bcc && opts.bcc === 'ALL') {
+    var emails = [];
+    var users = Meteor.users.find({"roles.openaccessbutton":{$exists:true}});
+    users.forEach(function(user) {
+      emails.push(user.emails[0].address);
+    });
+    opts.bcc = emails;
+  }
+  
   if (opts.template === 'status_received') {
     // special cases that send multiple emails will have to be coded here specifically
     // the main one should be the one to send to the creator of the request

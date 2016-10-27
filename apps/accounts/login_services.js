@@ -34,7 +34,7 @@ login_services = {
   'https://test.cottagelabs.com': {},
   'https://opendatabutton.org/login': {
     domain: '.opendatabutton.org',
-    from: 'admin@openaccessbutton.org',
+    from: 'Open Access Button <admin@openaccessbutton.org>',
     service: 'openaccessbutton',
     name: 'Open Data Button',
     subject: 'Please Authenticate your Account (+ some other details)',
@@ -45,7 +45,7 @@ login_services = {
   'https://openaccessbutton.org/login': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
-    from: 'admin@openaccessbutton.org',
+    from: 'Open Access Button <admin@openaccessbutton.org>',
     service: 'openaccessbutton',
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',

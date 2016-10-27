@@ -5,14 +5,14 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
     roleRequired: 'root',
     action: function() {
       // wipe the ES indexes and the oab requests before starting
-      //CLapi.internals.es.delete('/oab')
-      //oab_support.remove({});
-      //oab_availability.remove({});
-      //oab_request.remove({});
+      CLapi.internals.es.delete('/oab')
+      oab_support.remove({});
+      oab_availability.remove({});
+      oab_request.remove({});
       var counts = {count:0,requests:0,supports:0,blacklist:0,nouser:0,already:0};
       var size = '15000';
       
-      /*var users = Meteor.users.find({$and:[{'service.openaccessbutton':{$exists:true}},{'service.openaccessbutton.profile':{$exists:false}}]}).fetch();
+      var users = Meteor.users.find({$and:[{'service.openaccessbutton':{$exists:true}},{'service.openaccessbutton.profile':{$exists:false}}]}).fetch();
       counts.users = users.length;
       for ( var u in users ) {
         var uacc = users[u];
@@ -31,8 +31,8 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
           delete oab.confirm_public;
         }
         if (oab.mailing_list) delete oab.mailing_list;
-        Meteor.users.update(uacc._id,{$set:{'service.openaccessbutton':oab}});
-      }*/
+        //Meteor.users.update(uacc._id,{$set:{'service.openaccessbutton':oab}});
+      }
       
       // get all non-test blocks
       /*var blocks = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/blocked?q=NOT%20test:true%20AND%20user:*&size='+size).data;
