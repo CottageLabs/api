@@ -503,7 +503,7 @@ CLapi.internals.service.oab.accepts = function(addition) {
 }
 
 CLapi.internals.service.oab.blacklist = function(url,add) {
-  if (url !== undefined && url.length < 4 || url.indexOf('.') === -1) return false;
+  if (url !== undefined && (url.length < 4 || url.indexOf('.') === -1) ) return false;
   // TODO could make this a load from a google sheet...
   var bd = [
     'chrome://',
