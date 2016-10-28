@@ -333,7 +333,6 @@ CLapi.addRoute('service/oab/embed/:rid', {
       var rid = this.urlParams.rid;
       var b = oab_request.findOne(rid);
       if (b) {
-        b.count = 0; // TODO this shold be stored in the request object
         var title = b.url;
         if ( b.title ) title = b.title;
         var template = '<div style="width:800px;padding:0;margin:0;"> \
@@ -606,6 +605,10 @@ to create a request the url and type are required, What about story?
 }
 */
 CLapi.internals.service.oab.request = function(req,uid) {
+  // this can contain user-side data so fail silently if anything wrong
+  for (var k in req) {
+    if (req[k].indexOf('<script') !== -1) return false;
+  }
   if (req.type === undefined) req.type = 'article';
   var exists = oab_request.findOne({url:req.url,type:req.type});
   if (exists) return false;
@@ -668,6 +671,7 @@ CLapi.internals.service.oab.scrape = function(url,content,refresh,doi) {
 }
 
 CLapi.internals.service.oab.support = function(rid,story,uid) {
+  if (story.indexOf('<script') !== -1) return false; // ignore people being naughty
   var r = oab_request.findOne(rid);
   console.log('creating oab support')
   console.log(rid)

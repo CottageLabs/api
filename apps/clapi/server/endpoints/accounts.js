@@ -430,6 +430,7 @@ CLapi.internals.accounts.fingerprint = function(uid,fingerprint) {
 // expect service object, containing a service key pointing to service object data
 // which can contain a role - or get role from service options now?
 CLapi.internals.accounts.register = function(opts) {
+  if (JSON.stringify(opts).indexOf('<script') !== -1) return false; // naughty catcher
   if (opts.email === undefined) return false;
   // fingerprint cannot be mandatory because it can not be used easily on APIs
   var user = CLapi.internals.accounts.retrieve(opts.email);
@@ -653,6 +654,7 @@ CLapi.internals.accounts.onlinecount = function(filter) {
 // service can be an object keyed by service name, pointing to objects of info about the services. 
 // If role is set in the service objects, the roles will be set but not saved as part of the data
 CLapi.internals.accounts.create = function(data) {
+  if (JSON.stringify(data).indexOf('<script') !== -1) return false; // naughty catcher
   if (data.email === undefined) throw new Error('At least email field required');
   if (data.password === undefined) data.password = Random.hexString(30);
   var userId = Accounts.createUser({email:data.email,password:data.password});
@@ -744,6 +746,7 @@ CLapi.internals.accounts.details = function(uid,user) {
 }
 
 CLapi.internals.accounts.update = function(uid,user,keys,replace) {
+  if (JSON.stringify(keys).indexOf('<script') !== -1) return false; // naughty catcher
   // account update does NOT handle emails, security, api, or roles
   var uacc = user._id === uid ? user : CLapi.internals.accounts.retrieve(uid);
   var allowed = {};
