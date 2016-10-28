@@ -532,7 +532,7 @@ CLapi.internals.service.oab.blacklist = function(url,add) {
   ];
   var meta = oab_meta.findOne('meta');
   if (!meta) meta = {_id: oab_meta.insert({_id:'meta',accepts:[],blacklist:[]}), accepts:[], blacklist:bd };
-  if (!meta.blacklist) {
+  if (!meta.blacklist || meta.blacklist.length === 0) {
     meta.blacklist = bd;
     oab_meta.update('meta',{$set:{blacklist:meta.blacklist}});
   }
