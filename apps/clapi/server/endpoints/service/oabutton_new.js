@@ -472,6 +472,7 @@ CLapi.internals.service.oab.status = function() {
     refused: oab_request.find({status:'refused'}).count(),
     received: oab_request.find({status:'received'}).count(),    
     supports: oab_support.find().count(),
+    availabilities: oab_availability.find().count(),
     users: CLapi.internals.accounts.count({"roles.openaccessbutton":{$exists:true}}),
     requested: oab_request.aggregate( [ { $group: { _id: "$user"}  } ] ).length,
   }
@@ -606,9 +607,7 @@ to create a request the url and type are required, What about story?
 */
 CLapi.internals.service.oab.request = function(req,uid) {
   // this can contain user-side data so fail silently if anything wrong
-  for (var k in req) {
-    if (req[k].indexOf('<script') !== -1) return false;
-  }
+  if (JSON.stringify(req).indexOf('<script') !== -1) return false; // naughty catcher
   if (req.type === undefined) req.type = 'article';
   var exists = oab_request.findOne({url:req.url,type:req.type});
   if (exists) return false;

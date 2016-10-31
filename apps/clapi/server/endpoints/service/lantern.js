@@ -1769,6 +1769,7 @@ if ( Meteor.settings.cron.lantern ) {
     job: CLapi.internals.service.lantern.nextProcess
   });
 }
+SyncedCron.config({utc:true}); // defaults to not utc, which caused cpu spike on 30/10/2016 0200 when clocks went back
 SyncedCron.start(); // where should the cron starter go in the API code? - a generic startup section somewhere?
 
 
