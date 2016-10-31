@@ -607,6 +607,13 @@ to create a request the url and type are required, What about story?
 */
 CLapi.internals.service.oab.request = function(req,uid) {
   // this can contain user-side data so fail silently if anything wrong
+  console.log('oabutton creating new request');
+  var dom;
+  if (req.dom) {
+    dom = req.dom;
+    console.log('dom of length ' + req.dom.length + ' was provided, but removed before saving');
+    delete req.dom;
+  }
   if (JSON.stringify(req).indexOf('<script') !== -1) return false; // naughty catcher
   if (req.type === undefined) req.type = 'article';
   var exists = oab_request.findOne({url:req.url,type:req.type});
@@ -628,7 +635,7 @@ CLapi.internals.service.oab.request = function(req,uid) {
   try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
   req.count = 1;
   if (!req.title || !req.email || !req.keywords) { // worth scraping on any other circumstance?
-    var meta = CLapi.internals.academic.catalogue.extract(req.url,req.dom,undefined,req.doi);
+    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi);
     req.keywords = meta && meta.keywords ? meta.keywords : [];
     req.title = meta && meta.title ? meta.title : "";
     req.doi = meta && meta.doi ? meta.doi : "";
@@ -656,10 +663,6 @@ CLapi.internals.service.oab.request = function(req,uid) {
   }
 
   if (req.doi) req.doi = decodeURIComponent(req.doi); // just a clean-up
-  if (req.dom) {
-    console.log('dom of length ' + req.dom.length + ' was provided, but removed before saving');
-    delete req.dom;
-  }
   req.receiver = CLapi.internals.store.receiver(req); // is store receiver really necessary here?
   req._id = oab_request.insert(req);
   return req;
