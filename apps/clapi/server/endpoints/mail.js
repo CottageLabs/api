@@ -25,7 +25,7 @@ CLapi.addRoute('sendmail/error', { post: { action: function() { CLapi.internals.
 CLapi.addRoute('mail/error', {
   post: {
     action: function() {
-      CLapi.internals.mail.error(this.request.body);
+      CLapi.internals.mail.error(this.request.body,this.queryParams.token);
       return {};
     }
   }
@@ -91,13 +91,22 @@ CLapi.internals.sendmail = function(opts,mail_url) {
 CLapi.internals.mail = {}
 CLapi.internals.mail.send = CLapi.internals.sendmail;
 
-CLapi.internals.mail.error = function(content) {
+CLapi.internals.mail.error = function(content,token) {
+  var to = "mark@cottagelabs.com";
+  var mail_url;
+  if (token) {
+    try {
+      to = Meteor.settings.mail.error.tokens[token].to;
+      mail_url = Meteor.settings.mail.error.tokens[token].mail_url;
+      console.log('Sending error email for ' + Meteor.settings.mail.error.tokens[token].service);
+    } catch(err) {}
+  }
   CLapi.internals.sendmail({
-    from: "mark@cottagelabs.com",
-    to: "mark@cottagelabs.com",
+    from: "sysadmin@cottagelabs.com",
+    to: to,
     subject: 'An error dump',
     text: JSON.stringify(content,undefined,2)
-  });
+  },mail_url);
 }
 
 CLapi.internals.mail.template = function(search,template) {

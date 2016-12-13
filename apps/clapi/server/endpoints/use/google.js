@@ -44,6 +44,8 @@ CLapi.addRoute('use/google/places/url', {
 
 CLapi.internals.use.google = {};
 CLapi.internals.use.google.places = {};
+CLapi.internals.use.google.docs = {};
+CLapi.internals.use.google.sheets = {};
 
 CLapi.internals.use.google.places.autocomplete = function(qry) {
   console.log('Using google places autocomplete to query ' + qry);
@@ -83,6 +85,41 @@ CLapi.internals.use.google.places.url = function(qry) {
   }
 }
 
-
+CLapi.internals.use.google.sheets.feed = function(sheetid,stale) {
+  // expects a google sheet ID or a URL to a google sheets feed in json format
+  // NOTE the sheed must be published for this to work, should have the data in sheet 1, and should have columns of data with key names in row 1
+  var url;
+  if (sheetid.indexOf('http') !== 0) {
+    url = 'https://spreadsheets.google.com/feeds/list/' + sheetid + '/od6/public/values?alt=json';
+  } else {
+    url = sheetid;
+    sheetid = sheetid.replace('https://','').replace('http://','').replace('spreadsheets.google.com/feeds/list/','').split('/')[0];
+  }
+  var localcopy = '.googlelocalcopy' + sheetid + '.json';
+  var fs = Meteor.npmRequire('fs');
+  if (stale === undefined) stale = 3600000;
+  var values = [];
+  if ( fs.existsSync(localcopy) && ( (new Date()) - fs.statSync(localcopy).mtime) < stale ) {
+    console.log('Data retrieved for ' + url + ' from local copy ' + localcopy);
+    values = JSON.parse(fs.readFileSync(localcopy));
+  } else {
+    console.log('Getting data from google doc for ' + url);
+    try {
+      var g = Meteor.http.call('GET',url);
+      var list = g.data.feed.entry;
+      for ( var l in list ) {
+        var val = {};
+        for ( var k in list[l] ) {
+          if (k.indexOf('gsx$') === 0) val[k.replace('gsx$','')] = list[l][k].$t;
+        }
+        values.push(val);
+      }
+    } catch(err) {
+      console.log('Could not get any values from sheet ' + url);
+    }
+    fs.writeFileSync(localcopy, JSON.stringify(values));
+  }
+  return values;
+}
 
 

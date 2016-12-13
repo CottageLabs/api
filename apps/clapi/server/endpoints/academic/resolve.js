@@ -170,7 +170,7 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
     // is it worth doing a licence check on a URL? - if open, this is the URL (if there is a URL - could be content)
     // else we look for DOIs PMIDs PMC IDs in the page content
     if (!content) content = CLapi.internals.academic.phantom(ident,undefined);
-    var meta = CLapi.internals.academic.catalogue.extract(undefined,content);
+    var meta = CLapi.internals.academic.catalogue.extract(ident,content);
     if (meta.doi) {
       type = 'doi';
       ident = meta.doi;
@@ -190,7 +190,7 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
 
   // with a pmid or pmcid look up on eupmc
   if (type === 'pmid' || type === 'pmc') {
-    console.log('academic resolve processing for URL')
+    console.log('academic resolve processing for PMC/PMID')
     ret[type] = ident;
     res = CLapi.internals.use.europepmc[type](ident);
     if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
@@ -207,20 +207,65 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
   }
 
   if (!ret.url && type === 'doi') {
-    console.log('academic resolve processing for URL')
+    console.log('academic resolve processing for DOI')
     ret.doi = ident;
     // no use looking up the DOI in crossref because that does not indicate openness of the URLs
-    res = CLapi.internals.use.dissemin.doi(ident); // check dissemin (or does it just subset BASE?)
-    if (res.data.pdf_url) ret.url = res.data.pdf_url;
-    if (!ret.url) { // check BASE
+    try { // check BASE
       res = CLapi.internals.use.base.search(ident);
-      if (res.data && res.data.docs && res.data.docs > 0 && res.data.docs[0].dclink) ret.url = res.data.docs[0].dclink;
-    }
-    // don't bother looking up CORE, it is unstable and subset of BASE
-    /*if (!ret) {
-      res = CLapi.internals.use.core.articles.doi(ident);
-      if (res.data.fulltextIdentifier) ret.url = res.data.fulltextIdentifier;
+      if (res.data && res.data.docs && res.data.docs.length > 0 && res.data.docs[0].dclink) {
+        ret.url = res.data.docs[0].dclink;
+        ret.source = 'BASE';
+      }
+    } catch(err) {}
+    /*if (!ret.url) { // check openaire
+      try {
+        res = CLapi.internals.use.openaire.doi(ident);
+        if (res.data && res.data.metadata && false) { // TODO decide how openaire actually gives us a URL to something open
+          ret.url = '';
+          ret.source = 'openaire';
+        }
+      } catch(err) {}
     }*/
+    if (!ret.url) { // check dissemin (or does it just subset BASE?)
+      try {
+        res = CLapi.internals.use.dissemin.doi(ident);
+        if (res.data.pdf_url) {
+          ret.source = "Dissemin";
+          ret.url = res.data.pdf_url;
+        }
+      } catch(err) {}
+    }
+    if (!ret.url) { // check figshare
+      try {
+        res = CLapi.internals.use.figshare.doi(ident);
+        if (res.data && res.data.doi === ident && res.data.url) {
+          ret.source = "figshare";
+          ret.url = res.data.url;
+        }
+      } catch(err) {}
+    }
+    if (!ret.url) { // check CORE (last because unreliable in the past)
+      try {
+        res = CLapi.internals.use.core.articles.doi(ident);
+        if (res.data.fulltextIdentifier) {
+          ret.url = res.data.fulltextIdentifier;
+          ret.source = "CORE";
+        }
+        if (!ret.url && res.data.fulltextUrls && res.data.fulltextUrls.length > 0) {
+          var uu;
+          for ( var u in res.data.fulltextUrls ) {
+            var tu = res.data.fulltextUrls[u];
+            if ( tu.indexOf('dx.doi.org') === -1 && tu.indexOf('core.ac.uk') === -1 && (uu === undefined || ( uu.indexOf('.pdf') === -1 && tu.indexOf('.pdf') !== -1 ) ) ) {
+              uu = tu;
+            }
+          }
+          if (uu !== undefined) {
+            ret.url = res.data.fulltextIdentifier;
+            ret.source = "CORE";
+          }
+        }
+      } catch(err) {}
+    }
     // add other places to check with DOI here, until one of them sets ret to be a value
   }
     

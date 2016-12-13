@@ -475,7 +475,7 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
   var until = (new Date()).valueOf() + (opts.timeout * 60 * 1000);
   opts.timeout = opts.timeout >= 60 ? (opts.timeout/60) + ' hour(s)' : opts.timeout + ' minute(s)';
   var user = CLapi.internals.accounts.retrieve(email);
-  opts.action = user && CLapi.internals.accounts.auth(opts.service+'.user',user) ? "login" : "registration";
+  opts.action = user && CLapi.internals.accounts.auth(opts.service+'.'+opts.role,user) ? "login" : "registration";
   console.log(opts);
 
   if (opts.action === "registration" && !opts.registration) {
@@ -486,6 +486,10 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
     var known = false;
     if (user) {
       known = true;
+      // check the user has a user role in this service, otherwise give it to them
+      if (opts.action === "registration" && !CLapi.internals.accounts.auth(opts.service+'.'+opts.role,user)) {
+        CLapi.internals.accounts.addrole(user._id,opts.service,opts.role);
+      }
     } else {
       if (!opts.role) opts.role = 'user';
       user = CLapi.internals.accounts.register({email:email,service:opts,fingerprint:fingerprint});

@@ -64,7 +64,7 @@ CLapi = new Restivus({
   defaultHeaders: { 'Content-Type': 'application/json; charset=utf-8' },
   prettyJson: true,
   auth: {
-    token: 'api.keys.hashedToken',
+    token: 'api.keys.key', // should perhaps be hashedToken and change below to pass a hashed value instead
     user: function () {
       var u;
       var xid = this.request.headers['x-id'];
@@ -146,7 +146,7 @@ CLapi = new Restivus({
       if (xid) console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
       return {
         userId: xid,
-        token: Accounts._hashLoginToken(xapikey)
+        token: xapikey // should perhaps better use Accounts._hashLoginToken(xapikey) and change which key the token is set to above
       };
     }
   }

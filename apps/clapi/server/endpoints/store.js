@@ -64,24 +64,29 @@ var storeprocs = {
       } else {
         content = this.request.body;
       }*/
-      var content;
+      console.log('Store POST');
+      console.log(this.request.files);
+      console.log(this.request.body);
+      var p = '';
+      for ( var u in this.urlParams ) {
+        if (p.length !== 0) p += '/';
+        p += this.urlParams[u];
+      }
+      var private = this.queryParams.private;
       var buffers = [];
       var totalLength = 0;
       this.request.on('data', function(chunk) {
         buffers.push(chunk);
         totalLength += chunk.length;
+        console.log(totalLength);
       });
       this.request.on('end', function() {
-        content = Buffer.concat(buffers);
-        console.log('request end');
-        console.log(content);
+        console.log('Store received file of length ' + totalLength);
+        var content = Buffer.concat(buffers);
+        CLapi.internals.store.create(p,content,private);
       });
-      console.log(this.request.files);
-      console.log(this.bodyParams);
-      console.log('store POST');
-      var p = '';
-      for ( var u in this.urlParams ) p += this.urlParams[u] + '/';
-      return CLapi.internals.store.create(p,content,this.queryParams.private);
+      this.request.on('error', function(error) { console.log(error.stack); });
+      return {status:'success'} // TODO should perhaps confirm the location of the file URL where it can be accessed
     }
   },
   delete: {

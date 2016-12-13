@@ -44,36 +44,36 @@ CLapi.internals.convert = {};
 CLapi.internals.convert.run = function(url,from,to,content,opts) {
   var which, proc, output;
   if ( from === 'table' ) { // convert html table in web page
-    if ( to === 'json' ) {
+    if ( to.indexOf('json') !== -1 ) {
       output = CLapi.internals.convert.table2json(url,undefined,opts);
-    } else if ( to === 'csv' ) {
+    } else if ( to.indexOf('csv') !== -1 ) {
       output = CLapi.internals.convert.table2csv(url,undefined,opts);      
     }
   } else if ( from === 'csv' ) {
-    if ( to === 'json' ) {
+    if ( to.indexOf('json') !== -1 ) {
       url ? output = CLapi.internals.convert.csv2json(url) : CLapi.internals.convert.csv2json(undefined,content);
-    } else if ( to === 'txt' ) {
+    } else if ( to.indexOf('txt') !== -1 ) {
       from = 'file';
     }
   } else if ( from === 'html' ) {
-    if ( to === 'txt' ) {
+    if ( to.indexOf('txt') !== -1 ) {
       output = CLapi.internals.convert.html2txt(url,undefined);
     }
   } else if ( from === 'json' ) {
-    if ( to === 'csv' ) {
+    if ( to.indexOf('csv') !== -1 ) {
       output = CLapi.internals.convert.json2csv(opts,url,content); // pass extra opts here if available
-    } else if ( to === 'txt' ) {
+    } else if ( to.indexOf('txt') !== -1 ) {
       from = 'file';
     }
   } else if ( from === 'xml' ) {
-    if ( to === 'txt' ) {
+    if ( to.indexOf('txt') !== -1 ) {
       output = CLapi.internals.convert.xml2txt(url,undefined);
-    } else if ( to === 'json' ) {
+    } else if ( to.indexOf('json') !== -1 ) {
       output = CLapi.internals.convert.xml2json(url,undefined);
     }
   }
   if ( from === 'file' || from === 'pdf' ) {
-    if ( to === 'txt' ) {
+    if ( to.indexOf('txt') !== -1 ) {
       output = CLapi.internals.convert.file2txt(url,undefined,opts);
     }    
   }

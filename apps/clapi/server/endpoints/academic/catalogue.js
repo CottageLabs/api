@@ -67,7 +67,7 @@ CLapi.addRoute('academic/daily/retrieve/:date', {
 
 CLapi.internals.academic.catalogue = {}
 
-CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
+CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
   // example URLs:
   // https://jcheminf.springeropen.com/articles/10.1186/1758-2946-3-47 (the OBSTM article, open, on jcheminf, findable by CORE and BASE)
   // http://www.sciencedirect.com/science/article/pii/S0735109712600734 (open on elsevier, not findable by CORE or BASE)
@@ -78,6 +78,7 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
     return r;
   } else {
     var meta = {url:url};
+		if (doi) meta.doi = doi;
 
     try { // get content if none was passed in, by phantom (resolving and) rendering the URL
       if (content === undefined && url !== undefined) content = CLapi.internals.academic.phantom(url,undefined)
@@ -87,7 +88,7 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
 		// is it worth looking for <meta name="citation_fulltext_html_url" content="" />
 		// and if found what to do with it?
 		
-    if (url) { // quick check to get a DOI if at the end of a URL, as they often are
+    if (url && !meta.doi) { // quick check to get a DOI if at the end of a URL, as they often are
 			var mr = new RegExp(/\/(10\.[^ &#]+\/[^ &#]+)$/);
 			var ud = mr.exec(decodeURIComponent(url));
       if (ud && ud.length > 1 && 9 < ud[1].length && ud[1].length < 45) meta.doi = ud[1];
@@ -98,8 +99,8 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
         var d = CLapi.internals.tdm.extract({
           content:content,
           matchers:[
-            '/dx[.]doi[.]org/(10[.].*?/.*?)("| \')/gi',
-            '/doi[^>;]*?(?:=|:)[^>;]*?(10[.].*?\/.*?)("|\')/gi'
+            '/doi[^>;]*?(?:=|:)[^>;]*?(10[.].*?\/.*?)("|\')/gi',
+            '/dx[.]doi[.]org/(10[.].*?/.*?)("| \')/gi'
           ]
         });
         for ( var n in d.matches) {
@@ -194,14 +195,14 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh) {
         var m = CLapi.internals.tdm.extract({
           content:content,
           matchers:[
-            '/mailto:([^ \'">{}]*?@[^ \'"{}<>]*?[.][a-z.]{3,}?)/gi',
-            '/(?: |>|"|\')([^ \'">{}]*?@[^ \'"{}<>]*?[.][a-z.]{3,}?)(?: |<|"|\')/gi'
+            '/mailto:([^ \'">{}/]*?@[^ \'"{}<>]*?[.][a-z.]{2,}?)/gi',
+            '/(?: |>|"|\')([^ \'">{}/]*?@[^ \'"{}<>]*?[.][a-z.]{2,}?)(?: |<|"|\')/gi'
           ]
           //start:'<body', // splitting on body cannot be relied on - the PLOS option has 4 bodies, for example
           //end:'</body'
         });
         for ( var i in m.matches) {
-          var mm = m.matches[i].result[1].replace('mailto:');
+          var mm = m.matches[i].result[1].replace('mailto:','');
           if (mm.endsWith('.')) mm = mm.substring(0,mm.length-1);
           if (meta.email.indexOf(mm) === -1) meta.email.push(mm);
         }

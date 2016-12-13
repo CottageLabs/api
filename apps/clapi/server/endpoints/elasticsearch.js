@@ -22,7 +22,7 @@ CLapi.addRoute('es/import', {
   }
 });
 
-var esaction = function(user,action,urlp,params,data) {
+var esaction = function(uid,action,urlp,params,data) {
   var rt = '';
   for ( var up in urlp ) rt += '/' + urlp[up];
   if (params) {
@@ -32,22 +32,57 @@ var esaction = function(user,action,urlp,params,data) {
   // unless the user is in global root group, check that the url is in the allowed routes
   // also check that the user is in the necessary group to access the route
   // so there needs to be an elasticsearch group that gives user permissions on certain roles, like blocked_GET, or something like that
-  var allowed = Meteor.settings.es.routes;
-  if (urlp.rc === '_facet' && urlp.rd !== undefined) {
-    return CLapi.internals.es.facet(urlp.ra,urlp.rb,urlp.rd);
+  var user = uid ? CLapi.internals.accounts.retrieve(uid) : undefined;
+  var allowed = user && CLapi.internals.accounts.auth('root',user) ? true : false; // should the root user get access to everything or only the open routes?
+  // NOTE that the call to this below still requires user auth on PUT and DELETE, so there cannot be any public allowance on those
+  if (!allowed) {
+    var open = Meteor.settings.es.routes;
+    for ( var o in open ) {
+      if (!allowed && rt.indexOf(o) === 0) {
+        var ort = open[o];
+        if (ort.public) {
+          allowed = true;
+        } else if (user) {
+          // if part of the route is listed in the list of open routes, then a user who is in a group matching
+          // the name of the route without slashes will have some permissions on that index
+          if (action === 'GET' && CLapi.internals.accounts.auth(ort+'.read',user)) {
+            allowed = true; // any user in the group can GET
+          } else if (action === 'POST' && CLapi.internals.accounts.auth(ort+'.edit',user)) {
+            allowed = true;
+          } else if (action === 'PUT' && CLapi.internals.accounts.auth(ort+'.publish',user)) {
+            allowed = true;
+          } else if (action === 'DELETE' && CLapi.internals.accounts.auth(ort+'.owner'),user) {
+            allowed = true;
+          }
+          // also the settings for the route may declare actions and groups that can perform that action
+          // other settings could go in there too, but this has yet to be implemented
+        }
+      }
+    }
+  }
+  if (allowed) {
+    if (urlp.rc === '_facet' && urlp.rd !== undefined) {
+      return CLapi.internals.es.facet(urlp.ra,urlp.rb,urlp.rd);
+    } else {
+      return CLapi.internals.es.query(action,rt,data);
+    }
   } else {
-    return CLapi.internals.es.query(action,rt,data);
+    return {statusCode:401,body:{status:"error",message:"401 unauthorized"}}
   }
 }
 
 var es = {
   get: {
-    authRequired: true,
-    action: function() { return esaction(Meteor.userId, 'GET', this.urlParams, this.queryParams); }
+    action: function() {
+      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
+      return esaction(uid, 'GET', this.urlParams, this.queryParams); 
+    }
   },
   post: {
-    authRequired: true,
-    action: function() { return esaction(Meteor.userId, 'POST', this.urlParams, this.queryParams, this.request.body); }
+    action: function() { 
+      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
+      return esaction(Meteor.userId, 'POST', this.urlParams, this.queryParams, this.request.body); 
+    }
   },
   put: {
     authRequired: true,
@@ -102,7 +137,7 @@ CLapi.internals.es.facet = function(index,type,key,url) {
 }
 
 CLapi.internals.es.query = function(action,route,data,url) {
-  //console.log('Performing elasticsearch ' + action + ' on ' + route);
+  console.log('Performing elasticsearch ' + action + ' on ' + route);
   var esurl = url ? url : Meteor.settings.es.url;
   if (route.indexOf('/') !== 0) route = '/' + route;
   if (Meteor.settings.dev_index) {

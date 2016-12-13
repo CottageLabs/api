@@ -1,5 +1,4 @@
 
-
 clogin = {};
 
 clogin.getCookie = function(cname) {
@@ -98,7 +97,7 @@ clogin.removerole = function(grouprole,uid) {
 
 clogin.location = 'body'; // this is NECESSARY if you want the login init to build you an actual login form. It should be an ID of a div already on the page
 
-clogin.api = 'https://api.cottagelabs.com/accounts';
+clogin.api = window.location.host.indexOf('test.cottagelabs.com') === -1 ? 'https://api.cottagelabs.com/accounts' : 'https://dev.api.cottagelabs.com/accounts';
 clogin.fingerprint = true; // if true the fingerprint library will be necessary before the clogin library too (this will be necessary for CL logins)
 clogin.hashlength = 40; // this should ideally be retrieved via an init request to accounts API for config settings
 clogin.tokenlength = 7; // as above
@@ -177,7 +176,7 @@ clogin.failureCallback = function(data,action) {
   } catch(err) {}
   $.ajax({
     type:'POST',
-    url: 'https://dev.api.cottagelabs.com/sendmail/error',
+    url: 'https://dev.api.cottagelabs.com/mail/error',
     cache:false,
     processData:false,
     contentType: 'application/json',
@@ -187,9 +186,7 @@ clogin.failureCallback = function(data,action) {
   if (typeof clogin.afterFailure === 'function') clogin.afterFailure();
 }
 
-clogin.afterSave = function() {
-  
-}
+clogin.afterSave = function() {} // a function to customise to do something after save
 clogin.saveSuccess = function() {
   clogin.user.save = 'success';
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
@@ -348,7 +345,6 @@ clogin.tokenSuccess = function() {
   $('#'+clogin.tokenDivId).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
 }
-
 clogin.token = function(e) {
   if (e) e.preventDefault();
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
@@ -373,23 +369,15 @@ clogin.token = function(e) {
   // even if it is successful. So instead just call it directly.
   clogin.tokenSuccess();
 }
-
 clogin.loginWithToken = function() {
   var token = $('#'+clogin.tokenInputId).val();
   if ( token.length === clogin.tokenlength ) clogin.login();
 }
 
-clogin.loginNext = function() {
-  // a function that can be set to show a link to the page to go back to
-  // or could just fire a redirect if preferred - but has to be a user controlled option
-  // in csae things need doing first
-  if (clogin.next) {
-    //clogin.next = undefined;
-  }
-}
 clogin.afterLogin = function() {
   // something the user of this lib can configure to do things after the loginCallback runs
   // or they could just overwrite the loginCallback for complete control
+  if (clogin.next) window.location = clogin.next;
 }
 clogin.loginSuccess = function(data) {
   clogin.user.login = 'success';
@@ -402,17 +390,13 @@ clogin.loginSuccess = function(data) {
   clogin.user.account = data.data.account;
   clogin.editor();
 
-  var cookie = data.data.cookie;
-  var oldcookie = clogin.getCookie();
-  if (oldcookie.next) {
-    clogin.next = oldcookie.next;
-  } else if ( clogin.next ) {
-    cookie.next = clogin.next;
-    clogin.next = undefined;
-  } else if (window.location.href.indexOf('next=') !== -1) {
-    cookie.next = window.location.href.split('next=')[1].split('&')[0];
+  var nextcookie = clogin.getCookie('clnext');
+  if (nextcookie) {
+    clogin.next = nextcookie.next;
+    clogin.removeCookie('clnext');
   }
 
+  var cookie = data.data.cookie;
   if (clogin.user.email === undefined) clogin.user.email = cookie.email;
   var settings = data.data.settings;
   if (clogin.fingerprint) {
@@ -421,17 +405,18 @@ clogin.loginSuccess = function(data) {
       cookie.fp = result;
       clogin.setCookie(clogin.cookie, cookie, settings);
       if (typeof clogin.afterLogin === 'function') clogin.afterLogin();
-      if (typeof clogin.loginNext === 'function' && clogin.next) clogin.loginNext();
     });
   } else {
     clogin.setCookie(clogin.cookie, cookie, settings);
     if (typeof clogin.afterLogin === 'function') clogin.afterLogin();
-    if (typeof clogin.loginNext === 'function' && clogin.next) clogin.loginNext();
   }
 }
 clogin.login = function(e) {
   if (e) e.preventDefault();
   $('#'+clogin.messagesDivId).html('');
+  if (!clogin.next && window.location.href.indexOf('next=') !== -1) clogin.next = window.location.href.split('next=')[1].split('&')[0];
+  if (!clogin.next && clogin.getCookie('clnext')) clogin.next = clogin.getCookie('clnext');
+  if (clogin.next && !clogin.getCookie('clnext')) clogin.setCookie('clnext', {next:clogin.next}, {expires:1});
   var opts = {
     type:'POST',
     url: clogin.api + '/login',
@@ -470,9 +455,7 @@ clogin.login = function(e) {
   }
 }
 
-clogin.afterLogout = function() {
-  
-}
+clogin.afterLogout = function() {}
 clogin.logoutSuccess = function(data) {
   clogin.removeCookie(clogin.cookie,data.data.domain);
   clogin.apikey = undefined; // just in case one was set
@@ -512,18 +495,13 @@ clogin.logout = function(e) {
   if ( data.email ) $.ajax(opts);
 }
 
-clogin.loggedin = function() {
-  // this can be used just to check that the user has logged in at some point
-  // it does not ensure that the user info has been retrieved, nor that it is available
-  // or even that the user is still valid on the backend. So it should only really be used
-  // for simple UI tricks on certain pages to show things like a login vs a logout button in a nav
-  return clogin.getCookie();
-}
 clogin.ping = function() {
   // TODO init (or successful login) should set up a recurring ping, so that the backend can keep track of the user being active
   // but this would only be a track of when the logged in user is on the login page, not when on other pages of the site
 }
-
+clogin.loggedin = function() {
+  return clogin.getCookie();
+}
 clogin.init = function(opts) {
   // this is the default init function that will put everything on the page and bind actions to it all
   // just call this to get a working default installation
