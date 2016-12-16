@@ -1,7 +1,7 @@
 
 
-leviathan_statement = new Mongo.Collection("levq");
-leviathan_response = new Mongo.Collection("levans");
+leviathan_statement = new Mongo.Collection("leviathan_statement");
+leviathan_response = new Mongo.Collection("leviathan_response");
 
 leviathan_statement.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
@@ -150,14 +150,23 @@ CLapi.internals.service.leviathan.response = function(rid,obj) {
   
   // RESPONSE TYPES
   // agree / disagree
-  // scaled agree / disagree (priority -1 to 1)
   // positive / negative
+  // strongly stated (positive or negative)
   // alternative (Let's go dancing - yes, no, no let's go running)
   // authoritative (user can claim authority - that is a statement, and other users can agree or disagree)
   // support (with or without evidence)
   // refute (with or without evidence)
   // proof - logical, that statement is / is not true
   // accept (e.g. if multiple refutations, what is the accepted answer?)
+  // duplicate - indicate that the question is a duplicate, and others can agree / disagree on that too, to weight whether it is or not
+  // contradiction - indicate that the user stating "the sky is blue" elsewhere already said "the sky is red"
+  // a more complex contradiction would be "men mostly commit violence, target men to reduce it" but elsehwere says "black people mostly commit crime, don't profile black people"
+  // should a user being agreed to have made contradictory statements have a reduction applied to the weight of all their responses?
+  // probably - so if user makes 1000 statements, and is marked as being contradictory 500 times, then any response they make to other questions only has +- .5 instead of 1
+  // how many users need to agree to a response claiming a statement is a duplicate or a contradiction before it is accepted as being such?
+  // perhaps it does not matter - just flag it as possibly contradictory, possibly duplicate, and leave it up to the creator to change it
+  // in which case, dups are accepted as such by the creator, and just become pointers to the one they dup'd, and add scores to it
+  // whilst contradictions if left standing have negative effect on creator vote power. if accepted as contradiction, don't have negative effect, but not deleted - stand as evidence
 }
 
 // user has to be able to sign up using our usual account auth

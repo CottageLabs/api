@@ -176,7 +176,7 @@ clogin.failureCallback = function(data,action) {
   } catch(err) {}
   $.ajax({
     type:'POST',
-    url: 'https://dev.api.cottagelabs.com/mail/error',
+    url: 'https://dev.api.cottagelabs.com/mail/error?token=08f98hfwhef98wehf9w8ehf98whe98fh98hw9e8h',
     cache:false,
     processData:false,
     contentType: 'application/json',

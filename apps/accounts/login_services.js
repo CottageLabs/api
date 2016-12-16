@@ -34,7 +34,7 @@ login_services = {
   'https://openaccessbutton.org/account': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
-    from: 'Open Access Button <admin@openaccessbutton.org>',
+    from: 'Open Access Button <donotreply@openaccessbutton.io>',
     service: 'openaccessbutton',
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',

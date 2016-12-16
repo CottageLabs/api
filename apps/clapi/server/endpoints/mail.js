@@ -92,21 +92,27 @@ CLapi.internals.mail = {}
 CLapi.internals.mail.send = CLapi.internals.sendmail;
 
 CLapi.internals.mail.error = function(content,token) {
-  var to = "mark@cottagelabs.com";
+  var to;
   var mail_url;
+  var subject = 'error dump';
   if (token) {
     try {
+      // for robin this could check tokens against actual user tokens on the live service
+      // but then would only work if the live service is up - so don't bother for now
       to = Meteor.settings.mail.error.tokens[token].to;
       mail_url = Meteor.settings.mail.error.tokens[token].mail_url;
+      subject = Meteor.settings.mail.error.tokens[token].service + ' ' + subject;
       console.log('Sending error email for ' + Meteor.settings.mail.error.tokens[token].service);
     } catch(err) {}
   }
-  CLapi.internals.sendmail({
-    from: "sysadmin@cottagelabs.com",
-    to: to,
-    subject: 'An error dump',
-    text: JSON.stringify(content,undefined,2)
-  },mail_url);
+  if (to !== undefined) {
+    CLapi.internals.sendmail({
+      from: "sysadmin@cottagelabs.com",
+      to: to,
+      subject: subject,
+      text: JSON.stringify(content,undefined,2)
+    },mail_url);
+  }
 }
 
 CLapi.internals.mail.template = function(search,template) {
