@@ -4,11 +4,12 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
     authRequired: true,
     roleRequired: 'root',
     action: function() {
-      var counts = {count:0,requests:0,supports:0,blacklist:0,nouser:0,already:0};
+      var counts = {count:0,requests:0,supports:0,blacklist:0,availabilities:0,discovered:0,nouser:0,already:0};
       
       counts.dousers = this.queryParams.users ? true : false;
       counts.dorequests = this.queryParams.requests ? true : false;
       counts.doblocks = this.queryParams.blocks ? true : false;
+      counts.doavailabilities = this.queryParams.availabilities ? true : false;
       counts.wipe = this.queryParams.wipe ? true : false;
       
       counts.size = this.queryParams.size ? parseInt(this.queryParams.size).toString() : '10';
@@ -46,6 +47,22 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
           }
           if (oab.mailing_list) delete oab.mailing_list;
           Meteor.users.update(uacc._id,{$set:{'service.openaccessbutton':oab}});
+        }
+      }
+
+      if (counts.doavailabilities) {
+        var avails = oab_availability.find({'discovered':{$exists:false}}).fetch();
+        counts.availabilities = avails.length;
+        for ( var a in avails ) {
+          var aa = avails[a];
+          var acheck = CLapi.internals.service.oab.availability({url:aa.url,nosave:true});
+          var discovered = {article:false,data:false};
+          for ( var ra in acheck.availability ) {
+            if (acheck.availability[ra].type === 'article') discovered.article = acheck.availability[ra].url;
+            if (acheck.availability[ra].type === 'data') discovered.data = acheck.availability[ra].url;
+          }
+          if (discovered.article !== false || discovered.data !== false) counts.discovered += 1;
+          oab_availability.update(aa._id,{$set:{discovered:discovered}});
         }
       }
       

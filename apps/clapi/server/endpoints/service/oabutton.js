@@ -735,17 +735,32 @@ CLapi.internals.service.oab.availability = function(opts) {
   var already = [];
   
   console.log('OAB availability checking for sources');
-  // when something is found, should we save the fact that we know where it is?
+  var discovered = {article:false,data:false};
+  // TODO check oab_availability for previous availability checks that already found something
   if ( opts.type === 'data' || opts.type === undefined ) {
     // any useful places to check - append discoveries to availability
+    // once it is possible, check the previous availabilties as below for articles
     // if found, push 'data' into already
     // {type:'data',url:<URL>}
+    // discovered.data = url;
   }
   if ( opts.type === 'article' || opts.type === undefined ) {
-    var res = CLapi.internals.academic.resolve(opts.url,opts.dom);
-    if (res.url) {
-      ret.availability.push({type:'article',url:res.url});
+    var url;
+    if (opts.refresh !== true) {
+      var avail = oab_availability.findOne({$and:[{'url':opts.url},{'discovered':{$exists:true}},{'discovered.article':{$ne:false}}]});
+      if (avail) {
+        console.log('found in previous availabilities ' + opts.url + ' ' + avail.url + ' ' + avail.discovered.article);
+        url = avail.discovered.article;
+      }
+    }
+    if (url === undefined) {
+      var res = CLapi.internals.academic.resolve(opts.url,opts.dom);
+      url = res.url ? res.url : undefined;
+    }
+    if (url !== undefined) {
+      ret.availability.push({type:'article',url:url});
       already.push('article');
+      discovered.article = url;
     }
   }
   // TODO add availability checkers for any new types that are added to the accepts list  
@@ -779,7 +794,8 @@ CLapi.internals.service.oab.availability = function(opts) {
 
   // record usage of this endpoint
   if (opts.dom) delete opts.dom;
-  oab_availability.insert(opts);
+  opts.discovered = discovered;
+  if (opts.nosave !== true) oab_availability.insert(opts);
 
   return ret;
 }
