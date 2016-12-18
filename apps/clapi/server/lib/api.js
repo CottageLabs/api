@@ -144,7 +144,7 @@ CLapi = new Restivus({
       if ( xapikey === undefined ) xapikey = '';
       // TODO could add login logging here...
       if (xid) console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
-      if (u && u.roles && u.roles.__global_roles__ && u.roles.__global_roles__.indexOf('root') !== -1) {
+      if (Meteor.settings.ROOT_LOGIN_WARN && u && u.roles && u.roles.__global_roles__ && u.roles.__global_roles__.indexOf('root') !== -1) {
         console.log('root user logged in ' + xid);
         var from = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'alert@cottagelabs.com' : undefined;
         var subject = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'root login' : 'dev api root login';

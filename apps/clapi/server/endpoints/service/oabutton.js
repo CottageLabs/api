@@ -618,7 +618,17 @@ CLapi.internals.service.oab.request = function(req,uid) {
   // it was noted that we sometimes had new requests that were duplicates of others from a few seconds earlier
   // it is possible that scraping a page and creating the full request is a slow prcoess in some situations
   // so now instead we create the request immediately, then update it with more info once collected
-  var rid = oab_request.insert({url:req.url,type:req.type});
+  // also when loading old requests from old data, it is possible the request already has an id
+  var rid;
+  if (req._id) {
+    var check = oab_request.findOne(req._id);
+    if (check) {
+      rid = req._id;
+    } else {
+      rid = oab_request.insert({url:req.url,type:req.type,_id:req._id});
+    }
+  }
+  if (rid === undefined) rid = oab_request.insert({url:req.url,type:req.type});
   var user = Meteor.users.findOne(uid);
   if (!req.user && user) { // this should actually never be the case but is useful for loading old data into test system
     req.user = {

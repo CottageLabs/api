@@ -550,6 +550,11 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
       CLapi.internals.accounts.register({email:email,fingerprint:fingerprint,service:{service:loginCode.service}});
       user = CLapi.internals.accounts.retrieve(email);
     }
+    if (Meteor.settings.ROOT_LOGIN_WARN && user.roles && user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1) {
+      var from = loc.indexOf('test.cottagelabs.com') === -1 ? 'alert@cottagelabs.com' : undefined;
+      var subject = loc.indexOf('test.cottagelabs.com') === -1 ? 'root login' : 'dev api accounts endpoint root login';
+      CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + user._id + '\n\n' + loc});
+    }
     var newresume = generate_random_code();
     var newtimestamp = Date.now();
     Meteor.users.update(user._id, {$set: {'security.resume':{token:newresume,timestamp:newtimestamp}}});
