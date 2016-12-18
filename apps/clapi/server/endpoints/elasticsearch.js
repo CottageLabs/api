@@ -134,7 +134,7 @@ CLapi.internals.es.map = function(route,map,url) {
 }
 
 CLapi.internals.es.facet = function(index,type,key,url) {
-  console.log('Performing elasticsearch facet on ' + index + ' ' + type + ' ' + key);
+  //console.log('Performing elasticsearch facet on ' + index + ' ' + type + ' ' + key);
   var size = 100;
   var esurl = url ? url : Meteor.settings.es.url;
   var opts = {data:{query:{"match_all":{}},size:0,facets:{}}};
@@ -155,7 +155,7 @@ CLapi.internals.es.query = function(action,route,data,url) {
   if (Meteor.settings.dev_index && route !== '/_status') {
     route = '/dev' + route.substring(1,route.length);
   }
-  console.log('Performing elasticsearch ' + action + ' on ' + route);
+  //console.log('Performing elasticsearch ' + action + ' on ' + route);
   var routeparts = route.substring(1,route.length).split('/');
   // check if route to indextype exists, if it does not, autocreate with default mapping if this is a post or a put
   if (route.indexOf('/_') === -1 && routeparts.length >= 1 && action !== 'DELETE' && action !== 'GET') {
