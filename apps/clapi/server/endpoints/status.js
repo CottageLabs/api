@@ -30,17 +30,15 @@ CLapi.internals.status = function() {
       online: CLapi.internals.accounts.onlinecount()
     },
     groups: 'TODO',
-    index: 'TODO',
     db: 'TODO',
     cron: 'TODO'
   }
   try { Meteor.http.call('GET','https://api.cottagelabs.com'); } catch(err) { ret.up.live = false; }
   try { Meteor.http.call('GET','https://lapi.cottagelabs.com'); } catch(err) { ret.up.local = false; }
+  try { Meteor.http.call('GET','https://dev.api.cottagelabs.com'); } catch(err) { ret.up.dev = false; }
   try { Meteor.http.call('GET','https://capi.cottagelabs.com'); } catch(err) { ret.up.cluster = false; }
   // TODO if cluster is up could read the mup file then try getting each cluster machine too, and counting them
-  try { Meteor.http.call('GET','https://dev.api.cottagelabs.com'); } catch(err) { ret.up.dev = false; }
-  // TODO could try checking access to the index and the db
-  // TODO could get synced cron data and return that too
+  try { ret.index = CLapi.internals.es.status(); } catch(err) { ret.index = false; }
   try { ret.lantern = CLapi.internals.service.lantern.status(); } catch(err) { ret.lantern = false; }
   try { ret.openaccessbutton = CLapi.internals.service.oab.status(); } catch(err) { ret.openaccessbutton = false; }
   return ret;

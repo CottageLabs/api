@@ -4,11 +4,19 @@
 // handle authn and authz for es indexes and types (and possibly backup triggers)
 // NOTE: if an index/type can be public, just make it public and have nginx route to it directly, saving app load.
 
+CLapi.addRoute('es/status', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.es.status()};
+    }
+  }
+});
+
 CLapi.addRoute('es/check', {
   get: {
     roleRequired: 'root', // decide which roles should get access - probably within the function, depending on membership of corresponding groups
     action: function() {
-      return {status: 'success', data:CLapi.internals.es.check()};
+      return {status: 'success', data: CLapi.internals.es.check()};
     }
   }
 });
@@ -17,7 +25,7 @@ CLapi.addRoute('es/import', {
   post: {
     roleRequired: 'root', // decide which roles should get access - probably within the function, depending on membership of corresponding groups
     action: function() {
-      return {status: 'success', data:CLapi.internals.es.import(this.request.body)};
+      return {status: 'success', data: CLapi.internals.es.import(this.request.body)};
     }
   }
 });
@@ -75,7 +83,11 @@ var es = {
   get: {
     action: function() {
       var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
-      return esaction(uid, 'GET', this.urlParams, this.queryParams); 
+      if (JSON.stringify(this.urlParams) === '{}' && JSON.stringify(this.queryParams) === '{}') {
+        return {status:"success"}
+      } else {
+        return esaction(uid, 'GET', this.urlParams, this.queryParams);
+      }
     }
   },
   post: {
@@ -137,15 +149,16 @@ CLapi.internals.es.facet = function(index,type,key,url) {
 }
 
 CLapi.internals.es.query = function(action,route,data,url) {
-  console.log('Performing elasticsearch ' + action + ' on ' + route);
+  if (url) console.log('To url ' + url);
   var esurl = url ? url : Meteor.settings.es.url;
   if (route.indexOf('/') !== 0) route = '/' + route;
-  if (Meteor.settings.dev_index) {
+  if (Meteor.settings.dev_index && route !== '/_status') {
     route = '/dev' + route.substring(1,route.length);
   }
+  console.log('Performing elasticsearch ' + action + ' on ' + route);
   var routeparts = route.substring(1,route.length).split('/');
-  // check if route to indextype exists, if it does not, autocreate with default mapping
-  if (route.indexOf('/_') === -1 && routeparts.length >= 1 && action !== 'DELETE') {
+  // check if route to indextype exists, if it does not, autocreate with default mapping if this is a post or a put
+  if (route.indexOf('/_') === -1 && routeparts.length >= 1 && action !== 'DELETE' && action !== 'GET') {
     try {
       var turl = esurl + '/' + routeparts[0];
       if (routeparts.length > 1) turl += '/' + routeparts[1];
@@ -161,7 +174,7 @@ CLapi.internals.es.query = function(action,route,data,url) {
     ret = Meteor.http.call(action,esurl+route,opts).data;
   } catch(err) {
     //console.log(err);
-    ret = {info: 'the call to es returned an error, but that may not necessarily be bad, due to more meteor / node stupidity', err:err}
+    ret = {info: 'the call to es returned an error, but that may not necessarily be bad', err:err}
   }
   return ret;
 }
@@ -274,6 +287,14 @@ CLapi.internals.es.check = function() {
   }
 }
 
+CLapi.internals.es.status = function() {
+  var s = CLapi.internals.es.query('GET','/_status');
+  var status = {shards:{total:s._shards.total,successful:s._shards.successful},indices:{}};
+  for (var i in s.indices) {
+    status.indices[i] = {docs:s.indices[i].docs.num_docs,size:Math.ceil(s.indices[i].index.primary_size_in_bytes/1024/1024)};
+  }
+  return status;
+}
 
 
 

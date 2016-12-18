@@ -17,12 +17,14 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
       if (counts.wipe) {
         // wipe the ES indexes and the oab requests before starting
         CLapi.internals.es.delete('/oab');
-        CLapi.internals.es.delete('/clapi/accounts');
+        //CLapi.internals.es.delete('/clapi/accounts');
         oab_support.remove({});
         oab_availability.remove({});
         oab_request.remove({});
       }
 
+      var mk = this.queryParams.mk;
+      
       if (counts.dousers) {
         var users = Meteor.users.find({$and:[{'service.openaccessbutton':{$exists:true}},{'service.openaccessbutton.profile':{$exists:false}}]}).fetch();
         counts.users = users.length;
@@ -47,9 +49,9 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
         }
       }
       
-      if (counts.dorequests) {
+      if (counts.dorequests && mk) {
         // get all old requests
-        var requests = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/request?q=NOT%20test:true&size='+counts.size+'&from='+counts.from).data;
+        var requests = Meteor.http.call('GET','https://api.cottagelabs.com/es/oabutton/request/_search?q=NOT%20test:true&size='+counts.size+'&from='+counts.from+'&apikey='+mk).data;
         counts.oldrequests = requests.hits.total;
         for ( var r in requests.hits.hits ) {
         //var requests = OAB_Request.find().fetch();
@@ -74,9 +76,9 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
         }
       }
 
-      if (counts.doblocks) {
+      if (counts.doblocks && mk) {
         // get all non-test blocks
-        var blocks = Meteor.http.call('GET','https://api.cottagelabs.com/service/oabutton/query/blocked?q=NOT%20test:true%20AND%20user:*&size='+counts.size+'&from='+counts.from).data;
+        var blocks = Meteor.http.call('GET','https://api.cottagelabs.com/es/oabutton/blocked/_search?q=NOT%20test:true%20AND%20user:*&size='+counts.size+'&from='+counts.from+'&apikey='+mk).data;
         counts.oldblocks = blocks.hits.total;
         for ( var b in blocks.hits.hits ) {
         //var blocks = OAB_Blocked.find().fetch(); // on live can look up direct
@@ -103,7 +105,6 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
 
             // if no user, do nothing (loses about 3000 records that have no user, but check for ones that have user but no matching account found)
             var user;
-            var mk = this.queryParams.mk;
             if (res.user) {
               try {
                 user = Meteor.http.call('GET','https://api.cottagelabs.com/accounts/'+res.user+'?apikey='+mk).data;

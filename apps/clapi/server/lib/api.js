@@ -105,8 +105,8 @@ CLapi = new Restivus({
       if ( xid === undefined && xapikey ) {
         console.log('User providing apikey only - checking. This ability should be removed');
         try {
-          var acc = Meteor.users.findOne({'api.keys.key':xapikey});
-          xid = acc._id;
+          u = Meteor.users.findOne({'api.keys.key':xapikey});
+          xid = u._id;
         } catch(err) {}
       }
 
@@ -144,6 +144,18 @@ CLapi = new Restivus({
       if ( xapikey === undefined ) xapikey = '';
       // TODO could add login logging here...
       if (xid) console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
+      if (u && u.roles && u.roles.__global_roles__ && u.roles.__global_roles__.indexOf('root') !== -1) {
+        console.log('root user logged in ' + xid);
+        var from = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'alert@cottagelabs.com' : undefined;
+        var subject = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'root login' : 'dev api root login';
+        var url = this.request.url;
+        if (url.indexOf('apikey') !== -1) {
+          var urlend = url.split('apikey')[1];
+          urlend = urlend.indexOf('&') !== -1 ? urlend.split('&')[1] : '';
+          url = url.split('apikey')[0] + urlend;
+        }
+        CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + u._id + '\n\n' + url});
+      }
       return {
         userId: xid,
         token: xapikey // should perhaps better use Accounts._hashLoginToken(xapikey) and change which key the token is set to above
