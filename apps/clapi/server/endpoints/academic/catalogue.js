@@ -81,7 +81,7 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
 		if (doi) meta.doi = doi;
 
     try { // get content if none was passed in, by phantom (resolving and) rendering the URL
-      if (content === undefined && url !== undefined) content = CLapi.internals.academic.phantom(url,undefined)
+      if (content === undefined && url !== undefined) content = CLapi.internals.phantom.get(url,undefined)
     } catch(err) {}
     //meta.content = content; // should not return this due to size...
     

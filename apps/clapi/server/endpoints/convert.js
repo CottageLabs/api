@@ -10,6 +10,8 @@ CLapi.addRoute('convert', {
         if (this.queryParams.start) opts.start = this.queryParams.start;
         if (this.queryParams.end) opts.end = this.queryParams.end;
         if (this.queryParams.fields) opts.fields = this.queryParams.fields.split(',');
+        if (this.queryParams.es) opts.es = this.queryParams.es;
+        if (this.queryParams.es && this.queryParams.apikey) opts.apikey = this.queryParams.apikey;
         var to = 'text/plain';
         if (this.queryParams.to === 'csv') to = 'text/csv';
         if (this.queryParams.to === 'json') to = 'application/json';
@@ -28,11 +30,7 @@ CLapi.addRoute('convert', {
   },
   post: {
     action: function() {
-      if ( this.request.json && this.request.json.url) {
-        return CLapi.internals.convert.run(this.request.json.url,this.request.json.from,this.request.json.to);
-      } else {
-        return CLapi.internals.convert.run(undefined,this.queryParams.from,this.queryParams.to,this.request.body);        
-      }
+      return CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,this.queryParams.content,this.request.body);        
     }
   }
 });
@@ -42,6 +40,8 @@ CLapi.addRoute('convert', {
 CLapi.internals.convert = {};
 
 CLapi.internals.convert.run = function(url,from,to,content,opts) {
+  if (from === undefined && opts.from) from = opts.from;
+  if (to === undefined && opts.to) to = opts.to;
   var which, proc, output;
   if ( from === 'table' ) { // convert html table in web page
     if ( to.indexOf('json') !== -1 ) {
@@ -61,7 +61,30 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     }
   } else if ( from === 'json' ) {
     if ( to.indexOf('csv') !== -1 ) {
-      output = CLapi.internals.convert.json2csv(opts,url,content); // pass extra opts here if available
+      if (opts.es) {
+        // query local ES action with the given query, which will only work for users with the correct auth
+        var user;
+        if (opts.apikey) CLapi.internals.accounts.retrieve(opts.apikey);
+        var uid = user ? user._id : undefined; // because could be querying a public ES endpoint
+        var params = {};
+        if (opts.es.indexOf('?') !== -1) {
+          var prs = opts.es.split('?')[1];
+          var parts = prs.split('&');
+          for ( var p in parts ) {
+            var kp = parts[p].split('=');
+            params[kp[0]] = kp[1];
+          }
+        }
+        opts.es = opts.es.split('?')[0];
+        if (opts.es.substring(0,1) === '/') opts.es = opts.es.substring(1,opts.es.length-1);
+        var rts = opts.es.split('/');
+        content = CLapi.internals.es.action(uid,'GET',rts,params);
+        delete opts.es;
+        delete opts.apikey;
+        output = CLapi.internals.convert.json2csv(opts,undefined,content);
+      } else {
+        output = CLapi.internals.convert.json2csv(opts,url,content);
+      }
     } else if ( to.indexOf('txt') !== -1 ) {
       from = 'file';
     }
@@ -113,24 +136,19 @@ CLapi.internals.convert.table2json = function(url,content,opts) {
     var res = Meteor.http.call('GET', url);
     content = res.content;
   }
-  if ( opts.start ) {
-    content = content.split(opts.start)[1];
-  } else {
-    if ( content.indexOf('<table') !== -1 ) {
-      content = '<table' + content.split('<table')[1];
-    } else if ( content.indexOf('<TABLE') !== -1 ) {
-      content = '<TABLE' + content.split('<TABLE')[1];      
-    }
+  if ( opts.start ) content = content.split(opts.start)[1];
+  if ( content.indexOf('<table') !== -1 ) {
+    content = '<table' + content.split('<table')[1];
+  } else if ( content.indexOf('<TABLE') !== -1 ) {
+    content = '<TABLE' + content.split('<TABLE')[1];      
   }
-  if ( opts.end ) {
-    content = content.split(opts.end)[0];
-  } else {
-    if ( content.indexOf('</table') !== -1 ) {
-      content = content.split('</table')[0] + '</table>';
-    } else if ( content.indexOf('</TABLE') !== -1 ) {
-      content = content.split('</TABLE')[1] + '</TABLE>';
-    }
+  if ( opts.end ) content = content.split(opts.end)[0];
+  if ( content.indexOf('</table') !== -1 ) {
+    content = content.split('</table')[0] + '</table>';
+  } else if ( content.indexOf('</TABLE') !== -1 ) {
+    content = content.split('</TABLE')[1] + '</TABLE>';
   }
+  content = content.replace(/\\n/gi,'');
   var ths = content.match(/<th.*?<\/th/gi);
   var headers = [];
   var results = [];

@@ -4,6 +4,8 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
     authRequired: true,
     roleRequired: 'root',
     action: function() {
+      return {}; // uncomment this to make this work again
+      
       var counts = {count:0,requests:0,supports:0,blacklist:0,availabilities:0,discovered:0,nouser:0,already:0};
       
       counts.dousers = this.queryParams.users ? true : false;
@@ -17,11 +19,11 @@ CLapi.addRoute('scripts/oabutton/reprocess', {
 
       if (counts.wipe) {
         // wipe the ES indexes and the oab requests before starting
-        CLapi.internals.es.delete('/oab');
+        //CLapi.internals.es.delete('/oab');
         //CLapi.internals.es.delete('/clapi/accounts');
-        oab_support.remove({});
-        oab_availability.remove({});
-        oab_request.remove({});
+        //oab_support.remove({});
+        //oab_availability.remove({});
+        //oab_request.remove({});
       }
 
       var mk = this.queryParams.mk;

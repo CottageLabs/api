@@ -292,6 +292,19 @@ CLapi.addRoute('service/lantern/:job/results', {
         if (format !== 'wellcome') {
           fields.push('Provenance');          
         }
+        
+        // check the current user fields options and remove any they have set to false, and/or add/remove if present in query params
+        if (this.user.service.lantern.profile && this.user.service.lantern.profile.fields) {
+          for ( var f in this.user.service.lantern.profile.fields) {
+            var pos = fields.indexOf(f);
+            if (this.user.service.lantern.profile.fields[f] === false && pos !== -1 && ( this.queryParams[f] === undefined || this.queryParams[f] === 'false') ) fields.splice(pos,1);
+          }
+        }
+        for ( var q in this.queryParams) {
+          var pq = fields.indexOf(q);
+          if (pq !== -1 && this.queryParams[q] === 'false') fields.splice(pq,1);
+        }
+        
         var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
         var name = 'results';
         if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
@@ -480,7 +493,6 @@ CLapi.addRoute('service/lantern/quota/:email', {
   get: {
     roleRequired: 'lantern.user',
     action: function() {
-      // TODO restrict to user or admin else 401
       console.log(this.urlParams.email)
       if ( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) {
         return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
@@ -490,6 +502,29 @@ CLapi.addRoute('service/lantern/quota/:email', {
     }
   }
 });
+
+CLapi.addRoute('service/lantern/fields/:email', {
+  post: {
+    roleRequired: 'lantern.user',
+    action: function() {
+      if ( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) {
+        if (this.user.service.lantern.profile === undefined) {
+          this.user.service.lantern.profile = {fields:{}};
+          Meteor.users.update(this.userId, {$set: {'service.lantern.profile':{fields:{}}}});
+        } else if (this.user.service.lantern.profile.fields === undefined) {
+          this.user.service.lantern.profile.fields = {};
+          Meteor.users.update(this.userId, {$set: {'service.lantern.profile.fields':{}}});
+        }
+        for ( var p in this.request.body ) this.user.service.lantern.profile.fields[p] = this.request.body[p];
+        Meteor.users.update(this.userId, {$set: {'service.lantern.profile.fields':this.user.service.lantern.profile.fields}});
+        return {status: 'success', data: this.user.service.lantern.profile.fields }
+      } else {
+        return {statusCode:401, body:{}}
+      }
+    }
+  }
+});
+
 
 CLapi.internals.service.lantern = {};
 
@@ -990,9 +1025,9 @@ CLapi.internals.service.lantern.process = function(processid) {
             } else {
               try {
                 var repo = CLapi.internals.use.opendoar.search(rep.name);
-                if (repo.status === 'success' && repo.total === 1 && repo.data[0].rUrl) {
-                  rep.url = repo.data[0].rUrl;
-                  // or is oUrl or uUrl more appropriate? See https://dev.api.cottagelabs.com/use/opendoar/search/Aberdeen%2520University%2520Research%2520Archive
+                if (repo.status === 'success' && repo.total === 1 && repo.data[0].url) {
+                  rep.url = repo.data[0].url;
+                  // or is ourl or uurl more appropriate? See https://dev.api.cottagelabs.com/use/opendoar/search/Aberdeen%2520University%2520Research%2520Archive
                   result.provenance.push('Added repo base URL from OpenDOAR');                  
                 } else {
                   result.provenance.push('Searched OpenDOAR but could not find repo and/or URL');                  

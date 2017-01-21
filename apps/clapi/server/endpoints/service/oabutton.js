@@ -58,9 +58,9 @@ oab_support.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/oab/support/' + doc._id);
 });
 
-CLapi.addCollection(oab_availability);
-CLapi.addCollection(oab_support);
-CLapi.addCollection(oab_request);
+//CLapi.addCollection(oab_availability);
+//CLapi.addCollection(oab_support);
+//CLapi.addCollection(oab_request);
 
 CLapi.addRoute('service/oab', {
   get: {
@@ -80,9 +80,10 @@ CLapi.addRoute('service/oab/availability', {
   get: {
     action: function() {
       var opts = {url:this.queryParams.url,test:this.queryParams.test}
-      if ( this.request.headers['x-apikey'] ) {
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
-        var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
         if (acc) {
           opts.uid = acc._id;
           opts.username = acc.username;
@@ -281,7 +282,7 @@ CLapi.addRoute('service/oab/availabilities', {
   }
 });
 
-CLapi.addRoute('service/oab/query', {
+CLapi.addRoute('service/oab/requests', {
   get: {
     action: function() {
       var rt = '/oab/request/_search';
@@ -323,6 +324,36 @@ CLapi.addRoute('service/oab/users', {
       var data;
       if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
       return CLapi.internals.es.query('POST','/clapi/accounts/_search',data);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/terms/:type/:key', {
+  get: {
+    roleRequired:'openaccessbutton.admin', // TODO could open this up and then just check if the type is users to check the user is admin
+    action: function() {
+      var idx = this.urlParams.type === 'account' ? 'clapi' : 'oab'; // TODO this entails filtering accounts to those for oab only...
+      return CLapi.internals.es.terms(idx,this.urlParams.type,this.urlParams.key);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/minmax/:type/:key', {
+  get: {
+    roleRequired:'openaccessbutton.admin', // TODO could open this up and then just check if the type is users to check the user is admin
+    action: function() {
+      var idx = this.urlParams.type === 'account' ? 'clapi' : 'oab'; // TODO this entails filtering accounts to those for oab only...
+      return CLapi.internals.es.minmax(idx,this.urlParams.type,this.urlParams.key);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/keys/:type', {
+  get: {
+    roleRequired:'openaccessbutton.admin', // TODO could open this up and then just check if the type is users to check the user is admin
+    action: function() {
+      var idx = this.urlParams.type === 'account' ? 'clapi' : 'oab'; // TODO this entails filtering accounts to those for oab only...
+      return CLapi.internals.es.keys(idx,this.urlParams.type);
     }
   }
 });
@@ -683,7 +714,7 @@ CLapi.internals.service.oab.support = function(rid,story,uid) {
   if (story && story.indexOf('<script') !== -1) return false; // ignore people being naughty
   var r = oab_request.findOne(rid);
   console.log('creating oab support');
-  if ( r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
+  if ( r.user && r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
     oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
     var s = {url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story}
@@ -739,13 +770,14 @@ CLapi.internals.service.oab.supports = function(rid,uid,url) {
 */
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
-  if (opts.url === undefined) return {}
+  if (opts.url === undefined) return {} // opts.url could actually be doi, pmid, or pmc
   
-  var ret = {availability:[],requests:[],accepts:[]};
+  var ret = {availability:[],requests:[],accepts:[],meta:{article:{},data:{}}};
   var already = [];
   
   console.log('OAB availability checking for sources');
-  var discovered = {article:false,data:false};
+  opts.discovered = {article:false,data:false};
+  opts.source = {article:false,data:false};
   // TODO check oab_availability for previous availability checks that already found something
   if ( opts.type === 'data' || opts.type === undefined ) {
     // any useful places to check - append discoveries to availability
@@ -756,21 +788,27 @@ CLapi.internals.service.oab.availability = function(opts) {
   }
   if ( opts.type === 'article' || opts.type === undefined ) {
     var url;
-    if (opts.refresh !== true) {
+    if (opts.refresh !== true && opts.url) { // TODO what about if provided a doi, pmid, or pmc - this should better match to academic resolve behaviour and cache
       var avail = oab_availability.findOne({$and:[{'url':opts.url},{'discovered':{$exists:true}},{'discovered.article':{$ne:false}}]});
       if (avail) {
         console.log('found in previous availabilities ' + opts.url + ' ' + avail.url + ' ' + avail.discovered.article);
         url = avail.discovered.article;
+        if (avail.source && avail.source.article) ret.meta.article.source = avail.source.article;
       }
     }
     if (url === undefined) {
-      var res = CLapi.internals.academic.resolve(opts.url,opts.dom);
+      var res = CLapi.internals.academic.resolve(opts.url,opts.dom); // opts.url could actually be a pmid, pmc, or doi
       url = res.url ? res.url : undefined;
+      if (url !== undefined) {
+        ret.meta.article.doi = ret.doi;
+        ret.meta.article.source = ret.source;
+        opts.source.article = ret.source;
+      }
     }
     if (url !== undefined) {
       ret.availability.push({type:'article',url:url});
       already.push('article');
-      discovered.article = url;
+      opts.discovered.article = url;
     }
   }
   // TODO add availability checkers for any new types that are added to the accepts list  
@@ -804,7 +842,6 @@ CLapi.internals.service.oab.availability = function(opts) {
 
   // record usage of this endpoint
   if (opts.dom) delete opts.dom;
-  opts.discovered = discovered;
   if (opts.nosave !== true) oab_availability.insert(opts);
 
   return ret;
@@ -863,7 +900,7 @@ CLapi.internals.service.oab.followup = function(rid) {
   }
 }
 
-CLapi.internals.service.oab.receive = function(rid,content,url,title,description) {
+CLapi.internals.service.oab.receive = function(rid,content,url,title,description,cron) {
   // TODO this currently only works via the UI, after file uploads are set as complete, this is triggered
   // an actuall call to this on the API would trigger emails and deposits for files that had already been processed
   // and also could fail on cluster deployment because only the root machine would actually be able to find the files
@@ -925,6 +962,8 @@ CLapi.internals.service.oab.receive = function(rid,content,url,title,description
     // email the person that provided the content, confirming receipt
     // email the person that started the request
     // email everyone who wanted it (requestor and supporters)
+    // NOTE the emails to send are different if this content was received via a cron check
+    if (cron) {} else {}
     
     oab_request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
@@ -954,7 +993,7 @@ CLapi.internals.service.oab.template = function(template,refresh) {
     var ghurl = Meteor.settings.openaccessbutton.templates_url;
     var m = CLapi.internals.tdm.extract({
       url:ghurl,
-      matchers:['//OAButton/oab_static/blob/develop/emails/.*?title="(.*?[.].*?)">/gi'],
+      matchers:['//OAButton/website/blob/develop/emails/.*?title="(.*?[.].*?)">/gi'],
       start:'<table class="files',
       end:'</table'
     });
@@ -988,7 +1027,7 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     if (!vars.fullname) vars.fullname = vars.username;
     vars.useremail = vars.user.email
   }
-  // if on dev api should replace occurrences of https://openaccessbutton.org with http://oab.test.cottagelabs.com
+  content = content.replace(/https:\/\/openaccessbutton.org/g,'http://oab.test.cottagelabs.com');
   return CLapi.internals.mail.substitute(content,vars,markdown);
 }
 
@@ -1034,18 +1073,21 @@ CLapi.internals.service.oab.cron = function() {
   // there are also various auto email checks that the oabutton team want added. add them here
   
   // check all open requests for any new availability
-  var requests = oab_request.find(); // TODO this should filter requests where status is already received - maybe refused too?
+  var requests = oab_request.find({status:{$ne:'success'}});
   requests.forEach(function(request) {
-    var availability = CLapi.internals.service.oab.availability({url:request.url,type:request.type});
+    Meteor._sleepForMs(500);
+    var availability = CLapi.internals.service.oab.availability({url:request.url,type:request.type,cron:true});
     if (availability.availability.length > 0) {
       for ( var a in availability.availability ) {
         if (availability.availability[a].type === request.type) {
-          // call the receive endpoint for this request, giving it the availability.availability[a].url
-          // NOTE should probably add a way for the receive endpoint to know it was found as part of our weekly check
-          // rather than being an actual upload by someone of new content or provision of URL
-          // what if currently on hold / refused?
-          // also what gets sent to an author? If we find something this way, it is not actually from the author, 
-          // so do receive endpoint should not trigger emails to an author thanking them for providing something.
+          CLapi.internals.service.oab.receive(
+            request.receiver,
+            undefined,
+            availability.availability[a].url,
+            undefined,
+            undefined,
+            true
+          )
         }
       }
     }
@@ -1055,7 +1097,7 @@ CLapi.internals.service.oab.cron = function() {
 if ( Meteor.settings.cron.oabutton ) {
   SyncedCron.add({
     name: 'oabutton',
-    schedule: function(parser) { return parser.recur().every(1).day(); }, // what should schedule of this be?
+    schedule: function(parser) { return parser.recur().on(1).dayOfWeek(); },
     job: CLapi.internals.service.oab.cron
   });
 }

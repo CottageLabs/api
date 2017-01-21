@@ -30,7 +30,42 @@ CLapi.addRoute('es/import', {
   }
 });
 
-var esaction = function(uid,action,urlp,params,data) {
+var es = {
+  get: {
+    action: function() {
+      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
+      if (JSON.stringify(this.urlParams) === '{}' && JSON.stringify(this.queryParams) === '{}') {
+        return {status:"success"}
+      } else {
+        return CLapi.internals.es.action(uid, 'GET', this.urlParams, this.queryParams);
+      }
+    }
+  },
+  post: {
+    action: function() { 
+      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
+      return CLapi.internals.es.action(Meteor.userId, 'POST', this.urlParams, this.queryParams, this.request.body); 
+    }
+  },
+  put: {
+    authRequired: true,
+    action: function() { return CLapi.internals.es.action(Meteor.userId, 'PUT', this.urlParams, this.queryParams, this.request.body); }
+  },
+  delete: {
+    authRequired: true,
+    action: function() { return CLapi.internals.es.action(Meteor.userId, 'DELETE', this.urlParams, this.queryParams, this.request.body); }
+  }
+}
+
+CLapi.addRoute('es', es);
+CLapi.addRoute('es/:ra', es);
+CLapi.addRoute('es/:ra/:rb', es);
+CLapi.addRoute('es/:ra/:rb/:rc', es);
+CLapi.addRoute('es/:ra/:rb/:rc/:rd', es);
+
+CLapi.internals.es = {};
+
+CLapi.internals.es.action = function(uid,action,urlp,params,data) {
   var rt = '';
   for ( var up in urlp ) rt += '/' + urlp[up];
   if (params) {
@@ -79,41 +114,6 @@ var esaction = function(uid,action,urlp,params,data) {
   }
 }
 
-var es = {
-  get: {
-    action: function() {
-      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
-      if (JSON.stringify(this.urlParams) === '{}' && JSON.stringify(this.queryParams) === '{}') {
-        return {status:"success"}
-      } else {
-        return esaction(uid, 'GET', this.urlParams, this.queryParams);
-      }
-    }
-  },
-  post: {
-    action: function() { 
-      var uid = this.request.headers['x-apikey'] ? this.request.headers['x-apikey'] : this.queryParams.apikey;
-      return esaction(Meteor.userId, 'POST', this.urlParams, this.queryParams, this.request.body); 
-    }
-  },
-  put: {
-    authRequired: true,
-    action: function() { return esaction(Meteor.userId, 'PUT', this.urlParams, this.queryParams, this.request.body); }
-  },
-  delete: {
-    authRequired: true,
-    action: function() { return esaction(Meteor.userId, 'DELETE', this.urlParams, this.queryParams, this.request.body); }
-  }
-}
-
-CLapi.addRoute('es', es);
-CLapi.addRoute('es/:ra', es);
-CLapi.addRoute('es/:ra/:rb', es);
-CLapi.addRoute('es/:ra/:rb/:rc', es);
-CLapi.addRoute('es/:ra/:rb/:rc/:rd', es);
-
-CLapi.internals.es = {};
-
 CLapi.internals.es.map = function(route,map,url) {
   console.log('creating es mapping for ' + route);
   if ( map === undefined ) map = Meteor.http.call('GET','http://static.cottagelabs.com/mapping.json').data;
@@ -138,13 +138,53 @@ CLapi.internals.es.facet = function(index,type,key,url) {
   var size = 100;
   var esurl = url ? url : Meteor.settings.es.url;
   var opts = {data:{query:{"match_all":{}},size:0,facets:{}}};
-  opts.data.facets[key] = {terms:{field:key,size:size}};
+  opts.data.facets[key] = {terms:{field:key,size:size}}; // TODO need some way to decide if should check on .exact?
   try {
     if (Meteor.settings.dev_index) index = 'dev' + index;
     var ret = Meteor.http.call('POST',esurl+'/'+index+'/'+type+'/_search',opts);
     return ret.data.facets[key].terms;
   } catch(err) {
-    return {info: 'the call to es returned an error'}
+    return {info: 'the call to es returned an error', err:err}
+  }
+}
+CLapi.internals.es.terms = CLapi.internals.es.facet; // deprecating facet
+
+CLapi.internals.es.minmax = function(index,type,key,url) {
+  var esurl = url ? url : Meteor.settings.es.url;
+  var sobj = {};
+  sobj[key] = {order:'asc'};
+  var opts = {data:{query:{"match_all":{}},sort:[sobj],size:1}};
+  try {
+    if (Meteor.settings.dev_index) index = 'dev' + index;
+    var ret = Meteor.http.call('POST',esurl+'/'+index+'/'+type+'/_search',opts);
+    var min = ret.data.hits.hits[0].sort[0];
+    sobj[key] = {order:'desc'};
+    opts.data.sort = [sobj];
+    var re2 = Meteor.http.call('POST',esurl+'/'+index+'/'+type+'/_search',opts);
+    var max = re2.data.hits.hits[0].sort[0];
+    return {min:min,max:max};
+  } catch(err) {
+    return {info: 'the call to es returned an error', err:err}
+  }
+}
+
+CLapi.internals.es.keys = function(index,type,url) {
+  var esurl = url ? url : Meteor.settings.es.url;
+  if (Meteor.settings.dev_index) index = 'dev' + index;
+  var route = esurl + '/' + index + '/_mapping/' + type;
+  if ( Meteor.settings.es.version < 1 ) route = esurl + '/' + index + '/' + type + '/_mapping';
+  try {
+    var mapping = Meteor.http.call('GET',route).data;
+    var keys = [];
+    for ( var k in mapping[index].mappings[type].properties ) {
+      keys.push(k);
+      if ( mapping[index].mappings[type].properties[k].properties ) {
+        // TODO should cascade into the sub keys and append as k.subk etc
+      }
+    }
+    return keys;
+  } catch(err) {
+    return {info: 'the call to es returned an error', err:err}
   }
 }
 

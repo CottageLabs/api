@@ -161,7 +161,7 @@ CLapi.internals.tdm.keywords = function(content,opts) {
 CLapi.internals.tdm.extract = function(opts) {
 	// opts expects url,content,matchers (a list, or singular "match" string),start,end,convert,format,lowercase,ascii
 
-	if (opts.url && !opts.content) opts.content = CLapi.internals.academic.phantom(opts.url,undefined);
+	if (opts.url && !opts.content) opts.content = CLapi.internals.phantom.get(opts.url,undefined);
 
 	var text;
 	try {
