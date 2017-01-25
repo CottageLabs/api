@@ -30,7 +30,24 @@ CLapi.addRoute('convert', {
   },
   post: {
     action: function() {
-      return CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,this.queryParams.content,this.request.body);        
+      var opts = {};
+      if (this.queryParams.subset) opts.subset = this.queryParams.subset;
+      if (this.queryParams.start) opts.start = this.queryParams.start;
+      if (this.queryParams.end) opts.end = this.queryParams.end;
+      if (this.queryParams.fields) opts.fields = this.queryParams.fields.split(',');
+      if (this.queryParams.es) opts.es = this.queryParams.es;
+      if (this.queryParams.es && this.queryParams.apikey) opts.apikey = this.queryParams.apikey;
+      var to = 'text/plain';
+      if (this.queryParams.to === 'csv') to = 'text/csv';
+      if (this.queryParams.to === 'json') to = 'application/json';
+      if (this.queryParams.to === 'xml') to = 'application/xml';
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': to
+        },
+        body: CLapi.internals.convert.run(undefined,this.queryParams.from,this.queryParams.to,this.request.body,opts)
+      }
     }
   }
 });
@@ -60,33 +77,34 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
       output = CLapi.internals.convert.html2txt(url,undefined);
     }
   } else if ( from === 'json' ) {
-    if ( to.indexOf('csv') !== -1 ) {
-      if (opts.es) {
-        // query local ES action with the given query, which will only work for users with the correct auth
-        var user;
-        if (opts.apikey) CLapi.internals.accounts.retrieve(opts.apikey);
-        var uid = user ? user._id : undefined; // because could be querying a public ES endpoint
-        var params = {};
-        if (opts.es.indexOf('?') !== -1) {
-          var prs = opts.es.split('?')[1];
-          var parts = prs.split('&');
-          for ( var p in parts ) {
-            var kp = parts[p].split('=');
-            params[kp[0]] = kp[1];
-          }
+    if (opts.es) {
+      // query local ES action with the given query, which will only work for users with the correct auth
+      var user;
+      if (opts.apikey) CLapi.internals.accounts.retrieve(opts.apikey);
+      var uid = user ? user._id : undefined; // because could be querying a public ES endpoint
+      var params = {};
+      if (opts.es.indexOf('?') !== -1) {
+        var prs = opts.es.split('?')[1];
+        var parts = prs.split('&');
+        for ( var p in parts ) {
+          var kp = parts[p].split('=');
+          params[kp[0]] = kp[1];
         }
-        opts.es = opts.es.split('?')[0];
-        if (opts.es.substring(0,1) === '/') opts.es = opts.es.substring(1,opts.es.length-1);
-        var rts = opts.es.split('/');
-        content = CLapi.internals.es.action(uid,'GET',rts,params);
-        delete opts.es;
-        delete opts.apikey;
-        output = CLapi.internals.convert.json2csv(opts,undefined,content);
-      } else {
-        output = CLapi.internals.convert.json2csv(opts,url,content);
       }
+      opts.es = opts.es.split('?')[0];
+      if (opts.es.substring(0,1) === '/') opts.es = opts.es.substring(1,opts.es.length-1);
+      var rts = opts.es.split('/');
+      content = CLapi.internals.es.action(uid,'GET',rts,params);
+      delete opts.es;
+      delete opts.apikey;
+      url = undefined;
+    }
+    if ( to.indexOf('csv') !== -1 ) {
+      output = CLapi.internals.convert.json2csv(opts,url,content);
     } else if ( to.indexOf('txt') !== -1 ) {
       from = 'file';
+    } else if ( to.indexOf('json') !== -1 ) {
+      output = CLapi.internals.convert.json2json(opts,url,content);
     }
   } else if ( from === 'xml' ) {
     if ( to.indexOf('txt') !== -1 ) {
@@ -242,6 +260,8 @@ CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callb
     var res = Meteor.http.call('GET', url);
     content = JSON.parse(res.content);
   }
+  console.log("hello")
+  console.log(content)
   if (opts === undefined) opts = {};
   if (opts.subset) {
     var parts = opts.subset.split('.');
@@ -263,4 +283,34 @@ CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callb
     return callback(null,result);
   });
 });
+
+CLapi.internals.convert.json2json = function(opts,url,content) {
+  console.log(opts)
+  console.log(url)
+  if ( url !== undefined ) {
+    var res = Meteor.http.call('GET', url);
+    content = JSON.parse(res.content);
+  }
+  console.log(content)
+  if (opts.subset) {
+    var parts = opts.subset.split('.');
+    for ( var s in parts ) {
+      content = content[parts[s]];
+    }
+  }
+  console.log(content)
+  if ( opts.fields ) {
+    var recs = [];
+    for ( var r in content ) {
+      var rec = {};
+      for ( var f in opts.fields ) {
+        rec[opts.fields[f]] = content[r][opts.fields[f]];
+      }
+      recs.push(rec);
+    }
+    content = recs;
+  }
+  return content;
+}
+
 

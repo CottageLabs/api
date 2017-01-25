@@ -1,7 +1,24 @@
 
 // an email forwarder
 mail_template = new Mongo.Collection("mail_template");
-CLapi.addCollection(mail_template);
+
+mail_progress = new Mongo.Collection("mail_progress");
+mail_progress.before.insert(function (userId, doc) {
+  if (!doc.createdAt) doc.createdAt = Date.now();
+});
+mail_progress.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/clapi/mail/' + this._id, doc);
+});
+mail_progress.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+mail_progress.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/clapi/mail/' + doc._id, doc);
+});
+mail_progress.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/clapi/mail/' + doc._id);
+});
+
 
 CLapi.addRoute('mail/send', {
   get: {
@@ -31,14 +48,36 @@ CLapi.addRoute('mail/error', {
   }
 });
 
-/*CLapi.addRoute('mail/test', {
+CLapi.addRoute('mail/progress', {
   get: {
     action: function() {
-      //CLapi.internals.sendmail_test();
-      return {status: 'success', data: {} };
+      var rt = '/clapi/mail/_search';
+      if (!this.queryParams.sort) this.queryParams.sort = 'createdAt:desc';
+      if (this.queryParams) {
+        rt += '?';
+        for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
+      }
+      var data;
+      if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
+      return CLapi.internals.es.query('GET',rt,data);
+    }
+  },
+  post: {
+    action: function() {
+      CLapi.internals.mail.progress(this.request.body,this.queryParams.token);
+      return {};      
     }
   }
-});*/
+});
+
+CLapi.addRoute('mail/test', {
+  get: {
+    action: function() {
+      return CLapi.internals.mail.test();
+      //return {status: 'success', data: {} };
+    }
+  }
+});
 
 
 
@@ -54,6 +93,7 @@ CLapi.internals.sendmail = function(opts,mail_url) {
   if (opts.template) {
     var parts = CLapi.internals.mail.construct(opts.template,opts.vars);
     for ( var p in parts ) opts[p] = parts[p];
+    delete opts.template;
   }
   // TODO what if list of emails to go with list of records?
   
@@ -66,30 +106,74 @@ CLapi.internals.sendmail = function(opts,mail_url) {
   // also takes opts.attachments, but not required. Should be a list of objects as per 
   // https://github.com/nodemailer/mailcomposer/blob/7c0422b2de2dc61a60ba27cfa3353472f662aeb5/README.md#add-attachments
   
-  if (mail_url) {
-    process.env.MAIL_URL = mail_url;
-    console.log('temporarily setting mail url to ' + mail_url);
+  if (opts.post && opts.attachments === undefined) {
+    // TODO once tested switch the var check so that using api is default, and opts.smtp has to be set true to send by smtp
+    // send via POST to mailgun API
+    delete opts.post;
+    var mailgunapi = 'https://api.mailgun.net/v3';
+    var service = 'openaccessbutton.io';
+    var url = mailgunapi + '/' + service + '/messages';
+    var apik = ''; // DO NOT SAVE THIS HERE
+    if (typeof opts.to === 'object') opts.to = opts.to.join(',');
+    console.log('Sending mail via mailgun API on URL ' + url);
+    console.log(opts)
+    try {
+      var posted = Meteor.http.call('POST',url,{params:opts,auth:'api:'+apik});
+      console.log(posted);
+      return posted;
+    } catch(err) {
+      return err;
+    }
+  } else {
+    if (mail_url) {
+      process.env.MAIL_URL = mail_url;
+      console.log('temporarily setting mail url to ' + mail_url);
+    }
+    Email.send(opts);
+    if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
+    return {};
   }
-  Email.send(opts);
-  if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
 }
-
-/*CLapi.internals.mail.test = function() {
-  CLapi.internals.mail.send({
-    from: "mark@cottagelabs.com",
-    to: [Meteor.settings.openaccessbutton.osf_address,"odaesa@gmail.com"],
-    subject: 'On submitting files to the OSF in a convoluted manner',
-    text: "hello",
-    attachments:[{
-      fileName: 'myfile.txt',
-      filePath: '/home/cloo/att_test.txt'
-    }]
-  });
-}*/
 
 
 CLapi.internals.mail = {}
 CLapi.internals.mail.send = CLapi.internals.sendmail;
+
+CLapi.internals.mail.test = function() {
+  return CLapi.internals.mail.send({
+    post:true,
+    from: "dnr@openaccessbutton.io",
+    to: ["mark@cottagelabs.com"],
+    subject: 'Test me via POST',
+    text: "hello",
+    html: '<p><b>hello</b></p>'
+    /*attachments:[{
+      fileName: 'myfile.txt',
+      filePath: '/home/cloo/att_test.txt'
+    }]*/
+  });
+}
+
+// mailgun progress webhook target
+// https://documentation.mailgun.com/user_manual.html#tracking-deliveries
+// https://documentation.mailgun.com/user_manual.html#tracking-failures
+CLapi.internals.mail.progress = function(content,token) {
+  // could do a token check here
+  // could delete mail logs older than 1 week or so
+  // if a failure event, ping an error msg to me
+  if (content['message-id'] !== undefined && content['Message-Id'] === undefined) content['Message-Id'] = '<' + content['message-id'] + '>';
+  mail_progress.insert(content);
+  try {
+    if (content.event === 'dropped') {
+      CLapi.internals.mail.send({
+        from: "alert@cottagelabs.com",
+        to: "mark@cottagelabs.com",
+        subject: "mailgun send error",
+        text: JSON.stringify(content,undefined,2)
+      });    
+    }
+  } catch(err) {}
+}
 
 CLapi.internals.mail.error = function(content,token) {
   var to;
@@ -106,7 +190,7 @@ CLapi.internals.mail.error = function(content,token) {
     } catch(err) {}
   }
   if (to !== undefined) {
-    CLapi.internals.sendmail({
+    CLapi.internals.mail.send({
       from: "sysadmin@cottagelabs.com",
       to: to,
       subject: subject,

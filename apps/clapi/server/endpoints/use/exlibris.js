@@ -33,8 +33,20 @@ CLapi.addRoute('use/exlibris/primo', {
 CLapi.internals.use.exlibris = {};
 
 CLapi.internals.use.exlibris.parse = function(rec) {
+	//  NOTE there is quite a lot more in here that could be useful...
 	var res = {};
+	if (rec.LIBRARIES && rec.LIBRARIES.LIBRARY) res.library = rec.LIBRARIES.LIBRARY;
+	if (rec.PrimoNMBib && rec.PrimoNMBib.record && rec.PrimoNMBib.record.display) {
+		res.title = rec.PrimoNMBib.record.display.title;
+		res.type = rec.PrimoNMBib.record.display.type;
+		res.publisher = rec.PrimoNMBib.record.display.publisher;
+		res.contributor = rec.PrimoNMBib.record.display.contributor;
+	}
+	if (rec.PrimoNMBib && rec.PrimoNMBib.record && rec.PrimoNMBib.record.search) {
+		res.subject = rec.PrimoNMBib.record.search.subject;
+	}
 	return res;
+	//return rec;
 }
 
 CLapi.internals.use.exlibris.primo = function(qry,from,size,institution) {
@@ -42,22 +54,35 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution) {
 	// oddly, it works from a home ISP addr on virgin media but not on servers, although their docs do say IP reg is required so it is more odd that it worked at all
 	if (from === undefined) from = 0;
 	var index = from + 1;
-	if (size === undefined) size = 10;	
+	if (size === undefined) size = 10;
   if (institution === undefined) institution = '44IMP';
-	var query = 'any,contains,' + qry; // TODO how to build a query they will accept
+	var within = 'any';
+	if (qry.indexOf(':') !== -1) {
+		qry = qry.split(':')[1];
+		any = qry.split(':')[0];
+	}
+	var query = within + ',contains,' + qry; // TODO how to build a query they will accept
   var url = 'http://imp-primo.hosted.exlibrisgroup.com/PrimoWebServices/xservice/search/brief?json=true&institution=' + institution + '&indx=' + index + '&bulkSize=' + size + '&query=' + query;
   console.log(url);
-  try {
+  //try {
     var res = Meteor.http.call('GET', url);
     if ( res.statusCode === 200 ) {
       var data = [];
-      //for ( var r in js.OpenDOAR.repositories[0].repository ) data.push(CLapi.internals.use.opendoar.parse(js.OpenDOAR.repositories[0].repository[r])); 
-      return { status: 'success', total: '', data: res.data} // or may need to JSON.parse res.content depending how the data identifies
+      for ( var r in res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC ) data.push(CLapi.internals.use.exlibris.parse(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC[r])); 
+			var fcts = res.data.SEGMENTS.JAGROOT.RESULT.FACETLIST.FACET;
+			var facets = {};
+			for ( var f in fcts ) {
+				facets[fcts[f]['@NAME']] = {};
+				for ( var fc in fcts[f].FACET_VALUES ) {
+					facets[fcts[f]['@NAME']][fcts[f].FACET_VALUES[fc]['@KEY']] = fcts[f].FACET_VALUES[fc]['@VALUE'];
+				}
+			}
+      return { status: 'success', total: res.data.SEGMENTS.JAGROOT.RESULT.DOCSET['@TOTALHITS'], data: data, facets: facets}
     } else {
       return { status: 'error', data: res}
     }
-  } catch (err) {
+  /*} catch (err) {
     return { status: 'error', data: err}    
-  }
+  }*/
 }
 

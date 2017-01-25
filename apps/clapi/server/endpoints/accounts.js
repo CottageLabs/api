@@ -41,7 +41,7 @@ CLapi.addRoute('accounts/token', {
 CLapi.addRoute('accounts/login', {
   post: {
     action: function() {
-      return CLapi.internals.accounts.login(this.request.body.email,this.request.body.location,this.request.body.token,this.request.body.hash,this.request.body.fingerprint,this.request.body.resume,this.request.body.timestamp)
+      return CLapi.internals.accounts.login(this.request.body.email,this.request.body.location,this.request.body.token,this.request.body.hash,this.request.body.fingerprint,this.request.body.resume,this.request.body.timestamp,this.request)
     }
   }
 });
@@ -446,8 +446,8 @@ CLapi.internals.accounts.register = function(opts) {
     if ( opts.service ) set.service[opts.service.service] = {profile:{}}; // TODO this should save service info if necessary
     var creds = CLapi.internals.accounts.create( set );
     user = CLapi.internals.accounts.retrieve(creds._id);
-  } else {
-    if (opts.fingerprint) CLapi.internals.accounts.fingerprint(user._id,opts.fingerprint);
+  } else if (opts.fingerprint) {
+    CLapi.internals.accounts.fingerprint(user._id,opts.fingerprint);
   }
   if ( opts.service ) {
     if ( user.service === undefined ) user.service = {};
@@ -490,6 +490,7 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
       if (opts.action === "registration" && !CLapi.internals.accounts.auth(opts.service+'.'+opts.role,user)) {
         CLapi.internals.accounts.addrole(user._id,opts.service,opts.role);
       }
+      if (fingerprint) CLapi.internals.accounts.fingerprint(user._id,fingerprint);
     } else {
       if (!opts.role) opts.role = 'user';
       user = CLapi.internals.accounts.register({email:email,service:opts,fingerprint:fingerprint});
@@ -498,8 +499,6 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
     var up = {email:email,code:opts.logincode,hash:loginhash,timeout:until,service:opts.service};
     if ( fingerprint ) up.fp = fingerprint;
     loginCodes.upsert({email:email},up);
-
-    //CLapi.internals.sendmail({ from: opts.from, to: email, subject: template(opts.subject,opts), text: template(opts.text,opts), html: template(opts.html,opts) });
     
     var snd = {from: opts.from, to: email}
     if (opts.template) {
@@ -514,20 +513,27 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
       snd.text = template(opts.text,opts);
       snd.html = template(opts.html,opts);
     }
-    CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
+    var sent;
+    try {
+      // try / catch on this lets things continue if say on dev the email is disabled
+      //snd.post = true;
+      sent = CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
+      console.log(sent)
+    } catch(err) {}
 
     var future = new Future(); // a delay here helps stop spamming of the login mechanisms
     setTimeout(function() { future.return(); }, 333);
     future.wait();
-    return { known:known };
+    var mid = sent && sent.data && sent.data.id ? sent.data.id : undefined;
+    return { known:known, mid: mid };
   }
 }
 
-CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resume,timestamp) {
+CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resume,timestamp,request) {
   var opts = CLapi.internals.accounts.service(loc);
   if (!opts) return {};
   // given an email address or token or hash, plus a fingerprint, login the user
-  console.log("API login for email address: " + email + " - with token: " + token + " or hash: " + hash + " or fingerprint: " + fingerprint + " or resume " + resume + " and timestamp " + timestamp);
+  console.log("API login for email address: " + email + " at location " + loc + " - with token: " + token + " or hash: " + hash + " or fingerprint: " + fingerprint + " or resume " + resume + " and timestamp " + timestamp);
   loginCodes.remove({ timeout: { $lt: (new Date()).valueOf() } }); // remove old logincodes
   var loginCode;
   var user;
@@ -536,9 +542,11 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
   if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { hash:hash, fp:fingerprint } ] } );
   if (!loginCode && hash !== undefined) loginCode = loginCodes.findOne({hash:hash});
   if (!loginCode && email !== undefined && resume !== undefined && timestamp !== undefined) {
-    console.log('searching for login via resume token');
+    console.log('searching for login for user email via timestamped resume token');
     user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
   }
+  // TODO could also check by email and fingerprint if both present - but fingerprint on its own is far too weak
+  // any site can generate the fingerprint and then guess the email address
   var future = new Future(); // a delay here helps stop spamming of the login mechanisms
   setTimeout(function() { future.return(); }, 333);
   future.wait();
@@ -551,13 +559,30 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
       user = CLapi.internals.accounts.retrieve(email);
     }
     if (Meteor.settings.ROOT_LOGIN_WARN && user.roles && user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1) {
-      var from = loc.indexOf('test.cottagelabs.com') === -1 ? 'alert@cottagelabs.com' : undefined;
-      var subject = loc.indexOf('test.cottagelabs.com') === -1 ? 'root login' : 'dev api accounts endpoint root login';
-      CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + user._id + '\n\n' + loc});
+      console.log('root user logged in ' + user._id);
+      var from = loc.indexOf('test.cottagelabs.com') === -1 ? 'sysadmin@cottagelabs.com' : 'alert@cottagelabs.com';
+      var xf = request.headers['x-forwarded-for'];
+      var xr = request.headers['x-real-ip'];
+      var subject = loc.indexOf('test.cottagelabs.com') === -1 ? 'root login' : 'dev accounts endpoint root login';
+      subject += ' ' + xr;
+      var cache = [];
+      var req = JSON.stringify(request, function(key, value) {
+        if (typeof value === 'object' && value !== null) {
+          if (cache.indexOf(value) !== -1) return;
+          cache.push(value);
+        }
+        return value;
+      },2);
+      cache = null;
+      CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + user._id + '\n\n' + loc + '\n\n' + xr + '\n\n' + xf + '\n\n'}); //  + req
     }
-    var newresume = generate_random_code();
-    var newtimestamp = Date.now();
-    Meteor.users.update(user._id, {$set: {'security.resume':{token:newresume,timestamp:newtimestamp}}});
+    // generating new resume tokens every time was always going to push quite a load to the db, 
+    // but it also seems impossible to reliably implement, due to what appears to be browser prefetching
+    // so for now only create new ones on first login attempt, otherwise just pass the same ones back
+    // can implement a resume timeout length here too, if timestamp is too old, throw it away
+    var newresume = resume ? resume : generate_random_code();
+    var newtimestamp = timestamp ? timestamp : Date.now();
+    if (newresume !== resume) Meteor.users.update(user._id, {$set: {'security.resume':{token:newresume,timestamp:newtimestamp}}});
     var service = {};
     if ( user.service[opts.service] ) {
       service[opts.service] = {};
@@ -566,6 +591,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
       // TODO should probably have public and private sections, for now has profile section, 
       // which can definitely be shared whereas nothing else cannot. Maybe that will do.      
     }
+    //console.log('accounts login returning successfully');
     return {
       status:'success', 
       data: {
@@ -595,6 +621,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
       }
     }
   } else {
+    //console.log('returning accounts login false');
     return {statusCode: 401, body: {status: 'error', data:'401 unauthorized'}}
   }
 }

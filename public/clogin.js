@@ -334,12 +334,12 @@ clogin.hash = function() {
   }
 }
 
-clogin.tokenSuccess = function() {
-  // really this should be called on token GET success, but browser issues with that made it hard to debug
-  // so instead this is just called directly
-  // this means we cannot know if the backend really has sent a token, and we cannot know if this is a registration 
-  // request or a login. So for sites that require controlled registration, the email sent to the user needs to indicate 
-  // that somehow, and the UI could still be used once the user gets a token.
+clogin.tokenSuccess = function(data) {
+  if (data && data.responseText) data = data.responseText;
+  console.log(data);
+  // TODO if there is an mid in data, record the ID in a cookie and trigger a 5s intervaled mail progress check
+  // this also means that on any page that inits clogin, we should check for this mid and show the token
+  // process as in progress
   clogin.user.token = 'success';
   $('#'+clogin.emailDivId).hide();
   $('#'+clogin.tokenDivId).show();
@@ -350,16 +350,35 @@ clogin.token = function(e) {
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   $('#'+clogin.messagesDivId).html('');
   // request a token be sent to the email address
+  // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
   if (clogin.user.email === undefined) clogin.user.email = $('#'+clogin.emailInputId).val();
   var opts = {
-    type:'GET',
-    url: clogin.api + '/token?email='+encodeURIComponent(clogin.user.email)+'&location='+window.location.protocol+'//'+window.location.hostname
+    type:'POST',
+    success:clogin.tokenSuccess,
+    error:clogin.tokenSuccess,
+    url: clogin.api + '/token'
   }
-  if (window.location.pathname !== '/') opts.url += window.location.pathname;
+  var location = window.location.protocol+'//'+window.location.hostname
+  if (window.location.pathname !== '/') location += window.location.pathname;
+  if (opts.type === 'POST') {
+    opts.data = {
+      email: clogin.user.email,
+      location: location
+    };
+    opts.dataType = 'JSON';
+    opts.contentType = 'application/json';
+  } else {
+    opts.url += '?email='+encodeURIComponent(clogin.user.email)+'&location='+location;
+  }
   if (clogin.fingerprint) {
     new Fingerprint2().get(function(result, components) {
       clogin.user.fingerprint = result;
-      opts.url += '&fingerprint=' + result;
+      if (opts.type === 'POST') {
+        opts.data.fingerprint = result;
+        opts.data = JSON.stringify(opts.data);
+      } else {
+        opts.url += '&fingerprint=' + result;      
+      }
       $.ajax(opts);
     });
   } else {
@@ -367,7 +386,7 @@ clogin.token = function(e) {
   }
   // this should really be the ajax success callback, but some browsers appear to behave oddly after the GET request
   // even if it is successful. So instead just call it directly.
-  clogin.tokenSuccess();
+  if (opts.type === 'GET') clogin.tokenSuccess();
 }
 clogin.loginWithToken = function() {
   var token = $('#'+clogin.tokenInputId).val();
@@ -441,7 +460,7 @@ clogin.login = function(e) {
   var cookie = clogin.getCookie();
   if (cookie) {
     if ( !data.email ) data.email = cookie.email;
-    data.fingerprint = cookie.fingerprint;
+    data.fingerprint = cookie.fp;
     if (!data.token && !data.hash) {
       data.resume = cookie.resume;
       data.timestamp = cookie.timestamp;

@@ -39,7 +39,7 @@ login_services = {
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',
     timeout: 30,
-    template: 'login.txt'
+    template: 'login.html'
   },
   'https://lantern.cottagelabs.com': {
     from: 'lantern@cottagelabs.com',
