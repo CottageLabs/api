@@ -19,7 +19,7 @@ CLapi.addRoute('scripts/oabutton/fixlegacydates', {
         fix.created_date = moment(res.createdAt,"x").format("YYYY-MM-DD HHmm");
         if (res.updatedAt) fix.updated_date = moment(res.updatedAt,"x").format("YYYY-MM-DD HHmm");
         
-        oab_request.update(ress._id,{$set:fix});
+        oab_request.update(res._id,{$set:fix});
       }
       
       CLapi.internals.sendmail({
