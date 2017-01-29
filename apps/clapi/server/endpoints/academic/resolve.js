@@ -178,7 +178,7 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
     type = 'pmid';
   }
 
-  if (type === 'citation') {
+  /*if (type === 'citation') {
     console.log('academic resolve looking up crossref for citation');
     console.log(ident);
     var check = CLapi.internals.use.crossref.reverse(ident);
@@ -188,7 +188,7 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
       ret.doi = ident;
       ret.source = 'Crossref'; // source for doi, will be updated to source for full content if found later
     }
-  }
+  }*/
   
   if (type === 'url') {
     console.log('academic resolve processing for URL')

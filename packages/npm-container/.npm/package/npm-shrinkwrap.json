@@ -114,6 +114,11 @@
       "resolved": "https://registry.npmjs.org/buffer-shims/-/buffer-shims-1.0.0.tgz",
       "from": "buffer-shims@>=1.0.0 <2.0.0"
     },
+    "byline": {
+      "version": "5.0.0",
+      "resolved": "https://registry.npmjs.org/byline/-/byline-5.0.0.tgz",
+      "from": "byline@5.0.0"
+    },
     "camelcase": {
       "version": "1.2.1",
       "resolved": "https://registry.npmjs.org/camelcase/-/camelcase-1.2.1.tgz",

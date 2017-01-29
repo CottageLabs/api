@@ -10,7 +10,7 @@ CLapi.addRoute('use/exlibris', {
 CLapi.addRoute('use/exlibris/primo', {
   get: {
     action: function() {
-			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size);
+			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size,undefined,this.queryParams.raw);
     }
   }
 });
@@ -41,6 +41,7 @@ CLapi.internals.use.exlibris.parse = function(rec) {
 		res.type = rec.PrimoNMBib.record.display.type;
 		res.publisher = rec.PrimoNMBib.record.display.publisher;
 		res.contributor = rec.PrimoNMBib.record.display.contributor;
+		res.creator = rec.PrimoNMBib.record.display.creator;
 	}
 	if (rec.PrimoNMBib && rec.PrimoNMBib.record && rec.PrimoNMBib.record.search) {
 		res.subject = rec.PrimoNMBib.record.search.subject;
@@ -49,7 +50,7 @@ CLapi.internals.use.exlibris.parse = function(rec) {
 	//return rec;
 }
 
-CLapi.internals.use.exlibris.primo = function(qry,from,size,institution) {
+CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
 	// TODO looks like IP registration is required to use this, so ask Imperial for that and then route queries through my main machine proxy so they come from the registered IP (same as BASE)
 	// oddly, it works from a home ISP addr on virgin media but not on servers, although their docs do say IP reg is required so it is more odd that it worked at all
 	if (from === undefined) from = 0;
@@ -66,10 +67,17 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution) {
   console.log(url);
   //try {
     var res = Meteor.http.call('GET', url);
+		var data;
     if ( res.statusCode === 200 ) {
-      var data = [];
-      for ( var r in res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC ) data.push(CLapi.internals.use.exlibris.parse(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC[r])); 
-			var fcts = res.data.SEGMENTS.JAGROOT.RESULT.FACETLIST.FACET;
+			if (raw) {
+				data = res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC;
+			} else {
+				data = [];
+				if ( !(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC instanceof Array) ) res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC = [res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC];
+				for ( var r in res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC ) data.push(CLapi.internals.use.exlibris.parse(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC[r]));
+			}
+			var fcts = [];
+			try { fcts = res.data.SEGMENTS.JAGROOT.RESULT.FACETLIST.FACET; } catch (err) {}
 			var facets = {};
 			for ( var f in fcts ) {
 				facets[fcts[f]['@NAME']] = {};
