@@ -1027,7 +1027,7 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     if (!vars.fullname) vars.fullname = vars.username;
     vars.useremail = vars.user.email
   }
-  content = content.replace(/https:\/\/openaccessbutton.org/g,'http://oab.test.cottagelabs.com');
+  if (Meteor.settings.dev) content = content.replace(/https:\/\/openaccessbutton.org/g,'http://oab.test.cottagelabs.com');
   return CLapi.internals.mail.substitute(content,vars,markdown);
 }
 
