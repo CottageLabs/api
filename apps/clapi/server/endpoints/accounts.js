@@ -592,6 +592,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
       // which can definitely be shared whereas nothing else cannot. Maybe that will do.      
     }
     //console.log('accounts login returning successfully');
+    var username = user.username ? user.username : user.emails[0].address;
     return {
       status:'success', 
       data: {
@@ -606,6 +607,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
         cookie: {
           email:email,
           userId:user._id,
+          username:username,
           roles:user.roles,
           timestamp:newtimestamp,
           url:loc,
