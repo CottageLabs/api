@@ -61,9 +61,9 @@ lantern_results.findByIdentifier = function(idents,refresh) {
   }
 
   var s = {};
-  if (refresh) {
+  if (refresh !== undefined) {
     var d = new Date();
-    var t = d.setDate(d.getDate() - refresh);
+    var t = refresh === true ? d : d.setDate(d.getDate() - refresh);
     s.$and = [{$or:m},{createdAt:{$gte:t}}];
   } else {
     s.$or = m;
@@ -72,7 +72,7 @@ lantern_results.findByIdentifier = function(idents,refresh) {
 }
 lantern_results.findFreshById = function(id,refresh) {  
   var d = new Date();
-  var t = d.setDate(d.getDate() - refresh);
+  var t = refresh === true ? d : d.setDate(d.getDate() - refresh);
   return lantern_results.findOne({$and:[{'_id':id},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
 }
 
@@ -105,8 +105,6 @@ CLapi.addRoute('service/lantern', {
   post: {
     roleRequired: 'lantern.user',
     action: function() {
-      console.log(this.request.body)
-      console.log(this.request.body.email)
       var maxallowedlength = 3000; // this could be in config or a per user setting...
       var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
       var quota = this.request.body.email !== undefined ? {available:10000000,wellcome:true} : CLapi.internals.service.lantern.quota(this.userId);
@@ -214,6 +212,8 @@ CLapi.addRoute('service/lantern/:job/results', {
             format = 'wellcome';
           }
         }
+        // catch to wellcome format for anyone with a wellcome email address for now - should become a group setting
+        if (job.email && job.email.indexOf('wellcome') !== -1) format = 'wellcome';
         res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
         var grantcount = 0;
         for ( var k in res ) {
@@ -493,7 +493,6 @@ CLapi.addRoute('service/lantern/quota/:email', {
   get: {
     roleRequired: 'lantern.user',
     action: function() {
-      console.log(this.urlParams.email)
       if ( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) {
         return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
       } else {
@@ -529,9 +528,7 @@ CLapi.addRoute('service/lantern/fields/:email', {
 CLapi.internals.service.lantern = {};
 
 CLapi.internals.service.lantern.allowed = function(job,uacc) {
-  // short function to bounce users if not allowed certain actions
-  // can change later to customise certain sorts of access to groups etc
-  return job.user !== uacc._id || CLapi.cauth('lantern.admin',uacc) || job.wellcome === true;
+  return job.user === uacc._id || CLapi.cauth('lantern.admin',uacc) || job.wellcome === true;
 }
 
 CLapi.internals.service.lantern.quota = function(uid) {
@@ -650,6 +647,7 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
   } else {
     job.email = user.emails[0].address;
   }
+  if (refresh === undefined) refresh = true; // a refresh of true forces always new results (0 would get anything older than today, etc into past)
   if (refresh !== undefined) job.refresh = parseInt(refresh);
   var list;
   if (input.list) { // list could be obj with metadata and list, or could just be list
@@ -707,7 +705,13 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
     text += 'You can track the progress of your job at ';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
-    text += job.wellcome ? 'https://compliance.cottagelabs.com#' : 'https://lantern.cottagelabs.com#';
+    if ( job.wellcome ) {
+      text += 'https://compliance.cottagelabs.com#';
+    } else if ( Meteor.settings.dev ) {
+      text += 'http://lantern.test.cottagelabs.com#';
+    } else {
+      text += 'https://lantern.cottagelabs.com#';
+    }
     text += jid;
     text += '\n\nThe Cottage Labs team\n\n';
     text += 'P.S This is an automated email, please do not reply to it.'
@@ -1294,7 +1298,13 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         text += 'You can now download the results of your job at ';
         // TODO this bit should depend on user group permissions somehow
         // for now we assume if a signed in user then lantern, else wellcome
-        text += job.wellcome ? 'https://compliance.cottagelabs.com#' : 'https://lantern.cottagelabs.com#';
+        if ( job.wellcome ) {
+          text += 'https://compliance.cottagelabs.com#';
+        } else if ( Meteor.settings.dev ) {
+          text += 'http://lantern.test.cottagelabs.com#';
+        } else {
+          text += 'https://lantern.cottagelabs.com#';
+        }
         text += job._id;
         text += '\n\nThe Cottage Labs team\n\n';
         text += 'P.S This is an automated email, please do not reply to it.'
@@ -1722,7 +1732,9 @@ CLapi.internals.service.lantern.alertstuck = function() {
   if (same && currents.length !== 0 && prev.since >= 30) {
     txt = 'There appear to be ' + currents.length + ' processes stuck on the queue for at least ' + prev.since + ' minutes';
     txt += '\n\nResetting the processes may help, if you are sure you do not want to check the situation first:\n\n';
-    txt += 'https://api.cottagelabs.com/service/lantern/processes/reset';
+    txt += 'https://';
+    if ( Meteor.settings.dev ) txt += 'dev.';
+    txt += 'api.cottagelabs.com/service/lantern/processes/reset';
     CLapi.internals.sendmail({
       to:'sysadmin@cottagelabs.com',
       subject:'CL ALERT: Lantern processes stuck',

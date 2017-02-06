@@ -9,6 +9,7 @@ oab_support = new Mongo.Collection("oab_support");
 oab_meta = new Mongo.Collection("oab_meta");
 oab_availability = new Mongo.Collection("oab_availability"); // records use of that endpoint
 oab_request = new Mongo.Collection("oab_request"); // records use of that endpoint
+oab_ill = new Mongo.Collection("oab_ill"); // records our forwarding of inter library loan requests
 
 oab_availability.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
@@ -56,6 +57,22 @@ oab_support.after.update(function (userId, doc, fieldNames, modifier, options) {
 });
 oab_support.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/oab/support/' + doc._id);
+});
+
+oab_ill.before.insert(function (userId, doc) {
+  if (!doc.createdAt) doc.createdAt = Date.now();
+});
+oab_ill.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/oab/ill/' + this._id, doc);
+});
+oab_ill.before.update(function (userId, doc, fieldNames, modifier, options) {
+  modifier.$set.updatedAt = Date.now();
+});
+oab_ill.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/oab/ill/' + doc._id, doc);
+});
+oab_ill.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/oab/ill/' + doc._id);
 });
 
 //CLapi.addCollection(oab_availability);
@@ -118,6 +135,24 @@ CLapi.addRoute('service/oab/availability', {
       } else {
         return {status:'success',data:CLapi.internals.service.oab.availability(opts)};
       }
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/ill/:library', {
+  post: {
+    action: function() {
+      var opts = this.request.body;
+      opts.library = this.urlParams.library;
+      if ( this.request.headers['x-apikey'] ) {
+        var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
+        if (acc) {
+          opts.uid = acc._id;
+          opts.username = acc.username;
+          opts.email = acc.emails[0].address;
+        }
+      }
+      return {status:'success',data:CLapi.internals.service.oab.ill(opts)};
     }
   }
 });
@@ -739,6 +774,32 @@ CLapi.internals.service.oab.supports = function(rid,uid,url) {
   return oab_support.find(matcher).fetch();
 }
 
+CLapi.internals.service.oab.ill = function(opts) {
+  if (opts.library === 'imperial') {
+    // TODO for now we are just going to send an email when a user creates an ILL
+    // until we have a script endpoint at the library to hit
+    CLapi.internals.mail.send({
+      from: 'requests@openaccessbutton.io',
+      to: ['joe@righttoresearch.org','mark@cottagelabs.com'],
+      subject: 'EXAMPLE ILL TRIGGER',
+      text: JSON.stringify(opts,undefined,2)
+    });
+    CLapi.internals.mail.send({
+      from: 'requests@openaccessbutton.io',
+      to: opts.id,
+      subject: 'EXAMPLE ILL CONFIRMATION',
+      text: 'Thanks blak for starting an ILL, look at your institional site to follow up with it. Want to join OAB or sth?'
+    });
+  }
+  // TODO as we add more libraries add their forwarding endpoints here
+  var illid = oab_ill.insert(opts);
+  return illid;
+}
+
+CLapi.internals.service.oab.ill_progress = function() {
+  // TODO need a function that can lookup ILL progress from the library systems some how
+}
+
 /*
 {
   availability: [
@@ -776,6 +837,38 @@ CLapi.internals.service.oab.availability = function(opts) {
   var already = [];
   
   console.log('OAB availability checking for sources');
+  
+  var meta;
+  if (opts.library) {
+    ret.library = {institution:opts.library}
+    meta = CLapi.internals.academic.catalogue.extract(opts.url,opts.dom);
+    if (meta.title) {
+      ret.library.title = meta.title;
+      var lib = CLapi.internals.use.exlibris.primo('title,exact,'+meta.title.replace(/ /g,'+'),undefined,undefined,opts.library);
+      if (lib.data && lib.data.length > 0) {
+        ret.library.local = [];
+        for ( var l in lib.data ) {
+          if (lib.data[l].library || lib.data[l].repository) ret.library.local.push(lib.data[l]);
+        }
+      }
+    }
+    if ( meta.journal && ( ret.library.local === undefined || ret.library.local.length === 0 ) ) {
+      // exlibris may only tell us they have access to the journal, not every article. So if not found 
+      // do a check for journal availability
+      ret.library.journal = meta.journal;
+      // TODO the "exact" match just matches the exact phrase IN the field - not matching the field exactly. Need to narrow this down...
+      // for example many journals have the word "science" in them so how to find the journal "science"...
+      var jrnls = CLapi.internals.use.exlibris.primo('rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle',undefined,undefined,opts.library);
+      if (jrnls.data && jrnls.data.length > 0) {
+        var jrnl = jrnls.data[0]
+        if (jrnl.title.toLowerCase().indexOf(ret.library.journal.toLowerCase()) === 0 && jrnl.library) {
+          if (ret.library.local === undefined) ret.library.local = [];
+          ret.library.local.push(jrnl);
+        }
+      }
+    }
+  }
+  
   opts.discovered = {article:false,data:false};
   opts.source = {article:false,data:false};
   // TODO check oab_availability for previous availability checks that already found something

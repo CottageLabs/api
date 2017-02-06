@@ -62,8 +62,7 @@ CLapi.addRoute('use/europepmc/pmc/:qry', {
 CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
   get: {
     action: function() {
-      var ft_envelope;
-      ft_envelope = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
+      var ft_envelope = CLapi.internals.use.europepmc.fulltextXML(this.urlParams.qry);
       if(ft_envelope.error) {
         if (ft_envelope.error == 404) {
           console.log(this.urlParams.qry + ' not found when fetching EPMC full text XML.');
@@ -80,6 +79,22 @@ CLapi.addRoute('use/europepmc/pmc/:qry/fulltext', {
       this.response.write(ft_envelope.fulltext);
       this.done();
       return {};
+    }
+  }
+});
+
+CLapi.addRoute('use/europepmc/pmc/:qry/licence', {
+  get: {
+    action: function() {
+      return {status:'success', data:CLapi.internals.use.europepmc.licence(this.urlParams.qry)};
+    }
+  }
+});
+
+CLapi.addRoute('use/europepmc/pmc/:qry/aam', {
+  get: {
+    action: function() {
+      return {status:'success', data:CLapi.internals.use.europepmc.authorManuscript(this.urlParams.qry)};
     }
   }
 });
@@ -225,58 +240,60 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   var res;
   var maybe_licence;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
+  console.log(res)
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
     if (!fulltext && pmcid) fulltext = CLapi.internals.use.europepmc.fulltextXML(pmcid).fulltext;
     if (fulltext) {
       var licinperms = CLapi.internals.academic.licence(undefined,undefined,fulltext,'<permissions>','</permissions>');
-      // console.log(pmcid + ' licinperms XML check: ' + licinperms);
+      console.log(pmcid + ' licinperms XML check: ' + licinperms);
       if (licinperms.licence && licinperms.licence !== 'unknown') {
-        // console.log(pmcid + ' licinperms XML check success, found licence: ' + licinperms.licence);
+        console.log(pmcid + ' licinperms XML check success, found licence: ' + licinperms.licence);
         return {licence:licinperms.licence,source:'epmc_xml_permissions',
           matcher: licinperms.matcher ? licinperms.matcher : undefined,
           matched: licinperms.matched ? licinperms.matched : undefined
         }
       }
-      // console.log(pmcid + ' licinperms XML check failed');
+      console.log(pmcid + ' licinperms XML check failed');
 
       var licanywhere = CLapi.internals.academic.licence(undefined,undefined,fulltext);
-      // console.log(pmcid + ' licanywhere XML check' + licanywhere);
+      console.log(pmcid + ' licanywhere XML check' + licanywhere);
       if (licanywhere.licence && licanywhere.licence !== 'unknown') {
-        // console.log(pmcid + ' licanywhere XML check success: ' + licanywhere.licence);
+        console.log(pmcid + ' licanywhere XML check success: ' + licanywhere.licence);
         return {licence:licanywhere.licence,source:'epmc_xml_outside_permissions',
           matcher: licanywhere.matcher ? licanywhere.matcher : undefined,
           matched: licanywhere.matched ? licanywhere.matched : undefined
         }
       }
-      // console.log(pmcid + ' licanywhere XML check failed');
+      console.log(pmcid + ' licanywhere XML check failed');
 
       if ( fulltext.indexOf('<permissions>') !== -1 ) {
-        // console.log(pmcid + ' licinperms XML check discovered non-standard-licence');
+        console.log(pmcid + ' licinperms XML check discovered non-standard-licence');
         maybe_licence = {licence:'non-standard-licence',source:'epmc_xml_permissions'};
       }
     }
 
-    // console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
+    console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
     if (pmcid) {
       var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
-      var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
-      // console.log(pmcid + ' licsplash HTML check on http://europepmc.org/articles/' + normalised_pmcid);
+      //var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
+      var licsplash = CLapi.internals.limit.do(3500,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
+      console.log(pmcid + ' licsplash HTML check on http://europepmc.org/articles/' + normalised_pmcid);
       // console.log(licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
-        // console.log(pmcid + ' licsplash HTML check success ' + licsplash.licence);
+        console.log(pmcid + ' licsplash HTML check success ' + licsplash.licence);
         return {licence:licsplash.licence,source:'epmc_html',
           matcher: licsplash.matcher ? licsplash.matcher : undefined,
           matched: licsplash.matched ? licsplash.matched : undefined
         }
       } else {
-        // console.log(pmcid + ' licsplash HTML check failed');
+        console.log(pmcid + ' licsplash HTML check failed');
       }
     }
 
-    if (maybe_licence) { return maybe_licence }
-
+    return maybe_licence !== undefined ? maybe_licence : false;
+  } else {
     return false;
   }
 }
@@ -284,10 +301,10 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
 CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
   var res;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
+  var ft_arg_checked = false;
   if (res && res.total > 0 || rec || fulltext) {
     if (!rec) rec = res.data[0];
     if (!pmcid && rec) pmcid = rec.pmcid;
-    var ft_arg_checked = false;
     if (fulltext) {
       if (fulltext.indexOf('pub-id-type=\'manuscript\'') !== -1 && fulltext.indexOf('pub-id-type="manuscript"') !== -1) {
         // console.log("First call for AAM XML");
@@ -309,7 +326,8 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
         // console.log('AAM info not found in XML, trying HTML.')
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
-          var pg = Meteor.http.call('GET',url);
+          //var pg = Meteor.http.call('GET',url);
+          var pg = CLapi.internals.limit.do(3500,Meteor.http.call,"lantern_epmc_ui",['GET',url]);
           if (pg.statusCode === 200) {
             var page = pg.content;
             var s1 = 'Author Manuscript; Accepted for publication in peer reviewed journal';

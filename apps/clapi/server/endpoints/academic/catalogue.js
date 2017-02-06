@@ -130,10 +130,11 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
     }*/
 
     // get a title from the page if not present yet
-		// TODO add a check for <meta name="citation_title" content="TITLE">
     if (!meta.title && content && content.indexOf('og:title') !== -1) {
       meta.title = content.split('og:title')[1].split('content')[1].split('=')[1].replace('/>','>').split('>')[0].trim().replace(/"/g,'');
       if (meta.title.startsWith("'")) meta.title = meta.title.substring(1,meta.title.length-1);
+		} else if (!meta.title && content && content.indexOf('"citation_title" ') !== -1 ) {
+			meta.title = content.split('"citation_title" ')[1].replace(/ = /,'=').split('content="')[1].split('"')[0];
     } else if (!meta.title && content && content.indexOf('<title') !== -1) {
       meta.title = content.split('<title')[1].split('>')[1].split('</title')[0].trim();
     }

@@ -35,7 +35,7 @@ CLapi.addRoute('academic/resolve', {
       if ( this.queryParams.pmc ) ident = 'pmc' + this.queryParams.pmc;
       if ( this.queryParams.citation ) ident = 'CITATION:' + this.queryParams.citation;
       if ( ident ) {
-        return CLapi.internals.academic.resolve(ident,undefined,this.queryParams.refresh);
+        return CLapi.internals.academic.resolve(ident,undefined,undefined,this.queryParams.refresh);
       } else {
         return {status: 'success', data: {info: 'Searches for data about an article ID and attempts to return a set of useful open access URLs. \
           This is like dx.doi.org, the DOI resolver, although this route is just the access to the JSON metadata about the URLs we can find. \
@@ -109,7 +109,7 @@ CLapi.addRoute('academic/redirect/:doipre/:doipost', {
 
 
 CLapi.internals.academic.redirect = function(ident,refresh) {
-  var possibles = CLapi.internals.academic.resolve(ident,undefined,refresh);
+  var possibles = CLapi.internals.academic.resolve(ident,undefined,undefined,refresh);
   if ( possibles.url ) {
     console.log('resolved ' + ident + ' and redirecting to ' + possibles.url);
     return {
@@ -133,7 +133,7 @@ CLapi.internals.academic.redirect = function(ident,refresh) {
   }
 }
 
-CLapi.internals.academic.resolve = function(ident,content,refresh) {
+CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
   // Resolve a URL or an ID to the best guess open alternative. Could be DOI, PMID, PMC... for now
   console.log('starting academic resolve for ' + ident);
   var ret = {url:false,original:ident.replace('CITATION:','')};
@@ -195,7 +195,7 @@ CLapi.internals.academic.resolve = function(ident,content,refresh) {
     // is it worth doing a licence check on a URL? - if open, this is the URL (if there is a URL - could be content)
     // else we look for DOIs PMIDs PMC IDs in the page content
     if (!content) content = CLapi.internals.phantom.get(ident,undefined);
-    var meta = CLapi.internals.academic.catalogue.extract(ident,content);
+    if (meta === undefined) meta = CLapi.internals.academic.catalogue.extract(ident,content);
     if (meta.doi) {
       type = 'doi';
       ident = meta.doi;

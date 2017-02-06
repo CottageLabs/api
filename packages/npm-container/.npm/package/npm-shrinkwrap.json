@@ -9,16 +9,6 @@
           "version": "1.6.0",
           "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
           "from": "concat-stream@latest"
-        },
-        "exit-on-epipe": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/exit-on-epipe/-/exit-on-epipe-1.0.0.tgz",
-          "from": "exit-on-epipe@latest"
-        },
-        "printj": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/printj/-/printj-1.0.0.tgz",
-          "from": "printj@latest"
         }
       }
     },
@@ -124,11 +114,6 @@
       "resolved": "https://registry.npmjs.org/buffer-shims/-/buffer-shims-1.0.0.tgz",
       "from": "buffer-shims@>=1.0.0 <2.0.0"
     },
-    "byline": {
-      "version": "5.0.0",
-      "resolved": "https://registry.npmjs.org/byline/-/byline-5.0.0.tgz",
-      "from": "byline@5.0.0"
-    },
     "camelcase": {
       "version": "1.2.1",
       "resolved": "https://registry.npmjs.org/camelcase/-/camelcase-1.2.1.tgz",
@@ -190,16 +175,6 @@
           "version": "1.6.0",
           "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
           "from": "concat-stream@latest"
-        },
-        "exit-on-epipe": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/exit-on-epipe/-/exit-on-epipe-1.0.0.tgz",
-          "from": "exit-on-epipe@"
-        },
-        "voc": {
-          "version": "0.5.0",
-          "resolved": "https://registry.npmjs.org/voc/-/voc-0.5.0.tgz",
-          "from": "voc@latest"
         }
       }
     },
@@ -249,16 +224,6 @@
           "version": "1.6.0",
           "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
           "from": "concat-stream@latest"
-        },
-        "exit-on-epipe": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/exit-on-epipe/-/exit-on-epipe-1.0.0.tgz",
-          "from": "exit-on-epipe@"
-        },
-        "printj": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/printj/-/printj-1.0.0.tgz",
-          "from": "printj@"
         }
       }
     },
@@ -527,37 +492,10 @@
       "resolved": "https://registry.npmjs.org/harb/-/harb-0.0.7.tgz",
       "from": "harb@>=0.0.5 <0.1.0",
       "dependencies": {
-        "codepage": {
-          "version": "1.6.0",
-          "resolved": "https://registry.npmjs.org/codepage/-/codepage-1.6.0.tgz",
-          "from": "codepage@latest",
-          "dependencies": {
-            "commander": {
-              "version": "2.9.0",
-              "resolved": "https://registry.npmjs.org/commander/-/commander-2.9.0.tgz",
-              "from": "commander@latest"
-            }
-          }
-        },
         "commander": {
           "version": "2.9.0",
           "resolved": "https://registry.npmjs.org/commander/-/commander-2.9.0.tgz",
           "from": "commander@"
-        },
-        "concat-stream": {
-          "version": "1.6.0",
-          "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
-          "from": "concat-stream@latest"
-        },
-        "exit-on-epipe": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/exit-on-epipe/-/exit-on-epipe-1.0.0.tgz",
-          "from": "exit-on-epipe@"
-        },
-        "voc": {
-          "version": "0.5.0",
-          "resolved": "https://registry.npmjs.org/voc/-/voc-0.5.0.tgz",
-          "from": "voc@"
         }
       }
     },
@@ -1216,11 +1154,6 @@
           "version": "0.6.2",
           "resolved": "https://registry.npmjs.org/colors/-/colors-0.6.2.tgz",
           "from": "colors@0.6.2"
-        },
-        "voc": {
-          "version": "0.5.0",
-          "resolved": "https://registry.npmjs.org/voc/-/voc-0.5.0.tgz",
-          "from": "voc@"
         }
       }
     },
@@ -1440,19 +1373,7 @@
         "codepage": {
           "version": "1.3.8",
           "resolved": "https://registry.npmjs.org/codepage/-/codepage-1.3.8.tgz",
-          "from": "codepage@>=1.3.6 <1.4.0",
-          "dependencies": {
-            "commander": {
-              "version": "2.9.0",
-              "resolved": "https://registry.npmjs.org/commander/-/commander-2.9.0.tgz",
-              "from": "commander@"
-            },
-            "concat-stream": {
-              "version": "1.6.0",
-              "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
-              "from": "concat-stream@"
-            }
-          }
+          "from": "codepage@>=1.3.6 <1.4.0"
         },
         "commander": {
           "version": "2.9.0",
@@ -1463,11 +1384,6 @@
           "version": "1.6.0",
           "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
           "from": "concat-stream@latest"
-        },
-        "voc": {
-          "version": "0.5.0",
-          "resolved": "https://registry.npmjs.org/voc/-/voc-0.5.0.tgz",
-          "from": "voc@"
         }
       }
     },
@@ -1476,34 +1392,10 @@
       "resolved": "https://registry.npmjs.org/xlsx/-/xlsx-0.7.12.tgz",
       "from": "xlsx@>=0.7.11 <0.8.0",
       "dependencies": {
-        "adler-32": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/adler-32/-/adler-32-1.0.0.tgz",
-          "from": "adler-32@latest",
-          "dependencies": {
-            "concat-stream": {
-              "version": "1.6.0",
-              "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
-              "from": "concat-stream@"
-            }
-          }
-        },
         "codepage": {
           "version": "1.3.8",
           "resolved": "https://registry.npmjs.org/codepage/-/codepage-1.3.8.tgz",
-          "from": "codepage@>=1.3.6 <1.4.0",
-          "dependencies": {
-            "commander": {
-              "version": "2.9.0",
-              "resolved": "https://registry.npmjs.org/commander/-/commander-2.9.0.tgz",
-              "from": "commander@"
-            },
-            "concat-stream": {
-              "version": "1.6.0",
-              "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
-              "from": "concat-stream@"
-            }
-          }
+          "from": "codepage@>=1.3.6 <1.4.0"
         },
         "commander": {
           "version": "2.9.0",
@@ -1514,33 +1406,6 @@
           "version": "1.6.0",
           "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
           "from": "concat-stream@latest"
-        },
-        "crc-32": {
-          "version": "1.0.1",
-          "resolved": "https://registry.npmjs.org/crc-32/-/crc-32-1.0.1.tgz",
-          "from": "crc-32@latest",
-          "dependencies": {
-            "concat-stream": {
-              "version": "1.6.0",
-              "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-1.6.0.tgz",
-              "from": "concat-stream@"
-            }
-          }
-        },
-        "exit-on-epipe": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/exit-on-epipe/-/exit-on-epipe-1.0.0.tgz",
-          "from": "exit-on-epipe@"
-        },
-        "printj": {
-          "version": "1.0.0",
-          "resolved": "https://registry.npmjs.org/printj/-/printj-1.0.0.tgz",
-          "from": "printj@"
-        },
-        "voc": {
-          "version": "0.5.0",
-          "resolved": "https://registry.npmjs.org/voc/-/voc-0.5.0.tgz",
-          "from": "voc@"
         }
       }
     },

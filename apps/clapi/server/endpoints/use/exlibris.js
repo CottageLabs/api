@@ -46,23 +46,30 @@ CLapi.internals.use.exlibris.parse = function(rec) {
 	if (rec.PrimoNMBib && rec.PrimoNMBib.record && rec.PrimoNMBib.record.search) {
 		res.subject = rec.PrimoNMBib.record.search.subject;
 	}
+	if (rec.PrimoNMBib && rec.PrimoNMBib.record && rec.PrimoNMBib.record.links && rec.PrimoNMBib.record.links.linktorsrc) {
+		res.repository = rec.PrimoNMBib.record.links.linktorsrc.replace('$$U','');
+	}
 	return res;
 	//return rec;
 }
 
 CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
-	// TODO looks like IP registration is required to use this, so ask Imperial for that and then route queries through my main machine proxy so they come from the registered IP (same as BASE)
-	// oddly, it works from a home ISP addr on virgin media but not on servers, although their docs do say IP reg is required so it is more odd that it worked at all
 	if (from === undefined) from = 0;
 	var index = from + 1;
 	if (size === undefined) size = 10;
   if (institution === undefined) institution = '44IMP';
-	var within = 'any';
-	if (qry.indexOf(':') !== -1) {
+  if (institution === 'imperial') institution = '44IMP';
+	// TODO add mappings of institutions we want to search on
+	var query;
+	if ( qry.indexOf(',contains,') !== -1 || qry.indexOf(',exact,') !== -1 || qry.indexOf(',begins_with,') !== -1 || qry.indexOf('&') !== -1 ) {
+		query = qry;
+	} else if (qry.indexOf(':') !== -1) {
 		qry = qry.split(':')[1];
-		any = qry.split(':')[0];
+		var within = qry.split(':')[0];
+		query = within + ',exact,' + qry;
+	} else {
+		query = 'any,contains,' + qry;
 	}
-	var query = within + ',contains,' + qry; // TODO how to build a query they will accept
   var url = 'http://imp-primo.hosted.exlibrisgroup.com/PrimoWebServices/xservice/search/brief?json=true&institution=' + institution + '&indx=' + index + '&bulkSize=' + size + '&query=' + query;
   console.log(url);
   //try {
@@ -70,11 +77,17 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
 		var data;
     if ( res.statusCode === 200 ) {
 			if (raw) {
-				data = res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC;
+				try {
+					data = res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC;
+				} catch(err) {
+					data = res.data.SEGMENTS.JAGROOT.RESULT;
+				}
 			} else {
 				data = [];
-				if ( !(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC instanceof Array) ) res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC = [res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC];
-				for ( var r in res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC ) data.push(CLapi.internals.use.exlibris.parse(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC[r]));
+				try {
+					if ( !(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC instanceof Array) ) res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC = [res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC];
+					for ( var r in res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC ) data.push(CLapi.internals.use.exlibris.parse(res.data.SEGMENTS.JAGROOT.RESULT.DOCSET.DOC[r]));
+				} catch(err) {}
 			}
 			var fcts = [];
 			try { fcts = res.data.SEGMENTS.JAGROOT.RESULT.FACETLIST.FACET; } catch (err) {}
@@ -85,7 +98,9 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
 					facets[fcts[f]['@NAME']][fcts[f].FACET_VALUES[fc]['@KEY']] = fcts[f].FACET_VALUES[fc]['@VALUE'];
 				}
 			}
-      return { status: 'success', total: res.data.SEGMENTS.JAGROOT.RESULT.DOCSET['@TOTALHITS'], data: data, facets: facets}
+			var total = 0;
+			try { total = res.data.SEGMENTS.JAGROOT.RESULT.DOCSET['@TOTALHITS']; } catch(err) {}
+      return { status: 'success', query: query, total: total, data: data, facets: facets}
     } else {
       return { status: 'error', data: res}
     }
