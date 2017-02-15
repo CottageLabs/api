@@ -186,6 +186,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
       type = 'doi';
       ident = check.data.doi;
       ret.doi = ident;
+      ret.title = check.data.title;
       ret.source = 'Crossref'; // source for doi, will be updated to source for full content if found later
     }
   }*/
@@ -196,6 +197,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     // else we look for DOIs PMIDs PMC IDs in the page content
     if (!content) content = CLapi.internals.phantom.get(ident,undefined);
     if (meta === undefined) meta = CLapi.internals.academic.catalogue.extract(ident,content);
+    if (meta.title) ret.title = meta.title;
     if (meta.doi) {
       type = 'doi';
       ident = meta.doi;
@@ -225,8 +227,10 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
       for ( var i in res.data.fullTextUrlList.fullTextUrl ) {
         var erl = res.data.fullTextUrlList.fullTextUrl[i];
         if ( erl.availabilityCode.toLowerCase() === 'oa' && erl.documentStyle.toLowerCase() === 'html') {
+          // is htere a way to find the title from this?
           ret.source = 'EUPMC';
           ret.url = erl.url;
+          if (res.data.doi) ret.doi = res.data.doi;
         }
       }
     }
@@ -248,6 +252,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
       res = CLapi.internals.use.base.doi(ident);
       if (res.data && res.data.dclink) {
         ret.url = res.data.dclink;
+        ret.title = res.data.dctitle;
         ret.source = 'BASE';
       }
     } catch(err) {}
@@ -256,6 +261,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         res = CLapi.internals.use.openaire.doi(ident);
         if (res.data && res.data.metadata && false) { // TODO decide how openaire actually gives us a URL to something open
           ret.url = '';
+          // where to find title?
           ret.source = 'openaire';
         }
       } catch(err) {}
@@ -267,6 +273,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           // TODO Dissemin will return records that are to "open" repos, but without a pdf url 
           // they could just be repos with biblio records. Should we include those too, or not?
           ret.source = "Dissemin";
+          ret.title = res.data.title;
           ret.url = res.data.pdf_url;
         }
       } catch(err) {}
@@ -288,6 +295,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           }
           if (uu !== undefined) {
             ret.url = uu;
+            ret.title = res.data.title;
             ret.source = "CORE";
           }
         }
@@ -298,12 +306,14 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         res = CLapi.internals.use.figshare.doi(ident);
         if (res.data && res.data.doi === ident && res.data.url) {
           ret.source = "figshare";
+          ret.title = res.data.title;
           ret.url = res.data.url;
         }
       } catch(err) {}
     }
     // add other places to check with DOI here, until one of them sets ret to be a value
   }
+  if (ret.type === 'doi' && !ret.doi) ret.doi = ident;
     
   if (exists) {
     console.log('updating resolvers data');

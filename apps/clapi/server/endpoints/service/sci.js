@@ -42,11 +42,7 @@ CLapi.internals.service.sci.loadcompanies = function(types,load,update,delay) {
   if (update === undefined) update = false;
   load = true;
   update = true;
-  if (delay === undefined) {
-    delay = 1;
-  } else {
-    delay = parseInt(delay);
-  }
+  delay = delay === undefined ? 1 : parseInt(delay);
   var results = [];
   var stocklisturl = 'http://eoddata.com/stocklist/';
   var list = ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']

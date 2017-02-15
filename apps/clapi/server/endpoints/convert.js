@@ -260,8 +260,6 @@ CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callb
     var res = Meteor.http.call('GET', url);
     content = JSON.parse(res.content);
   }
-  console.log("hello")
-  console.log(content)
   if (opts === undefined) opts = {};
   if (opts.subset) {
     var parts = opts.subset.split('.');
@@ -291,14 +289,12 @@ CLapi.internals.convert.json2json = function(opts,url,content) {
     var res = Meteor.http.call('GET', url);
     content = JSON.parse(res.content);
   }
-  console.log(content)
   if (opts.subset) {
     var parts = opts.subset.split('.');
     for ( var s in parts ) {
       content = content[parts[s]];
     }
   }
-  console.log(content)
   if ( opts.fields ) {
     var recs = [];
     for ( var r in content ) {

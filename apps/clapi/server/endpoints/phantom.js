@@ -16,7 +16,7 @@ CLapi.addRoute('phantom/get', {
         headers: {
           'Content-Type': 'text/' + format
         },
-        body: CLapi.internals.academic.phantom(this.queryParams.url,this.queryParams.delay)
+        body: CLapi.internals.phantom.get(this.queryParams.url,this.queryParams.delay)
       };
     }
   }

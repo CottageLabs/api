@@ -40,16 +40,78 @@ CLapi.addRoute('use/google/places/url', {
   }
 });
 
+CLapi.addRoute('use/google/language', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.use.google.cloud.language(this.queryParams.content,this.queryParams.actions);
+    }
+  }
+});
+CLapi.addRoute('use/google/language/sentiment', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.use.google.cloud.language(this.queryParams.content,['sentiment']);
+    }
+  }
+});
+CLapi.addRoute('use/google/language/entities', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.use.google.cloud.language(this.queryParams.content,['entities']);
+    }
+  }
+});
+
 
 
 CLapi.internals.use.google = {};
 CLapi.internals.use.google.places = {};
 CLapi.internals.use.google.docs = {};
 CLapi.internals.use.google.sheets = {};
+CLapi.internals.use.google.cloud = {};
+
+// https://cloud.google.com/natural-language/docs/getting-started
+// https://cloud.google.com/natural-language/docs/basics
+CLapi.internals.use.google.cloud.language = function(content,actions,auth) {
+  if (typeof actions === 'string') {
+    actions = actions.split(',');
+  } else if (actions === undefined) {
+    actions = ['entities','sentiment']
+  }
+  // worth passing a url to get content from? or setting entities/sentiment on/off?
+  if (content === undefined || !content.length) return {};
+  if (auth === undefined) auth = {
+    projectId: Meteor.settings.GOOGLE_PROJECT_ID,
+    credentials: Meteor.settings.GOOGLE_CREDENTIALS
+  };
+  var language = Meteor.npmRequire('@google-cloud/language');
+  var client = language(auth);
+  var document = client.document(content);
+  var res = {};
+    
+  var entities = Async.wrap(function(content,callback) {
+    document.detectEntities(content, function(err, result) {
+      return callback(null,result);
+    });
+  });
+  if (actions.indexOf('entities') !== -1) res.entities = entities(content);
+  
+  var sentiment = Async.wrap(function(content,callback) {
+    document.detectSentiment(content, function(err, result) {
+      return callback(null,result);
+    });
+  });
+  if (actions.indexOf('sentiment') !== -1) res.sentiment = sentiment(content);
+  
+  return res;
+}
 
 CLapi.internals.use.google.places.autocomplete = function(qry) {
   console.log('Using google places autocomplete to query ' + qry);
-  var url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + qry + '&key=' + Meteor.settings.GOOGLE_MAPS_KEY;
+  var url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + qry + '&key=' + Meteor.settings.GOOGLE_API_KEY;
   try {
     return Meteor.http.call('GET',url).data;
   } catch(err) {
@@ -67,7 +129,7 @@ CLapi.internals.use.google.places.place = function(id,qry) {
       return {status:'error'}
     }
   }
-  var url = 'https://maps.googleapis.com/maps/api/place/details/json?placeid=' + id + '&key=' + Meteor.settings.GOOGLE_MAPS_KEY;
+  var url = 'https://maps.googleapis.com/maps/api/place/details/json?placeid=' + id + '&key=' + Meteor.settings.GOOGLE_API_KEY;
   try {
     return Meteor.http.call('GET',url).data;
   } catch(err) {

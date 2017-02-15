@@ -784,12 +784,7 @@ CLapi.internals.service.oab.ill = function(opts) {
       subject: 'EXAMPLE ILL TRIGGER',
       text: JSON.stringify(opts,undefined,2)
     });
-    CLapi.internals.mail.send({
-      from: 'requests@openaccessbutton.io',
-      to: opts.id,
-      subject: 'EXAMPLE ILL CONFIRMATION',
-      text: 'Thanks blak for starting an ILL, look at your institional site to follow up with it. Want to join OAB or sth?'
-    });
+    CLapi.internals.service.oab.sendmail({template:{filename:'imperial_confirmation_example.txt'},to:opts.id})
   }
   // TODO as we add more libraries add their forwarding endpoints here
   var illid = oab_ill.insert(opts);
@@ -848,22 +843,23 @@ CLapi.internals.service.oab.availability = function(opts) {
       if (lib.data && lib.data.length > 0) {
         ret.library.local = [];
         for ( var l in lib.data ) {
-          if (lib.data[l].library || lib.data[l].repository) ret.library.local.push(lib.data[l]);
+          if (lib.data[l].library) {
+            ret.library.local.push(lib.data[l]);
+          } else if ( lib.data[l].repository && ret.library.repository === undefined ) {
+            ret.library.repository = lib.data[l];
+          }
         }
       }
     }
-    if ( meta.journal && ( ret.library.local === undefined || ret.library.local.length === 0 ) ) {
+    if ( meta.journal ) {
       // exlibris may only tell us they have access to the journal, not every article. So if not found 
       // do a check for journal availability
-      ret.library.journal = meta.journal;
-      // TODO the "exact" match just matches the exact phrase IN the field - not matching the field exactly. Need to narrow this down...
-      // for example many journals have the word "science" in them so how to find the journal "science"...
+      ret.library.journal = {title:meta.journal};
       var jrnls = CLapi.internals.use.exlibris.primo('rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle',undefined,undefined,opts.library);
       if (jrnls.data && jrnls.data.length > 0) {
-        var jrnl = jrnls.data[0]
-        if (jrnl.title.toLowerCase().indexOf(ret.library.journal.toLowerCase()) === 0 && jrnl.library) {
-          if (ret.library.local === undefined) ret.library.local = [];
-          ret.library.local.push(jrnl);
+        var jrnl = jrnls.data[0];
+        if (jrnl.title.toLowerCase().indexOf(ret.library.journal.title.toLowerCase()) === 0 && jrnl.library) {
+          ret.library.journal = jrnl;
         }
       }
     }
@@ -891,12 +887,11 @@ CLapi.internals.service.oab.availability = function(opts) {
     }
     if (url === undefined) {
       var res = CLapi.internals.academic.resolve(opts.url,opts.dom); // opts.url could actually be a pmid, pmc, or doi
+      ret.meta.article.doi = res.doi;
+      ret.meta.article.source = res.source;
+      ret.meta.article.title = res.title;
       url = res.url ? res.url : undefined;
-      if (url !== undefined) {
-        ret.meta.article.doi = ret.doi;
-        ret.meta.article.source = ret.source;
-        opts.source.article = ret.source;
-      }
+      if (url !== undefined) opts.source.article = res.source;
     }
     if (url !== undefined) {
       ret.availability.push({type:'article',url:url});
@@ -906,11 +901,11 @@ CLapi.internals.service.oab.availability = function(opts) {
   }
   // TODO add availability checkers for any new types that are added to the accepts list  
 
-  console.log('OAB availability checking for requests');
+  //console.log('OAB availability checking for requests');
   var matcher = {url:opts.url};
   if (opts.type) matcher.type = opts.type;
   var requests = oab_request.find(matcher).fetch();
-  console.log('found ' + requests.length + ' existing requests');
+  //console.log('found ' + requests.length + ' existing requests');
   for ( var r in requests ) {
     if ( already.indexOf(requests[r].type) === -1 ) {
       var rq = {
@@ -927,7 +922,7 @@ CLapi.internals.service.oab.availability = function(opts) {
     }
   }
   
-  console.log('OAB availability checking for accepts');
+  //console.log('OAB availability checking for accepts');
   var accepts = CLapi.internals.service.oab.accepts();
   for ( var a in accepts ) {
     if ( already.indexOf(accepts[a].type) === -1) ret.accepts.push(accepts[a]);
