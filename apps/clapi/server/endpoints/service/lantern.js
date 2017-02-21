@@ -85,7 +85,7 @@ CLapi.addRoute('service/lantern', {
         var user = CLapi.internals.accounts.retrieve(this.queryParams.apikey);
         if (user) {
           var u = user._id;
-          var j = lantern_jobs.insert({new:true});
+          var j = lantern_jobs.insert({new:true,user:user._id});
           var b = [];
           if (this.queryParams.doi) b.push({doi:this.queryParams.doi});
           if (this.queryParams.pmid) b.push({pmid:this.queryParams.pmid});
@@ -116,7 +116,7 @@ CLapi.addRoute('service/lantern', {
         return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
       } else {
         var w = this.request.body.email ? true : false;
-        var j = w ? lantern_jobs.insert({new:true,wellcome:true}) : lantern_jobs.insert({new:true});
+        var j = w ? lantern_jobs.insert({new:true,wellcome:true,user:this.userId}) : lantern_jobs.insert({new:true,user:this.userId});
         var b = this.request.body;
         var u = this.userId;
         var r = this.queryParams.refresh;
