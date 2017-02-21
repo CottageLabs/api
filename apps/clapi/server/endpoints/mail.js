@@ -20,6 +20,14 @@ mail_progress.after.remove(function (userId, doc) {
 });
 
 
+CLapi.addRoute('mail/validate', {
+  get: {
+    action: function() {
+      return {status: 'success', data: CLapi.internals.mail.validate(this.queryParams.email) };
+    }
+  }
+});
+
 CLapi.addRoute('mail/send', {
   get: {
     action: function() {
@@ -111,9 +119,11 @@ CLapi.internals.sendmail = function(opts,mail_url) {
     // send via POST to mailgun API
     delete opts.post;
     var mailgunapi = 'https://api.mailgun.net/v3';
-    var service = 'openaccessbutton.io';
+    var service = opts.mail_service ? opts.mail_service : Meteor.settings.MAIL_SERVICE;
     var url = mailgunapi + '/' + service + '/messages';
-    var apik = ''; // DO NOT SAVE THIS HERE
+    var apik = opts.mail_apikey ? opts.mail_apikey : Meteor.settings.MAIL_APIKEY;
+    delete opts.mail_service;
+    delete opts.mail_apikey
     if (typeof opts.to === 'object') opts.to = opts.to.join(',');
     console.log('Sending mail via mailgun API on URL ' + url);
     console.log(opts)
@@ -138,6 +148,13 @@ CLapi.internals.sendmail = function(opts,mail_url) {
 
 CLapi.internals.mail = {}
 CLapi.internals.mail.send = CLapi.internals.sendmail;
+
+CLapi.internals.mail.validate = function(email,apikey) {
+  if (apikey === undefined) apikey = Meteor.settings.MAIL_PUBLIC_APIKEY; // NOTE should use public key, not private key
+  var u = 'https://api.mailgun.net/v3/address/validate?syntax_only=false&address=' + email + '&api_key=' + apikey;
+  var v = Meteor.http.call('GET',u);
+  return v.data;
+}
 
 CLapi.internals.mail.test = function() {
   return CLapi.internals.mail.send({
@@ -228,8 +245,7 @@ CLapi.internals.mail.substitute = function(content,vars,markdown) {
     }
   }
   if (content.indexOf('{{') !== -1) {
-    // there must be variables to read OUT - should it be a controlled set, or anything?
-    var vs = ['subject'];
+    var vs = ['subject','from','to','cc','bcc'];
     for ( var k in vs ) {
       var key = content.toLowerCase().indexOf('{{'+vs[k]) !== -1 ? vs[k] : undefined;
       if (key) {

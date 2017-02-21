@@ -11,14 +11,24 @@ oab_availability = new Mongo.Collection("oab_availability"); // records use of t
 oab_request = new Mongo.Collection("oab_request"); // records use of that endpoint
 oab_ill = new Mongo.Collection("oab_ill"); // records our forwarding of inter library loan requests
 
+var moment = Meteor.npmRequire('moment');
+
+oab_dnr.before.insert(function (userId, doc) {
+  if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
+});
+
 oab_availability.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
 oab_availability.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/availability/' + this._id, doc);
 });
 oab_availability.before.update(function (userId, doc, fieldNames, modifier, options) {
-  modifier.$set.updatedAt = Date.now();
+  var d = Date.now();
+  modifier.$set.updatedAt = d;
+  modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
 });
 oab_availability.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oab/availability/' + doc._id, doc);
@@ -29,12 +39,15 @@ oab_availability.after.remove(function (userId, doc) {
 
 oab_request.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
 oab_request.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/request/' + this._id, doc);
 });
 oab_request.before.update(function (userId, doc, fieldNames, modifier, options) {
-  modifier.$set.updatedAt = Date.now();
+  var d = Date.now();
+  modifier.$set.updatedAt = d;
+  modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
 });
 oab_request.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oab/request/' + doc._id, doc);
@@ -45,12 +58,15 @@ oab_request.after.remove(function (userId, doc) {
 
 oab_support.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
 oab_support.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/support/' + this._id, doc);
 });
 oab_support.before.update(function (userId, doc, fieldNames, modifier, options) {
-  modifier.$set.updatedAt = Date.now();
+  var d = Date.now();
+  modifier.$set.updatedAt = d;
+  modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
 });
 oab_support.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oab/support/' + doc._id, doc);
@@ -61,12 +77,15 @@ oab_support.after.remove(function (userId, doc) {
 
 oab_ill.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
 oab_ill.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/oab/ill/' + this._id, doc);
 });
 oab_ill.before.update(function (userId, doc, fieldNames, modifier, options) {
-  modifier.$set.updatedAt = Date.now();
+  var d = Date.now();
+  modifier.$set.updatedAt = d;
+  modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
 });
 oab_ill.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oab/ill/' + doc._id, doc);
@@ -75,9 +94,7 @@ oab_ill.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/oab/ill/' + doc._id);
 });
 
-//CLapi.addCollection(oab_availability);
-//CLapi.addCollection(oab_support);
-//CLapi.addCollection(oab_request);
+CLapi.addCollection(oab_dnr);
 
 CLapi.addRoute('service/oab', {
   get: {
@@ -217,6 +234,7 @@ CLapi.addRoute('service/oab/request/:rid', {
         if (CLapi.internals.accounts.auth('openaccessbutton.admin',this.user)) {
           if (this.request.body.test !== undefined) n.test = this.request.body.test;
           if (this.request.body.status !== undefined) n.status = this.request.body.status;
+          if (this.request.body.rating !== undefined) n.rating = this.request.body.rating;
           if (this.request.body.email !== undefined) n.email = this.request.body.email;
           if (this.request.body.story !== undefined) n.story = this.request.body.story;
         }
@@ -240,9 +258,10 @@ CLapi.addRoute('service/oab/request/:rid', {
     }
   },
   delete: {
-    roleRequired:'openaccessbutton.admin',
+    roleRequired:'openaccessbutton.user',
     action: function() {
-      oab_request.remove(this.urlParams.rid);
+      var r = oab_request.findOne(this.urlParams.rid);
+      if ( CLapi.internals.accounts.auth('openaccessbutton.admin',this.user) || this.userId === r.user.id ) oab_request.remove(this.urlParams.rid);
       // remove support? No, keep, in case the URL gets requested in future, we can match to it again perhaps
       return {}
     }
@@ -544,6 +563,86 @@ CLapi.addRoute('service/oab/receive/:rid/:holdrefuse', {
   }
 });
 
+CLapi.addRoute('service/oab/dnr', {
+  get: {
+    action: function() {
+      if (!this.queryParams.email) return {status:'error',info:'you need to provide an email'};
+      var d = {};
+      d.dnr = CLapi.internals.service.oab.dnr(this.queryParams.email);
+      if (!d.dnr && this.queryParams.user) {
+        var u = CLapi.internals.accounts.retrieve(this.queryParams.user);
+        if (u.emails[0].address === this.queryParams.email) d.dnr = 'user';
+      }
+      if (!d.dnr && this.queryParams.request) {
+        var r = oab_request.findOne(this.queryParams.request);
+        if (r.user.email === this.queryParams.email) d.dnr = 'creator';
+        if (!d.dnr) {
+          var supports = oab_support.find({rid:this.queryParams.request}).fetch();
+          for ( var s in supports ) {
+            if (supports[s].email === this.queryParams.email) d.dnr = 'supporter';
+          }
+        }
+      }
+      if (!d.dnr && this.queryParams.validate) {
+        // check if this is a valid email address - create and call an internals mail function that calls to mailgun email validator
+        d.validation = CLapi.internals.mail.validate(this.queryParams.email);
+        if (!d.validation.is_valid) d.dnr = 'invalid';
+      }
+      return {status:'success',data:d};
+    }
+  },
+  post: {
+    action: function() {
+      var e = this.queryParams.email ? this.queryParams.email : this.request.body.email;
+      var refuse = this.queryParams.refuse && (this.queryParams.refuse === 'false' || this.queryParams.refuse === false) ? false : true;
+      if (e) {
+        return {status:'success',data:CLapi.internals.service.oab.dnr(e,true,refuse)};
+      } else {
+        return {status:'error',info:'you need to provide an email'}
+      }
+    }    
+  }
+});
+
+CLapi.addRoute('service/oab/bug', {
+  post: {
+    action: function() {
+      // this.request.body - holds hte form info. what will we do with it
+      console.log(this.request.body);
+      return this.request.body;
+      /* submit general feedback / uninstall / dnr feedback to zendesk
+         submit general bug reports to github issues & notify help@openaccessbutton.org (to make it easy to follow up and thank)
+         submit "wrong link" info to github issue & notify help@openaccessbutton.org (to make it easy to follow up and thank)
+         send a notification about "why you can't share something" to requests@openaccessbutton.org. & save data alongside request data in request system
+       */
+      /*return {
+        statusCode: 302,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Location': 'https://openaccessbutton.org/bug#defaultthanks'
+        },
+        body: 'Location: ' + 'https://openaccessbutton.org/bug#defaultthanks'
+      };*/
+    }    
+  }
+});
+
+CLapi.addRoute('service/oab/job', {
+  post: {
+    roleRequired: 'openaccessbutton.admin', // later could be opened to other oab users, with some sort of quota / limit
+    action: function() {
+      // receive a json object job, like what lantern would submit, but for the generic jobs method
+      // should be a json list extracted from a csv, with at least one of columns named url, doi, pmid, pmcid, title
+      // list should go into new jobs system and ping a message with a link to a page where the results can be retrieved
+      // could also return that to the admin page, and perhaps a redirect can show the progress page immediately
+      // limit size?
+      // need to know what the job to run for each is - could be an availability check, but could be create a request too, possibly others
+      // for now start with availability check
+      // var jid = CLapi.internals.job.create({service:'openaccessbutton',method:CLapi.internals.service.oab.availability,name:"oab_availability",list:[]});
+    }
+  }
+});
+
 CLapi.addRoute('service/oab/status', {
   get: {
     action: function() {
@@ -600,6 +699,20 @@ CLapi.internals.service.oab.accepts = function(addition) {
     }
   }
   return meta.accepts;
+}
+
+CLapi.internals.service.oab.dnr = function(email,add,refuse) {
+  if (email === undefined && add === undefined) return oab_dnr.find().fetch();
+  var ondnr = oab_dnr.findOne({email:email});
+  if (add && !ondnr) {
+    oab_dnr.insert({email:email});
+    // also set any requests where this author is the email address to refused - can't use the address!
+    if (refuse) {
+      var rqs = oab_request.find({email:email}).fetch();
+      for ( var req in rqs ) CLapi.internals.service.oab.refuse(req._id,'Author DNRd their email address');
+    }
+  }
+  return ondnr !== undefined || add === true;
 }
 
 CLapi.internals.service.oab.blacklist = function(url,stale) {
@@ -703,6 +816,10 @@ CLapi.internals.service.oab.request = function(req,uid) {
       email: user.emails[0].address
     }
   }
+  if (user.profile) {
+    req.firstname = user.profile.firstname;
+    req.lastname = user.profile.lastname;     
+  }
   try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
   try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
   req.count = 1;
@@ -712,8 +829,8 @@ CLapi.internals.service.oab.request = function(req,uid) {
     req.title = meta && meta.title ? meta.title : "";
     req.doi = meta && meta.doi ? meta.doi : "";
 
-    // TODO should check DNR list for emails before using them
     req.email = meta && meta.email && meta.email.length > 0 ? meta.email[0] : "";
+    if (req.email && CLapi.internals.service.oab.dnr(req.email)) req.email = "";
     
     // some optional extract that the extract can return
     req.author = meta && meta.author ? meta.author : [];
@@ -753,6 +870,10 @@ CLapi.internals.service.oab.support = function(rid,story,uid) {
     oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
     var s = {url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story}
+    if (user.profile) {
+      s.firstname = user.profile.firstname;
+      s.lastname = user.profile.lastname;
+    }
     s._id = oab_support.insert(s);
     return s;
   } else {
@@ -765,7 +886,7 @@ CLapi.internals.service.oab.supports = function(rid,uid,url) {
   if (rid && uid) {
     matcher.$and = [{uid:uid},{rid:rid}];
   } else if (rid) {
-    matcher._id = rid;
+    matcher.rid = rid;
   } else if (uid && url) {
     matcher.$and = [{uid:uid},{url:url}];
   } else if (uid) {
@@ -778,9 +899,10 @@ CLapi.internals.service.oab.ill = function(opts) {
   if (opts.library === 'imperial') {
     // TODO for now we are just going to send an email when a user creates an ILL
     // until we have a script endpoint at the library to hit
+    // library POST URL: https://www.imperial.ac.uk/library/dynamic/oabutton/oabutton3.php
     CLapi.internals.mail.send({
-      from: 'requests@openaccessbutton.io',
-      to: ['joe@righttoresearch.org','mark@cottagelabs.com'],
+      from: 'requests@openaccessbutton.org',
+      to: ['joe@righttoresearch.org','mark@cottagelabs.com','s.barron@imperial.ac.uk'],
       subject: 'EXAMPLE ILL TRIGGER',
       text: JSON.stringify(opts,undefined,2)
     });
@@ -1107,6 +1229,7 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     var u = CLapi.internals.accounts.retrieve(vars.user.id);
     if (u) {
       vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : '';
+      if (vars.profession.toLowerCase() === 'other') vars.profession = 'user';
       vars.affiliation = u.service.openaccessbutton.profile.affiliation ? u.service.openaccessbutton.profile.affiliation : '';
     }
     vars.userid = vars.user.id;
@@ -1115,7 +1238,7 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     if (!vars.fullname) vars.fullname = vars.username;
     vars.useremail = vars.user.email
   }
-  if (Meteor.settings.dev) content = content.replace(/https:\/\/openaccessbutton.org/g,'http://oab.test.cottagelabs.com');
+  if (Meteor.settings.dev) content = content.replace(/https:\/\/openaccessbutton.org/g,'https://dev.openaccessbutton.org');
   return CLapi.internals.mail.substitute(content,vars,markdown);
 }
 

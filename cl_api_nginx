@@ -13,6 +13,11 @@ proxy_read_timeout 600;
 send_timeout 600;
 keepalive_timeout 600;
 
+# DEFINE A DEV UPSTREAM CL API
+upstream clapidev {
+    server localhost:3002;
+}
+
 # DEFINE A LOCAL UPSTREAM CL API FOR SOME SERVICE
 upstream clapilocal {
     server localhost:3333;
@@ -161,7 +166,7 @@ server {
     location / {
         add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-        proxy_pass http://localhost:3002/api/;
+        proxy_pass http://clapidev/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -188,7 +193,7 @@ server {
     location / {
         add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
         add_header Access-Control-Allow-Headers 'X-apikey,X-id,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-        proxy_pass http://localhost:3002/api/;
+        proxy_pass http://clapidev/api/;
         proxy_redirect off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -214,7 +219,7 @@ server {
 #    ssl_certificate_key /etc/letsencrypt/live/test.cottagelabs.com/privkey.pem;
 
     location / {
-        proxy_pass http://localhost:3002;
+        proxy_pass http://clapidev;
         proxy_redirect off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

@@ -75,9 +75,34 @@ CLapi.addRoute('academic/redirect/:pmorpmc', {
     }
   }
 });
+CLapi.addRoute('academic/redirect/pmid/:pmid', {
+  get: function() {
+    return CLapi.internals.academic.redirect(this.urlParams.pmid,this.queryParams.refresh);
+  }
+});
+CLapi.addRoute('academic/redirect/pmc/:pmc', {
+  get: function() {
+    return CLapi.internals.academic.redirect('PMC' + this.urlParams.pmc.toLowerCase().replace('pmc',''),this.queryParams.refresh);
+  }
+});
 CLapi.addRoute('academic/redirect/:doipre/:doipost', {
   get: function() {
     return CLapi.internals.academic.redirect(this.urlParams.doipre + '/' + this.urlParams.doipost,this.queryParams.refresh);
+  }
+});
+CLapi.addRoute('academic/redirect/doi/:doipre/:doipost', {
+  get: function() {
+    return CLapi.internals.academic.redirect(this.urlParams.doipre + '/' + this.urlParams.doipost,this.queryParams.refresh);
+  }
+});
+CLapi.addRoute('academic/redirect/citation/:citation', {
+  get: function() {
+    return CLapi.internals.academic.redirect('CITATION:' + this.urlParams.citation,this.queryParams.refresh);
+  }
+});
+CLapi.addRoute('academic/redirect/title/:title', {
+  get: function() {
+    return CLapi.internals.academic.redirect('CITATION:' + this.urlParams.title,this.queryParams.refresh);
   }
 });
 
@@ -122,13 +147,20 @@ CLapi.internals.academic.redirect = function(ident,refresh) {
     };
   } else {
     console.log('resolving failed, returning JSON metadata and 404');
-    // if there is no open content discoverable, redirect to a page that asks them to use oabutton to request it?
-    return {
+    /*return {
       statusCode: 404,
       headers: {
         'Content-Type': 'application/json'
       },
       body: possibles
+    };*/
+    return {
+      statusCode: 302,
+      headers: {
+        'Content-Type': 'text/plain',
+        'Location': 'https://openaccessbutton.org/request/new?url='+ident
+      },
+      body: 'Location: ' + 'https://openaccessbutton.org/request/new?url='+ident
     };
   }
 }

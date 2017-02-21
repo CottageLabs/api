@@ -115,11 +115,11 @@ CLapi.addRoute('service/lantern', {
       } else if (checklength > quota.available) {
         return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
       } else {
-        var j = lantern_jobs.insert({new:true});
+        var w = this.request.body.email ? true : false;
+        var j = w ? lantern_jobs.insert({new:true,wellcome:true}) : lantern_jobs.insert({new:true});
         var b = this.request.body;
         var u = this.userId;
         var r = this.queryParams.refresh;
-        var w = this.request.body.email ? true : false;
         Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
         return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
       }
@@ -528,7 +528,7 @@ CLapi.addRoute('service/lantern/fields/:email', {
 CLapi.internals.service.lantern = {};
 
 CLapi.internals.service.lantern.allowed = function(job,uacc) {
-  return job.user === uacc._id || CLapi.cauth('lantern.admin',uacc) || job.wellcome === true;
+  return job.user === uacc._id || CLapi.internals.accounts.auth('lantern.admin',uacc) || job.wellcome === true;
 }
 
 CLapi.internals.service.lantern.quota = function(uid) {

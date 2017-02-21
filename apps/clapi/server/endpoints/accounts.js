@@ -516,7 +516,16 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
     var sent;
     try {
       // try / catch on this lets things continue if say on dev the email is disabled
-      //snd.post = true;
+      snd.post = true;
+      if (snd.post && Meteor.settings[opts.service] && Meteor.settings[opts.service].mail_service && Meteor.settings[opts.service].mail_apikey) {
+        snd.mail_service = Meteor.settings[opts.service].mail_service;
+        snd.mail_apikey = Meteor.settings[opts.service].mail_apikey;
+      } else if (snd.post && Meteor.settings.MAIL_SERVICE && Meteor.settings.MAIL_APIKEY) {
+        snd.mail_service = Meteor.settings.MAIL_SERVICE;
+        snd.mail_apikey = Meteor.settings.MAIL_APIKEY;
+      } else {
+        snd.post = false;
+      }
       sent = CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
       console.log(sent)
     } catch(err) {}

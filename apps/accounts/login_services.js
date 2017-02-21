@@ -34,7 +34,7 @@ login_services = {
   'https://openaccessbutton.org/account': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
-    from: 'Open Access Button <donotreply@openaccessbutton.io>',
+    from: 'Open Access Button <donotreply@openaccessbutton.org>',
     service: 'openaccessbutton',
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',
@@ -57,6 +57,11 @@ login_services['https://compliance.cottagelabs.com'] = login_services['https://l
 login_services['http://oab.test.cottagelabs.com/account'] = JSON.parse(JSON.stringify(login_services['https://openaccessbutton.org/account']));
 login_services['http://oab.test.cottagelabs.com/account'].domain = '.cottagelabs.com';
 login_services['http://oab.test.cottagelabs.com/account'].secure = false;
+login_services['https://oab.test.cottagelabs.com/account'] = login_services['http://oab.test.cottagelabs.com/account'];
+
+login_services['http://dev.openaccessbutton.org/account'] = JSON.parse(JSON.stringify(login_services['https://openaccessbutton.org/account']));
+login_services['http://dev.openaccessbutton.org/account'].secure = false;
+login_services['https://dev.openaccessbutton.org/account'] = login_services['http://dev.openaccessbutton.org/account'];
 
 login_services['http://lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['https://lantern.cottagelabs.com']));
 login_services['http://lantern.test.cottagelabs.com'].secure = false;
