@@ -44,6 +44,7 @@ CLapi.internals.use.figshare.search = function(params) {
   var url = 'https://api.figshare.com/v2/articles/search';
   // search_for is required
   console.log('searching figshare for ' + url);
+  console.log(params);
   try {
     var res = Meteor.http.call('POST', url, {data:params,headers:{'Content-Type':'application/json'}}); // ONLY works on POST
     if ( res.statusCode === 200 ) {

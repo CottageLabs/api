@@ -18,7 +18,7 @@ CLapi.addRoute('accounts', {
   get: {
     authRequired: true,
     action: function() {
-      if ( CLapi.cauth('root', this.user) ) {
+      if ( CLapi.internals.accounts.auth('root', this.user) ) {
         return {status: 'success', data: Meteor.users.find({}).fetch() };
       } else {
         return {status: 'success', data: Meteor.users.find({},{fields:{_id:1}}).fetch() };      
@@ -172,7 +172,7 @@ CLapi.addRoute('accounts/:id/status', {
     authRequired: true,
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      if ( u._id === this.user._id || CLapi.cauth(u._id + '.edit', this.user) ) {
+      if ( u._id === this.user._id || CLapi.internals.accounts.auth(u._id + '.edit', this.user) ) {
         var profile = u.profile;
         if ( profile === undefined ) profile = {};
         for ( var k in {} ) { // TODO where to get the incoming request data?
@@ -189,7 +189,7 @@ CLapi.addRoute('accounts/:id/status', {
     authRequired: true,
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      if ( u._id === this.user._id || CLapi.cauth(u._id + '.edit', this.user) ) {
+      if ( u._id === this.user._id || CLapi.internals.accounts.auth(u._id + '.edit', this.user) ) {
         Meteor.users.update(u._id, {$set: {'profile': {} } } ); // TODO where to get the incoming request data?
         return {status: 'success', data: {profile:u.profile}}
       } else {
@@ -204,7 +204,7 @@ CLapi.addRoute('accounts/:id/service/:sys', {
     authRequired: true,
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      if ( CLapi.cauth(this.urlParams.sys + '.service', this.user) ) {
+      if ( CLapi.internals.accounts.auth(this.urlParams.sys + '.service', this.user) ) {
         var sys = {};
         if ( u.system ) sys = u.system;
         if ( sys[this.urlParams.sys] === undefined ) sys[this.urlParams.sys] = {};
@@ -224,7 +224,7 @@ CLapi.addRoute('accounts/:id/service/:sys', {
     authRequired: true,
     action: function() {
       var u = CLapi.internals.accounts.retrieve(this.urlParams.id);
-      if ( CLapi.cauth(this.urlParams.sys + '.service', this.user) ) {
+      if ( CLapi.internals.accounts.auth(this.urlParams.sys + '.service', this.user) ) {
         var sys = {};
         if ( u.system ) sys = u.system;
         u.system[this.urlParams.sys] = {}; // TODO where to get the incoming request data?
@@ -754,10 +754,10 @@ CLapi.internals.accounts.details = function(uid,user) {
   // this is for use via API access - any code with access to this lib on the server could just call accounts directly to get everything anyway
   var uacc = user._id === uid ? user : CLapi.internals.accounts.retrieve(uid);
   var ret = {};
-  if ( CLapi.cauth('root', user) ) {
+  if ( CLapi.internals.accounts.auth('root', user) ) {
     // any administrative account that is allowed full access to the user account can get it here
     ret = uacc;
-  } else if (user._id === uacc._id || CLapi.cauth(uacc._id + '.read', user) ) {
+  } else if (user._id === uacc._id || CLapi.internals.accounts.auth(uacc._id + '.read', user) ) {
     // this is the user requesting their own account - they do not get everything
     // a user should also have a group associated to their ID, and anyone with read on that group can get this data too
     ret._id = uacc._id;
@@ -776,7 +776,7 @@ CLapi.internals.accounts.details = function(uid,user) {
     }
   } else if (uacc.service) {
     for ( var r in uacc.service ) {
-      if ( CLapi.cauth(r + '.service', user) ) {
+      if ( CLapi.internals.accounts.auth(r + '.service', user) ) {
         ret._id = uacc._id;
         ret.profile = uacc.profile;
         ret.username = uacc.username;
@@ -797,7 +797,7 @@ CLapi.internals.accounts.update = function(uid,user,keys,replace) {
   // account update does NOT handle emails, security, api, or roles
   var uacc = user._id === uid ? user : CLapi.internals.accounts.retrieve(uid);
   var allowed = {};
-  if ( user._id === uacc._id || CLapi.cauth(uacc._id + '.edit', user) || CLapi.cauth('root', user) ) {
+  if ( user._id === uacc._id || CLapi.internals.accounts.auth(uacc._id + '.edit', user) || CLapi.internals.accounts.auth('root', user) ) {
     // this is the user requesting their own account, or anyone with edit access on the group matching the user account ID
     // users can also edit the profile settings in a service they are a member of, if that service defined a profile for its users
     if (keys.username) allowed.username = keys.username
@@ -820,14 +820,14 @@ CLapi.internals.accounts.update = function(uid,user,keys,replace) {
         }
       }
     }
-    if ( CLapi.cauth('root', user) ) {
+    if ( CLapi.internals.accounts.auth('root', user) ) {
       // the root user could also set a bunch of other things perhaps
     }
     Meteor.users.update(uid, {$set: allowed});
     return true;
   } else if ( uacc.service ) {
     for ( var r in uacc.service ) {
-      if ( CLapi.cauth(r + '.service', user) && keys.service && keys.service[r] ) {
+      if ( CLapi.internals.accounts.auth(r + '.service', user) && keys.service && keys.service[r] ) {
         // can edit this service section of the user account
         if (replace) {
           allowed['service.'+r] = keys.service[r];        

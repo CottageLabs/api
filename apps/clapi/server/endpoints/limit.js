@@ -1,10 +1,9 @@
 
 clapi_limit = new Mongo.Collection("clapi_limit");
-CLapi.addCollection(clapi_limit);
 
 CLapi.addRoute('limit/test', {
   get: {
-    //roleRequired: 'root',
+    roleRequired: 'root',
     action: function() {
       return CLapi.internals.limit.test();
     }
@@ -12,7 +11,7 @@ CLapi.addRoute('limit/test', {
 });
 CLapi.addRoute('limit/clear', {
   get: {
-    //roleRequired: 'root',
+    roleRequired: 'root',
     action: function() {
       return CLapi.internals.limit.clear();
     }
@@ -61,7 +60,6 @@ CLapi.internals.limit.clear = function(name,tags,older) {
 }
 
 CLapi.internals.limit.status = function() {
-  // return something useful like count of current limit records...
   var s = { count: clapi_limit.find().count() };
   if (s.count) {
     s.last = clapi_limit.findOne({expires:{$lte:Date.now()}},{sort:{createdAt:-1}}).expires_date;

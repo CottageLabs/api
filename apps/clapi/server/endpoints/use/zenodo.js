@@ -34,7 +34,7 @@ CLapi.internals.use.zenodo.deposition = {};
 // see https://zenodo.org/features
 
 CLapi.internals.use.zenodo.deposition.create = function(metadata,up,token) {
-  // necessary metadata is title and description (maybe creators list)
+  // necessary metadata is title and description and a creators list with at least one object containing name in format Surname, name(s)
   // useful metadata is access_right, license, doi
   // https://zenodo.org/dev#restapi-rep-meta
   if (token === undefined && Meteor.settings.zenodo && Meteor.settings.zenodo.token) token = Meteor.settings.zenodo.token;
@@ -46,21 +46,22 @@ CLapi.internals.use.zenodo.deposition.create = function(metadata,up,token) {
     data.metadata.publication_type = 'article';
   }
   // required field, will blank list work? If not, need object with name: Surname, name(s) and optional affiliation and creator
-  if (!data.metadata.creators) data.metadata.creators = [];
-  try {
+  if (!data.metadata.creators) data.metadata.creators = [{name:"Open Access Button"}];
+  //try {
     if (up !== undefined) {
       var c = Meteor.http.call('POST',url,{data:data,headers:{'Content-Type':'application/json'}});
-      var u = CLapi.internals.use.zenodo.deposition.upload(c.id,up.content,up.file,up.name,up.url,token);
-      return u.status === 'error' || !up.publish ? u : CLapi.internals.use.zenodo.deposition.publish(c.id,token);
+      CLapi.internals.use.zenodo.deposition.upload(c.data.id,up.content,up.file,up.name,up.url,token);
+      if (up.publish) CLapi.internals.use.zenodo.deposition.publish(c.data.id,token);
+      return c.data;
     } else {
       // returns a zenodo deposition resource, which most usefull has an .id parameter (to use to then upload files to)
       console.log('Creating in zenodo');
-      return Meteor.http.call('POST',url,{data:data,headers:{'Content-Type':'application/json'}});
+      return Meteor.http.call('POST',url,{data:data,headers:{'Content-Type':'application/json'}}).data;
     }
-  } catch(err) {
+  /*} catch(err) {
     console.log('Error creating in zenodo');
     return {status: 'error', data: err}
-  }
+  }*/
 }
 
 CLapi.internals.use.zenodo.deposition.upload = function(id,content,file,name,url,token) {
@@ -71,9 +72,10 @@ CLapi.internals.use.zenodo.deposition.upload = function(id,content,file,name,url
     // returns back a deposition file, which has an id. Presumably from this we can calculate the URL of the file
     // TODO for now we are only expecting content from the file attribute, but 
     // how to get it if given content directly or url? need to pass that instead
-    console.log('Uploading to zenodo');
+    console.log('Uploading ' + file + ' name ' + name + ' to zenodo at ' + uploadurl);
     var fs = Meteor.npmRequire('fs');
-    return Meteor.http.call('POST',uploadurl,{formData:{file:fs.createReadStream(file),name:name},headers:{'Content-Type':'multipart/form-data'}});
+    var p = Meteor.http.call('POST',uploadurl,{npmRequestOptions:{body:null,formData:{file:fs.createReadStream(file),name:name}},headers:{'Content-Type':'multipart/form-data'}});
+    return p.data;
   } catch(err) {
     console.log('Error uploading to zenodo');
     return {status: 'error', data:err}
@@ -86,9 +88,7 @@ CLapi.internals.use.zenodo.deposition.publish = function(id,token) {
   if (token === undefined || id === undefined) return false;
   var url = 'https://zenodo.org/api/deposit/depositions/' + id + '/actions/publish' + '?access_token=' + token;
   try {
-    //return Meteor.http.call('POST',url); // returns the deposition resource again
-    console.log('Zenodo publish should happen here, but disabled whilst testing');
-    return {}
+    return Meteor.http.call('POST',url).data; // returns the deposition resource again
   } catch(err) {
     console.log('Error publishing in zenodo');
     return {status: 'error', data: err}

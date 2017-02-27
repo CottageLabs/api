@@ -31,7 +31,7 @@ var makeaccs = function(execute) {
         }
       }
       output.created += 1;
-    } else if ( CLapi.cauth('openaccessbutton.user',user) === false ) {
+    } else if ( CLapi.internals.accounts.auth('openaccessbutton.user',user) === false ) {
       if ( user.service === undefined ) user.service = {};
       if ( user.service.openaccessbutton === undefined ) user.service.openaccessbutton = {};
       user.service.openaccessbutton.signup = 'legacy';

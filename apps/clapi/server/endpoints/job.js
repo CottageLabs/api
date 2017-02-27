@@ -1,10 +1,44 @@
 
-// TODO should become a standalone job runner, like what is in lantern
+// a job runner
+// create a job with an object:
+/*
+{
+  user: <user ID (added by API auth when called via API route)>,
+  service: <optional service name>,
+  name: <a name for this job - via API would be the filename uploaded>,
+  method: <the method function to run for each item in list>,
+  refresh: <a number of days after which to ignore previous results, or true for ignoring all previous - what to default to?>,
+  processes: [
+    a list of the opts to pass to the method for each job to be run
+    a method with the same opts is considered an identical job
+    this list could contain objects or lists depending on what the signature of the method being called expects
+    e.g. if the method expects an object of options, this should be a list of objects
+    but if the method expects just unnamed ordered comma-separated options, or a list, this should be a list of lists
+  ]
+}
 
-job_meta = new Mongo.Collection("jobby_meta");
-job_job = new Mongo.Collection("jobby_job");
-job_process = new Mongo.Collection("jobby_process");
-job_result = new Mongo.Collection("jobby_result");
+could a job be a list of processes of different methods?
+if so the processes list needs to be an object, with "method","opts" etc
+and if those required keys are missing from any process, they could be assumed to be the overarching ones
+could be optional - look to see if processes[0] is an object with a key called "method", if so assume this is the case
+but if not assume that processes is just a list of opts
+
+is it worth having a chain option, which defaults false but can be set to true
+if true, the job list is considered a chain, with each next process doing something with the result of the last
+in this case, would have to create processes in reverse, and set chain:true in each process except the "last" (actually first),
+and in each next process created set next: to the process ID of the one previously created
+then when the system searches for processes to kick off, it should not start any with chain:true
+and when any process is finished, if it has chain:true, call the process identified by "next"
+until reaching the last one, which has chain:true, but no "next", so then we do completion
+would this also require each process to have a way of identifying which part of the previous process result to operate on?
+perhaps this chaining feature should be a separate API function which can be used in conjunction with job, like limit is separate...
+
+*/
+
+job_meta = new Mongo.Collection("job_meta");
+job_job = new Mongo.Collection("job_job");
+job_process = new Mongo.Collection("job_process");
+job_result = new Mongo.Collection("job_result");
 
 job_job.before.insert(function (userId, doc) {
   doc.createdAt = Date.now();
@@ -21,37 +55,6 @@ CLapi.addCollection(job_job);
 CLapi.addCollection(job_process);
 CLapi.addCollection(job_result);
 
-// these two should be merged into one generic search that can find by multiple values
-job_process.findByIdentifier = function(idents) {
-  var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0 && !idents.pmcid.match(/^(PMC)*0/i)) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0 && !idents.pmid.match(/^0/)) m.push({pmid:idents.pmid});
-  if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
-  if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
-  if (m.length === 0) return undefined;
-  return job_process.findOne({$or: m});
-}
-job_result.findByIdentifier = function(idents,refresh) {  
-  var m = [];
-  if (idents.pmcid !== undefined && idents.pmcid !== null && idents.pmcid.length > 0 && !idents.pmcid.match(/^(PMC)*0/i)) m.push({pmcid:idents.pmcid});
-  if (idents.pmid !== undefined && idents.pmid !== null && idents.pmid.length > 0 && !idents.pmid.match(/^0/)) m.push({pmid:idents.pmid});
-  if (idents.doi !== undefined && idents.doi !== null && idents.doi.indexOf('10.') === 0 && idents.doi.length > 6 && idents.doi.indexOf('/') !== -1) m.push({doi:idents.doi});
-  if (idents.title !== undefined && idents.title !== null && idents.title.length > 0) m.push({title:idents.title});
-
-  if (m.length === 0) return undefined;
-
-  var s = {};
-  if (refresh !== undefined) {
-    var d = new Date();
-    var t = refresh === true ? d : d.setDate(d.getDate() - refresh);
-    s.$and = [{$or:m},{createdAt:{$gte:t}}];
-  } else {
-    s.$or = m;
-  }
-  return job_result.findOne(s,{sort:{createdAt:-1}});
-}
-
-
 CLapi.addRoute('job', {
   get: {
     action: function() {
@@ -59,7 +62,7 @@ CLapi.addRoute('job', {
         var user = CLapi.internals.accounts.retrieve(this.queryParams.apikey);
         if (user) {
           var u = user._id;
-          var j = job_job.insert({new:true});
+          var j = job_job.insert({new:true,user:u});
           var b = [];
           var r = this.queryParams.refresh;
           Meteor.setTimeout(function() { CLapi.internals.job.create(b,u,r,j); }, 5);
@@ -73,7 +76,7 @@ CLapi.addRoute('job', {
     }
   },
   post: {
-    //roleRequired: 'root',
+    roleRequired: 'root',
     action: function() {
       var maxallowedlength = 3000; // this could be in config or a per user setting...
       var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
@@ -85,12 +88,12 @@ CLapi.addRoute('job', {
       } else if (checklength > quota.available) {
         return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
       } else {
-        var j = job_job.insert({new:true}); // could there be vals passed in that also need to go into the job creator? like lantern wellcome?
-        var b = this.request.body;
         var u = this.userId;
+        var j = job_job.insert({new:true,user:u});
+        var b = this.request.body;
         var r = this.queryParams.refresh;
         Meteor.setTimeout(function() { CLapi.internals.job.create(b,u,r,j); }, 5);
-        return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
+        return {status: 'success', data: {job:j, quota:quota, max: maxallowedlength, length: checklength}};
       }
     }
   }
@@ -103,8 +106,9 @@ CLapi.addRoute('job/:job', {
       // return the info of the job - the job metadata and the progress so far
       // TODO if user is not the job creator or is not admin, 401
       var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
-      if (job) {
+      if ( !CLapi.internals.job.allowed(job,this.user) ) {
+        return {statusCode:401, body:{}}
+      } else if (job) {
         var p = CLapi.internals.job.progress(this.urlParams.job);
         job.progress = p ? p : 0;
         return {status: 'success', data: job}
@@ -190,33 +194,6 @@ CLapi.addRoute('job/:job/results', {
   }
 });
 
-CLapi.addRoute('job/:job/original', {
-  get: {
-    //roleRequired: 'root',
-    action: function() {
-      var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
-      var fl = [];
-      for ( var j in job.list ) {
-        var jb = job.list[j];
-        if (jb.process) delete jb.process;
-        fl.push(jb);
-      }
-      var ret = CLapi.internals.convert.json2csv(undefined,undefined,fl);
-      var name = 'original';
-      if (job.name) name = job.name.split('.')[0].replace(/ /g,'_');
-      this.response.writeHead(200, {
-        'Content-disposition': "attachment; filename="+name+"_original.csv",
-        'Content-type': 'text/csv',
-        'Content-length': ret.length
-      });
-      this.response.write(ret);
-      this.done();
-      return {}
-    }
-  }
-});
-
 CLapi.addRoute('job/jobs', {
   get: {
     //roleRequired: 'root',
@@ -224,11 +201,10 @@ CLapi.addRoute('job/jobs', {
       var results = [];
       var jobs = job_job.find();
       jobs.forEach(function(job) {
-        job.processes = job.list ? job.list.length : 0;
-        if (job.processes === 0) {
+        if (job.processes && job.processes.length === 0) {
           job_job.remove(job._id);
         } else {
-          delete job.list;
+          delete job.processes;
           results.push(job);          
         }
       });
@@ -238,23 +214,6 @@ CLapi.addRoute('job/jobs', {
 });
 
 CLapi.addRoute('job/jobs/todo', {
-  get: {
-    //roleRequired: 'root',
-    action: function() {
-      var results = [];
-      var jobs = job_job.find({done:{$not:{$eq:true}}});
-      jobs.forEach(function(job) {
-        if (job.list) { // some old or incorrectly created jobs could have no list
-          job.processes = job.list.length;
-          delete job.list;
-        } else {
-          job.processes = 0;
-        }
-        results.push(job);
-      });
-      return {status: 'success', data: {total:results.length, jobs: results} }
-    }
-  },
   delete: {
     roleRequired: 'root',
     action: function() {
@@ -283,8 +242,7 @@ CLapi.addRoute('job/jobs/:email', {
       if ( !( CLapi.internals.accounts.auth('root',this.user) || this.user.emails[0].address === this.urlParams.email ) ) return {statusCode:401,body:{}}
       var jobs = job_job.find({email:this.urlParams.email});
       jobs.forEach(function(job) {
-        job.processes = job.list.length;
-        delete job.list;
+        job.processes = job.processes.length;
         results.push(job);
       });
       return {status: 'success', data: {total:results.length, jobs: results} }
@@ -416,7 +374,7 @@ CLapi.internals.job.quota = function(uid) {
   var d = new Date();
   var t = d.setDate(d.getDate() - backtrack);
   var j = job_job.find({$and:[{email:email},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
-  j.forEach(function(job) { count += job.list.length; });
+  j.forEach(function(job) { count += job.processes.length; });
   var available = max - count + additional;
   return {
     admin: admin,
@@ -442,8 +400,7 @@ CLapi.internals.job.status = function() {
       total: job_job.find().count(),
       done: job_job.find({done:{$exists:true}}).count()
     },
-    results: job_result.find().count(),
-    users: CLapi.internals.accounts.count({"roles.job":{$exists:true}})
+    results: job_result.find().count()
   } 
 }
 
@@ -451,8 +408,8 @@ CLapi.internals.job.reset = function() {
   // reset all processing processes
   var procs = job_process.find({processing:{$eq:true}});
   var count = 0;
-  procs.forEach(function(row) {
-    job_process.update(row._id,{$set:{processing:undefined}});
+  procs.forEach(function(proc) {
+    job_process.update(proc._id,{$set:{processing:undefined}});
     count += 1;
   });
   return count;
@@ -463,17 +420,14 @@ CLapi.internals.job.reload = function(jobid) {
   var ret = 0;
   var j = jobid ? job_job.find({'_id':jobid}) : job_job.find({done:{$not:{$eq:true}}});
   j.forEach(function(job) {
-    for ( var l in job.list) {
-      var pid = job.list[l].process;
+    for ( var l in job.processes) {
+      var pid = job.processes[l].process;
       var proc = job_process.findOne(pid);
       var res;
       if (!proc) res = job_result.findOne(pid);
       if (pid && !proc && !res) {
-        var jp = JSON.parse(JSON.stringify(j));
-        delete jp.list;
-        jp._id = pid;
-        jp.refresh = job.refresh;
-        job_process.insert(jp);
+        var pr = job.processes[l];
+        job_process.insert(pr.process,pr);
         ret += 1;
       }
     }
@@ -481,52 +435,71 @@ CLapi.internals.job.reload = function(jobid) {
   return ret;
 }
 
-CLapi.internals.job.create = function(input,uid,refresh,jid) {
-  var user = CLapi.internals.accounts.retrieve(uid);
-  var job = {user:uid};
-  job.email = user.emails[0].address;
-  if (refresh === undefined) refresh = true; // a refresh of true forces always new results (0 would get anything older than today, etc into past)
-  if (refresh !== undefined) job.refresh = parseInt(refresh);
-  var list;
-  if (input.list) { // list could be obj with metadata and list, or could just be list
-    list = input.list;
-    if (input.name) job.name = input.name;
+var _signature = function(method,args) {
+  // TODO create a signature from the method and the args
+  // but remember problem of stringifying method from limit.js - can't be done
+  // but for this case the "name" is provided by the user, so no good either
+  // need a method name too? maybe call it a type? make sense to change limit.js to match?
+  // if object, sort args by keys before stringifying
+  // if list, do not sort, but do remove trailing undefined/null values
+  return '';
+}
+var _findSigned = function(coll,signature,refresh) {
+  var s = {};
+  if (refresh !== undefined) {
+    var d = new Date();
+    var t = refresh === true ? d : d.setDate(d.getDate() - refresh);
+    s.$and = [{signature:signature},{createdAt:{$gte:t}}];
   } else {
-    list = input;
+    s.signature = signature;
   }
-  job.list = list;
-  for ( var i in list ) {
-    var proc = list[i]; // this should put everything in proc needed to do the find on existing similar jobs
-    proc.refresh = refresh;
-    var result = job_result.findByIdentifier(proc,refresh);
+  return coll.findOne(s,{sort:{createdAt:-1}});  
+}
+job_process.findSigned = function(signature) { return _findSigned(job_process,signature); }
+job_result.findSigned = function(signature,refresh) { return _findSigned(jon_result,signature,refresh); }
+
+CLapi.internals.job.create = function(input,uid,jid) {
+  var job = {user:uid};
+  job.method = input.method;
+  if (job.refresh === undefined) job.refresh = true; // default to refresh?
+  job.processes = [];
+  for ( var i in input.processes ) {
+    var proc = typeof input.processes[i] !== 'object' || input.processes[i].args === undefined ? {args:input.processes[i]} : input.processes[i];
+    proc.method = job.method;
+    proc.signature = _signature(proc.method,proc.args);
+    var result = job.refresh && job.refresh !== true ? job_result.findSigned(proc.signature,job.refresh) : false;
     if (result) {
-      job.list[i].process = result._id;
+      proc.process = result._id;
     } else {
-      var process = job_process.findByIdentifier(proc);
-      process ? job.list[i].process = process._id : job.list[i].process = job_process.insert(proc);
+      var process = job_process.findSigned(proc.signature);
+      proc.process = process ? process._id : job_process.insert(proc);
     }
+    job.processes.push(proc);
   }
-  if (job.list.length === 0) job.done = true; // bit pointless submitting empty jobs, but theoretically possible. Could make impossible...
+  if (job.processes.length === 0) job.done = true; // bit pointless submitting empty jobs, but theoretically possible. Could make impossible...
   job.new = false;
   if (jid !== undefined) {
     job_job.update(jid,{$set:job});
   } else {
     jid = job_job.insert(job);
   }
-  if (job.email) {
-    var jor = job.name ? job.name : jid;
-    var text = 'Hi ' + job.email + '\n\nThanks very much for submitting your processing job ' + jor + '.\n\n';
-    text += 'You can track the progress of your job at ';
-    text += 'http://job.test.cottagelabs.com#'; // should this address depend on the service creating the job?
-    text += jid;
-    text += '\n\nThe Cottage Labs team\n\n';
-    text += 'P.S This is an automated email, please do not reply to it.'
-    CLapi.internals.sendmail({
-      to:job.email,
-      subject:'Job ' + jor + ' submitted successfully',
-      text:text
-    });
-  }
+  
+  var jor = job.name ? job.name : jid;
+  var text = 'Thanks for submitting your processing job ' + jor;
+  text += '\n\nYou can track the progress of your job at ';
+  text += 'http://job.test.cottagelabs.com'; // should this address depend on the service creating the job?
+  text += '#' + jid + '\n\n';
+  text += 'Cottage Labs'; // should this be set by service info somehow too?
+  text += '\n\nP.S This is an automated email, please do not reply to it.'
+  // should a from address be set from the service as well?
+  var user = CLapi.internals.accounts.retrieve(job.user);
+  job.email = user.emails[0].address;
+  CLapi.internals.mail.send({
+    to:job.email,
+    subject:'Job ' + (job.name ? job.name : jid) + ' submitted successfully',
+    text:text
+  });
+  
   return jid;
 }
 
@@ -534,16 +507,9 @@ CLapi.internals.job.process = function(pid) {
   var proc = job_process.findOne(pid);
   if (!proc) return false;
   job_process.update(proc._id, {$set:{processing:true}});
-
-  // the proc needs to be created with something like this, to have a method to run, 
-  // name of method for info and grouping (possibly controlling url output and formatting too - perhaps should be service)
-  // also args to run, and tags to find similar jobs
-  //var lim = {method:method,name:name,args:args,tags:tags};
   proc.result = proc.method.apply(this,proc.args);
-  
   job_result.insert(proc);
   job_process.remove(proc._id);
-  
   return proc;
 }
 CLapi.internals.job.nextProcess = function() {
@@ -554,7 +520,6 @@ CLapi.internals.job.nextProcess = function() {
     console.log(p._id);
     return CLapi.internals.job.process(p._id);
   } else {
-    console.log('No job processes available');
     return false;
   }
 }
@@ -568,26 +533,24 @@ CLapi.internals.job.progress = function(jobid) {
     } else if (job.new === true) {
       p = 0;
     } else {
-      var total = job.list.length;
+      var total = job.processes.length;
       var count = 0;
-      for ( var i in job.list ) {
-        var found = job_result.findOne(job.list[i].process);
-        // could add a check for OTHER results with similar IDs - but shouldn't be any, and would have to re-sanitise the IDs
-        if ( found ) {
-          count += 1;
-        }
+      for ( var i in job.processes ) {
+        var found = job_result.findOne(job.processes[i].process);
+        if ( found ) count += 1;
       }
-      p = count/total * 100;      
+      p = count/total * 100;
       if ( p === 100 ) {
         job_job.update(job._id, {$set:{done:true}});
         var jor = job.name ? job.name : job._id;
-        var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
-        text += 'You can now download the results of your job at ';
-        text += 'http://job.test.cottagelabs.com#'; // what should define job url?
-        text += job._id;
-        text += '\n\nThe Cottage Labs team\n\n';
-        text += 'P.S This is an automated email, please do not reply to it.'
-        CLapi.internals.sendmail({
+        var text = 'Your job ' + jor + ' is complete.\n\n';
+        text += 'You can now download the results of your job at \n\n';
+        text += 'http://job.test.cottagelabs.com'; // what should define job url?
+        text += '#' + job._id + '\n\n';
+        text += 'Cottage Labs'; // and what should define this from service?
+        text += '\n\nP.S This is an automated email, please do not reply to it.'
+        // define a from email address too?
+        CLapi.internals.mail.send({
           to:job.email,
           subject:'Job ' + jor + ' completed successfully',
           text:text
@@ -607,8 +570,8 @@ CLapi.internals.job.todo = function(jobid) {
       return [];
     } else {
       var todos = [];
-      for ( var i in job.list ) {
-        if ( !job_job.findOne(job.list[i].process) ) todos.push(job.list[i]);
+      for ( var i in job.processes ) {
+        if ( !job_result.findOne(job.processes[i].process) ) todos.push(job.processes[i]);
       }
       return todos;
     }
@@ -621,27 +584,13 @@ CLapi.internals.job.results = function(jobid) {
   var job = job_job.findOne(jobid);
   if (job) {
     var results = [];
-    for ( var i in job.list ) {
-      var ji = job.list[i];
+    for ( var i in job.processes ) {
+      var ji = job.processes[i];
       var found = job_result.findOne(ji.process);
-      if ( found ) {
-        for ( var lf in ji) {
-          if (!found[lf]) found[lf] = ji[lf];
-        }
-        results.push(found);
-      }
+      if ( found ) results.push(found.result);
+      // should there be formatting here based on user settings and service settings?
     }
     return results;
-  } else {
-    return false;
-  }
-}
-
-CLapi.internals.job.result = function(rid) {
-  var found = rid !== undefined ? job_result.findOne(rid) : undefined;
-  if ( found ) {
-    // should some users only get certain parts of results, depending on their permissions?
-    return found;
   } else {
     return false;
   }

@@ -43,13 +43,6 @@ CLapi.internals.use.base.doi = function(doi,title) {
 	// like https://dev.api.cottagelabs.com/use/crossref/works/doi/10.1016/j.cpc.2016.07.035 
 	// which has mathml in the title, perhaps put there by the publisher and not stripped by crossref, or put there by crossref
 	var res = CLapi.internals.use.base.search(doi);
-	if (res.data.numFound === 0) {
-		if (!title) {
-			var cr = CLapi.internals.use.crossref.works.doi(doi);
-			if (cr && cr.data && cr.data.title) title = cr.data.title[0];
-		}
-		if (title) res = CLapi.internals.use.base.search('dctitle:"'+title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ')+'"');
-	}
 	if (res && res.data && res.data.docs && res.data.docs.length > 0) res = {status:"success", data:res.data.docs[0]};
 	return res;
 }

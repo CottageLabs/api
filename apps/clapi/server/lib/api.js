@@ -175,6 +175,45 @@ CLapi = new Restivus({
 // or these can be declared in one of the files that needs them too - but useful to have here perhaps
 CLapi.internals = {academic:{}, use:{}, service:{}, scripts:{}};
 
+var moment = Meteor.npmRequire('moment');
+CLapi.log = function(opts) {
+  try {
+    // opts must contain msg and should contain level and error, and anything else should be stored as delivered
+    if (!opts.level) opts.level = 'debug';
+    var loglevels = ['all','trace','debug','info','warn','error','fatal','off'];
+    var loglevel = Meteor.settings.loglevel ? Meteor.settings.loglevel : 'off';
+    if (loglevels.indexOf(loglevel) <= loglevels.indexOf(opts.level)) {
+      opts.createdAt = Date.now();
+      opts.created_date = moment(opts.createdAt,"x").format("YYYY-MM-DD HHmm");
+      var today = moment(opts.createdAt,"x").format("YYYYMMDD");
+      if (loglevels.indexOf(loglevel) <= loglevels.indexOf('debug')) {
+        console.log(opts.created_date);
+        console.log(opts.msg);
+        console.log(opts.error);
+      }
+      // try to set some opts vars for which server the error is running on...
+      try { opts.errorString = JSON.stringify(opts.error); } catch(err) {}
+      try {
+        CLapi.internals.es.insert('/clapi/log_'+today,opts);
+      } catch(err) {
+        var safer = {
+          msg: opts.msg,
+          level: opts.level,
+          errorString: opts.errorString,
+          createdAt: opts.createdAt,
+          created_date: opts.created_date
+        }
+        try { safer.safeError = JSON.stringify(opts); } catch(err) { safer.safeIssue = 'Could not stringify all opts passed to the logger'; }
+        CLapi.internals.es.insert('/clapi/log_'+today,safer);
+      }
+    }
+  } catch (err) {
+    console.log('CLAPI LOGGER IS ERRORING OUT!!!');
+    console.log(err);
+    console.log('CLAPI LOGGER IS ERRORING OUT!!!');
+  }
+}
+
 CLapi.addRoute('/', {
   get: {
     action: function() {
@@ -190,7 +229,6 @@ CLapi.addRoute('list', {
       var routes = [];
       for ( var k in CLapi._routes ) {
         routes.push(CLapi._routes[k].path);
-        //for ( var kk in CLapi._routes[k] ) console.log(kk);
       }
       return routes;
       /*var replacer = function(key, value){
@@ -204,40 +242,3 @@ CLapi.addRoute('list', {
     }
   }
 });
-
-// TODO these functions should be removed once all the code is checked to not rely on them any more
-CLapi.cauth = function(gr, user, cascade) {
-  return CLapi.internals.accounts.auth(gr, user, cascade);
-}
-CLapi.rcauth = function(grs, user, cascade) {
-  for ( var ro in grs ) {
-    var a = CLapi.cauth(grs[ro], user, cascade);
-    if ( a ) return a;
-  }
-  return false;
-}
-
-CLapi.getuser = function(uid) {
-  return CLapi.internals.accounts.retrieve(uid);
-}
-
-
-
-
-// data sources / apis to clone
-// core, crossref, orcid, Sherpa Romeo/Juliet/Fact, opendoar / oarr, journaltocs, wikipedia/wikidata, arxiv, doaj
-// base, dissemin.net, ubiquity, eupmc, ieee, nih medline, gtr, xcri
-
-// processors
-// contentmine, open citations, apc, oag, postcode, geoip, pdf2txt
-
-// services
-// accounts, catalogue, uk schools / universities info
-// UK SIMD deprivation data and other geographical co-ords / census stats etc (that Mark has, and could be useful to query for other things)
-// G4HE
-// lantern
-// leviathan (Marks prototype tool for managing technosocial reqs, could be developed into something useful for projects, perhaps)
-
-
-
-

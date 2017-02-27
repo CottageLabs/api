@@ -4,7 +4,7 @@
 CLapi.addRoute('convert', {
   get: {
     action: function() {
-      if ( this.queryParams.url) {
+      if ( this.queryParams.url || this.queryParams.content ) {
         var opts = {};
         if (this.queryParams.subset) opts.subset = this.queryParams.subset;
         if (this.queryParams.start) opts.start = this.queryParams.start;
@@ -21,7 +21,7 @@ CLapi.addRoute('convert', {
           headers: {
             'Content-Type': to
           },
-          body: CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,undefined,opts)
+          body: CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,this.queryParams.content,opts)
         }
       } else {
         return {status: 'success', data: {info: 'Accepts URLs of content files and converts them. from csv to json,txt. from html to txt. from xml to txt, json. from pdf to txt. from file to txt. For json to csv a subset param can be provided, giving dot notation to the part of the json object that should be converted.'} };
@@ -62,19 +62,19 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
   var which, proc, output;
   if ( from === 'table' ) { // convert html table in web page
     if ( to.indexOf('json') !== -1 ) {
-      output = CLapi.internals.convert.table2json(url,undefined,opts);
+      output = CLapi.internals.convert.table2json(url,content,opts);
     } else if ( to.indexOf('csv') !== -1 ) {
-      output = CLapi.internals.convert.table2csv(url,undefined,opts);      
+      output = CLapi.internals.convert.table2csv(url,content,opts);      
     }
   } else if ( from === 'csv' ) {
     if ( to.indexOf('json') !== -1 ) {
-      url ? output = CLapi.internals.convert.csv2json(url) : CLapi.internals.convert.csv2json(undefined,content);
+      output = CLapi.internals.convert.csv2json(url,content);
     } else if ( to.indexOf('txt') !== -1 ) {
       from = 'file';
     }
   } else if ( from === 'html' ) {
     if ( to.indexOf('txt') !== -1 ) {
-      output = CLapi.internals.convert.html2txt(url,undefined);
+      output = CLapi.internals.convert.html2txt(url,content);
     }
   } else if ( from === 'json' ) {
     if (opts.es) {
@@ -108,19 +108,20 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
     }
   } else if ( from === 'xml' ) {
     if ( to.indexOf('txt') !== -1 ) {
-      output = CLapi.internals.convert.xml2txt(url,undefined);
+      output = CLapi.internals.convert.xml2txt(url,content);
     } else if ( to.indexOf('json') !== -1 ) {
-      output = CLapi.internals.convert.xml2json(url,undefined);
+      output = CLapi.internals.convert.xml2json(url,content);
     }
   }
   if ( from === 'file' || from === 'pdf' ) {
     if ( to.indexOf('txt') !== -1 ) {
-      output = CLapi.internals.convert.file2txt(url,undefined,opts);
+      output = CLapi.internals.convert.file2txt(url,content,opts);
     }    
   }
   if ( output === undefined ) {
     return {status: 'error', data: 'conversion from ' + from + ' to ' + to + ' is not currently possible.'}
   } else {
+    console.log(output);
     return output;
   }
 }

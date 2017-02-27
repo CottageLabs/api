@@ -20,7 +20,7 @@ CLapi.addRoute('use/openaire/search', {
 CLapi.addRoute('use/openaire/doi/:doipre/:doipost', {
   get: {
     action: function() {
-      return CLapi.internals.use.openaire.doi(this.urlParams.doipre + '/' + this.urlParams.doipost);
+      return CLapi.internals.use.openaire.doi(this.urlParams.doipre + '/' + this.urlParams.doipost,this.queryParams.open);
     }
   }
 });
@@ -29,11 +29,12 @@ CLapi.addRoute('use/openaire/doi/:doipre/:doipost', {
 
 CLapi.internals.use.openaire = {};
 
-CLapi.internals.use.openaire.doi = function(doi) {
+CLapi.internals.use.openaire.doi = function(doi,open) {
   var res = CLapi.internals.use.openaire.search({doi:doi});
   if (res) {
     // TODO find one that actually has a doi we can find, and decide how to display the record for that doi
-    return {status: 'success', data: res.data[0] };
+    var rec = !open || ( open && CLapi.internals.use.openaire.open(res.data[0]) ) ? res.data[0] : undefined;
+    return {status: 'success', data: rec };
   } else {
     return {};
   }
@@ -80,6 +81,19 @@ CLapi.internals.use.openaire.search = function(params) {
 
 }
 
+CLapi.internals.use.openaire.open = function(rec) {
+  var open = false;
+  if (rec.metadata && rec.metadata['oaf:result'] && rec.metadata['oaf:result'].bestlicense && rec.metadata['oaf:result'].bestlicense['@classid'] === 'OPEN' && rec.metadata['oaf:result'].children && rec.metadata['oaf:result'].children.instance && rec.metadata['oaf:result'].children.instance.length > 0 ) {
+    for ( var o in rec.metadata['oaf:result'].children.instance ) {
+      var i = rec.metadata['oaf:result'].children.instance[o];
+      if (i.licence && i.licence['@classid'] === 'OPEN' && i.webresource && i.webresource.url && i.webresource.url.$ && !CLapi.internals.service.oab.blacklist(i.webresource.url.$) ) {
+        open = i.webresource.url.$;
+        break;
+      }
+    }
+  }
+  return open;
+}
 
 /*
 

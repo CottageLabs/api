@@ -20,7 +20,7 @@ Meteor.publish('blocks', function() {
 
 Meteor.methods({
   cauth: function(gr,user,cascade) {
-    var a = CLapi.cauth(gr,user,cascade);
+    var a = CLapi.internals.accounts.auth(gr,user,cascade);
     console.log(a);
     return a;
   },

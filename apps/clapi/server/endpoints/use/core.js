@@ -71,8 +71,8 @@ CLapi.internals.use.core.articles.search = function(qrystr,from,size) {
   // for paging core uses "page" from 1 (but can only go up to 100?) and "pageSize" defaulting to 10 but can go up to 100
   var apikey = Meteor.settings.CORE_apikey;
   if ( !apikey ) return { status: 'error', data: 'NO CORE API KEY PRESENT!'}
-  var qry = '"' + qrystr.replace(/\w+?\:/g,'') + '"'; // TODO have this accept the above list
-  var url = 'http://core.ac.uk/api-v2/articles/search/' + qry + '?urls=true&apiKey=' + apikey;
+  //var qry = '"' + qrystr.replace(/\w+?\:/g,'') + '"'; // TODO have this accept the above list
+  var url = 'http://core.ac.uk/api-v2/articles/search/' + qrystr + '?urls=true&apiKey=' + apikey;
   if (!size) size = 10;
   if (size !== 10) url += '&pageSize=' + size;
   if (from) url += '&page=' + (Math.floor(from/size)+1);

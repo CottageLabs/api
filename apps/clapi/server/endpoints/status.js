@@ -39,8 +39,9 @@ CLapi.internals.status = function() {
   try { Meteor.http.call('GET','https://capi.cottagelabs.com'); } catch(err) { ret.up.cluster = false; }
   // TODO if cluster is up could read the mup file then try getting each cluster machine too, and counting them
   try { ret.lantern = CLapi.internals.service.lantern.status(); } catch(err) { ret.lantern = false; }
-  try { ret.openaccessbutton = CLapi.internals.service.oab.status(); } catch(err) { ret.openaccessbutton = false; }
+  try { ret.job = CLapi.internals.job.status(); } catch(err) { ret.job = false; }
   try { ret.limit = CLapi.internals.limit.status(); } catch(err) { ret.limit = false; }
+  try { ret.openaccessbutton = CLapi.internals.service.oab.status(); } catch(err) { ret.openaccessbutton = false; }
   try { ret.index = CLapi.internals.es.status(); } catch(err) { ret.index = false; }
   return ret;
 };

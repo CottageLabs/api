@@ -184,8 +184,8 @@ CLapi.internals.mail.progress = function(content,token) {
     if (content.event === 'dropped') {
       CLapi.internals.mail.send({
         from: "alert@cottagelabs.com",
-        to: "mark@cottagelabs.com",
-        subject: "mailgun send error",
+        to: ["mark@cottagelabs.com","joe@righttoresearch.org","natalianonori@gmail.com"],
+        subject: "mailgun dropped email",
         text: JSON.stringify(content,undefined,2)
       });    
     }

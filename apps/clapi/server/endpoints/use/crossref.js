@@ -74,71 +74,65 @@ CLapi.addRoute('use/crossref/works/published/:startdate/:enddate', {
 CLapi.addRoute('use/crossref/reverse', {
   get: {
     action: function() {
-      var score = this.queryParams.score && !isNaN(parseInt(this.queryParams.score)) ? parseInt(this.queryParams.score) : undefined;
-      return CLapi.internals.use.crossref.reverse([this.queryParams.q],score,this.queryParams.metadata);
+      return CLapi.internals.use.crossref.reverse([this.queryParams.q],this.queryParams.score);
     }
   },
   post: {
     action: function() {
-      var score = this.queryParams.score && !isNaN(parseInt(this.queryParams.score)) ? parseInt(this.queryParams.score) : undefined;
-      return CLapi.internals.use.crossref.reverse(this.request.body,score,this.queryParams.metadata);
+      return CLapi.internals.use.crossref.reverse(this.request.body);
     }
   }
 });
 
 CLapi.internals.use.crossref = {works:{}};
 
-CLapi.internals.use.crossref.reverse = function(citations,score,metadata) {
+CLapi.internals.use.crossref.reverse = function(citations,score) {
   // citations should be a JSON list with strings relevant to the article to be found
   if (typeof citations === 'string') citations = [citations];
-  if (score === undefined) score = 35; // TODO set this higher after some testing
-  // out of about 80 tests, 50 match on titles. Setting score to 35 would lose about 9, 
-  // but gain about 20 that did not match
+  // out of about 80 tests, 50 match on titles. Setting score to 35 would lose about 9, but gain about 20 that did not match
   // of that 20 some are correct anyway because of different versions e.g. in anthologies etc- but if we have no DOI at all, that is still useful.
-  // score below 20 is basically worthless, perhaps does not exist
+  // score below 20 is basically worthless, perhaps does not exist - actually not true, my usual obstm test article scores 19.... with exact title match
   // but between 20 and 35 there are some right and some wrong, oddly some with almost exact titles and others wildly different
   // https://static.cottagelabs.com/xreftest.csv
   // lowercasing and/or removing non-ascii chars before querying crossref makes little to no difference.
-  // so throw away anything under 20, implememt a lowercase ascii title length and similarity score for those between 35 and 80, accept anything above 80
+  // so the best we can do is, if score is high, let's say above 50, accept it. Otherwise, see how many terms from the citation can be found in the title - boost to over 50 for high matches
+  // it is likely that most citations we receive will be a title anyway, or at least start with one.
+  // also, this is probably only useful for journal articles, so throw anything that is not a journal-article type
+  if (score === undefined) score = 80; // cranking up to 80, as crossref on its own even with full citation can get wrong things too much
   var url = 'http://api.crossref.org/reverse';
-  console.log(url);
-  console.log(citations);
   var res = Meteor.http.call('POST', url, {data:citations});
   if ( res.statusCode === 200 ) {
-    if ( res.data && res.data.message && res.data.message.DOI && res.data.message.score ) {
+    if ( res.data && res.data.message && res.data.message.DOI && res.data.message.score && res.data.message.type === 'journal-article' ) {
       var sc = res.data.message.score;
-      var calculations = {citations:citations};
-      if (sc > 20 && sc < 80) {
-        calculations.boost = 1; // min boost
-        var title = res.data.message.title[0].toLowerCase().replace(/[^a-z0-9 ]/g,'');
-        var cites = citations.join(' ').toLowerCase().replace(/[^a-z0-9 ]/g,'');
-        calculations.diff = cites.length - title.length; // could be negative, if we have less cite content than is in the title, in which case we don't want to give a high score anyway
-        calculations.distance = CLapi.internals.tdm.levenshtein(title,cites).data.distance; // the smaller the better, but will also be larger if string length differs greatly
-        var titletokens = title.split(' ');
-        var citestokens = cites.split(' ');
-        calculations.tokens = 0; // if a high degree of tokens from the title are found in the cite, it is more likely to be right
-        calculations.titles = titletokens.length;
-        calculations.cites = citestokens.length; // but if there are a lot more cite words than title words, it has more chance to be wrong again
-        for ( var t in titletokens ) {
-          if ( citestokens.indexOf(titletokens[t]) !== -1 ) calculations.tokens += 1;
+      if ( sc < score ) {
+        // assuming a citation either matches highly on additional data or has a title in it but does not match highly, try to match title to part of citation
+        // once number gets high enough, assume match has occurred
+        var ignore = ["a","an","and","are","as","at","but","be","by","do","for","if","in","is","it","or","so","the","to"];
+        var titleparts = res.data.message.title[0].toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ').split(' ');
+        var titles = [];
+        for ( var f in titleparts ) {
+          if (ignore.indexOf(titleparts[f].split("'")[0]) === -1 && titleparts[f].length > 0) titles.push(titleparts[f]);
         }
-        // for an exact match, diff and distance will both be 0
-        // greater distance should reduce boost, but reducing effect should be reduced by absolute value of diff
-        // if diff is negative, the more negative it is the less cite content we have to go on, so the lower the boost should be
-        // if diff is positive, there is more content for citestokens to match on, so finding titletokens should have less boost effect
-        // tokens, titles, and cites will all have the same length
-        // as tokens becomes less than titles, boost should go down
-        // as cites increases compared to titles
-        if (calculations.boost > 4) calculations.boost = 4; // max boost
-        sc = sc * calculations.boost;
+        var citeparts = citations.join(' ').toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ').replace(/  /g,' ').split(' ');
+        var cites = [];
+        for ( var c in citeparts ) {
+          if (ignore.indexOf(citeparts[c].split("'")[0]) === -1 && citeparts[c].length > 1) cites.push(citeparts[c]);
+        }
+        var bonus = (score - sc)/titles.length + 1;
+        var found = [];
+        // could just look for the title string inside the cite string, but the idea here is later could boost based on find count, or word order, so more flexibility for future attempts
+        for ( var w in titles ) {
+          if (cites.indexOf(titles[w]) !== -1) found.push(w);
+        }
+        if (titles.length === found.length && found.join() === found.sort().join()) sc += bonus * found.length;
       }
-      if ( sc > score ) {
-        return { status: 'success', data: metadata ? res.data.message : {doi:res.data.message.DOI, title:res.data.message.title[0], score:res.data.message.score, adjusted: sc, calculations: calculations}, full:res.data}
+      if ( sc >= score ) {
+        return { status: 'success', data: {doi:res.data.message.DOI, title:res.data.message.title[0], received:res.data.message.score, adjusted: sc}, original:res.data}
       } else {
-        return { status: 'success', data: {info: 'below score', required:score, received:res.data.message.score, adjusted: sc, calculations: calculations}, full:res.data}
+        return { status: 'success', data: {info: 'below score', received:res.data.message.score, adjusted: sc}, original:res.data}
       }
     } else {
-      return { status: 'success', data: {info: 'not found'}, full:res.data}
+      return { status: 'success', data: {info: 'not found'}}
     }
   } else {
     return { status: 'error', data: res}
@@ -199,6 +193,4 @@ CLapi.internals.use.crossref.works.indexed = function(startdate,enddate,from,siz
   if (enddate) filter += ',until-index-date:' + enddate;
   return CLapi.internals.use.crossref.works.search(undefined,from,size,filter);
 }
-
-
 

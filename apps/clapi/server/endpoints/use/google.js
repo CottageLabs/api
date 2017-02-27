@@ -178,6 +178,7 @@ CLapi.internals.use.google.sheets.feed = function(sheetid,stale) {
       }
     } catch(err) {
       console.log('Could not get any values from sheet ' + url);
+      console.log(err)
     }
     fs.writeFileSync(localcopy, JSON.stringify(values));
   }
