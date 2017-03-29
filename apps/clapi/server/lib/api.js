@@ -146,22 +146,22 @@ CLapi = new Restivus({
       if (xid) console.log('user ' + xid + ' authenticated to API with key ' + xapikey);
       if (Meteor.settings.ROOT_LOGIN_WARN && u && u.roles && u.roles.__global_roles__ && u.roles.__global_roles__.indexOf('root') !== -1) {
         console.log('root user logged in ' + xid);
-        var from = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'sysadmin@cottagelabs.com' : 'alert@cottagelabs.com';
-        var xf = this.request.headers['x-forwarded-for'];
-        var xr = this.request.headers['x-real-ip'];
-        var subject = this.request.headers.host !== 'dev.api.cottagelabs.com' ? 'api root login' : 'api root login on dev';
-        subject += ' ' + xr;
-        var url = this.request.url;
-        var cache = [];
-        var req = JSON.stringify(this.request, function(key, value) {
-          if (typeof value === 'object' && value !== null) {
-            if (cache.indexOf(value) !== -1) return;
-            cache.push(value);
-          }
-          return value;
-        },2);
-        cache = null;
-        CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + u._id + '\n\n' + url + '\n\n' + xr + '\n\n' + xf + '\n\n'}); //  + req
+        if (!Meteor.settings.dev) {
+          var from = 'alert@cottagelabs.com';
+          var xf = this.request.headers['x-forwarded-for'];
+          var xr = this.request.headers['x-real-ip'];
+          var subject = 'api root login ' + xr;
+          /*var cache = [];
+          var req = JSON.stringify(this.request, function(key, value) {
+            if (typeof value === 'object' && value !== null) {
+              if (cache.indexOf(value) !== -1) return;
+              cache.push(value);
+            }
+            return value;
+          },2);
+          cache = null;*/
+          CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + u._id + '\n\n' + this.request.url + '\n\n' + xr + '\n\n' + xf + '\n\n'}); //  + req
+        }
       }
       return {
         userId: xid,

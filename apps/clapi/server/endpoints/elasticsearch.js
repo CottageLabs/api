@@ -65,6 +65,29 @@ CLapi.addRoute('es/:ra/:rb/:rc/:rd', es);
 
 CLapi.internals.es = {};
 
+CLapi.internals.es.make = function(coll,index,type) {
+  if (!coll) return;
+  coll.before.insert(function (userId, doc) {
+    if (!doc.createdAt) doc.createdAt = Date.now();
+    doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
+  });
+  coll.before.update(function (userId, doc, fieldNames, modifier, options) {
+    modifier.$set.updatedAt = Date.now();
+    doc.updated_date = moment(doc.updatedAt,"x").format("YYYY-MM-DD HHmm");
+  });
+  if (index && type) {
+    coll.after.insert(function (userId, doc) {
+      CLapi.internals.es.insert('/' + index + '/' + type + '/' + this._id, doc);
+    });
+    coll.after.update(function (userId, doc, fieldNames, modifier, options) {
+      CLapi.internals.es.insert('/' + index + '/' + type + '/' + doc._id, doc);
+    });
+    coll.after.remove(function (userId, doc) {
+      CLapi.internals.es.delete('/' + index + '/' + type + '/' + doc._id);
+    });
+  }
+}
+
 CLapi.internals.es.action = function(uid,action,urlp,params,data) {
   var rt = '';
   for ( var up in urlp ) rt += '/' + urlp[up];
@@ -192,7 +215,7 @@ CLapi.internals.es.query = function(action,route,data,url) {
   if (url) console.log('To url ' + url);
   var esurl = url ? url : Meteor.settings.es.url;
   if (route.indexOf('/') !== 0) route = '/' + route;
-  if (Meteor.settings.dev_index && route !== '/_status') {
+  if (Meteor.settings.dev_index && route !== '/_status' && route !== '/_cluster/health') {
     route = '/dev' + route.substring(1,route.length);
   }
   console.log('Performing elasticsearch ' + action + ' on ' + route);
@@ -209,6 +232,36 @@ CLapi.internals.es.query = function(action,route,data,url) {
   }
   var opts = {}
   if (data) opts.data = data;
+  if (route.indexOf('source') !== -1 && route.indexOf('random=true') !== -1) {
+    try {
+      var fq = {
+        function_score : {
+          query : undefined, // set below
+          random_score : {}// "seed" : 1376773391128418000 }
+        }
+      }
+      route = route.replace('random=true','');
+      if (route.indexOf('seed=') !== -1) {
+        var seed = route.split('seed=')[0].split('&')[0];
+        fq.function_score.random_score.seed = seed;
+        route = route.replace('seed='+seed,'');
+      }
+      var rp = route.split('source=');
+      var start = rp[0];
+      var qrp = rp[1].split('&');
+      var qr = JSON.parse(decodeURIComponent(qrp[0]));
+      var rest = qrp.length > 1 ? qrp[1] : '';
+      if (qr.query.filtered) {
+        fq.function_score.query = qr.query.filtered.query;
+        qr.query.filtered.query = fq
+      } else {
+        fq.function_score.query = qr.query;
+        qr.query = fq;
+      }
+      qr = encodeURIComponent(JSON.stringify(qr));
+      route = start + 'source=' + qr + '&' + rest;
+    } catch(err) {}
+  }
   var ret;
   try {
     ret = Meteor.http.call(action,esurl+route,opts).data;
@@ -329,10 +382,11 @@ CLapi.internals.es.check = function() {
 
 CLapi.internals.es.status = function() {
   var s = CLapi.internals.es.query('GET','/_status');
-  var status = {shards:{total:s._shards.total,successful:s._shards.successful},indices:{}};
+  var status = {cluster:{},shards:{total:s._shards.total,successful:s._shards.successful},indices:{}};
   for (var i in s.indices) {
     status.indices[i] = {docs:s.indices[i].docs.num_docs,size:Math.ceil(s.indices[i].index.primary_size_in_bytes/1024/1024)};
   }
+  status.cluster = CLapi.internals.es.query('GET','/_cluster/health');
   return status;
 }
 

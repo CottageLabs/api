@@ -31,12 +31,12 @@ CLapi.internals.use.openaire = {};
 
 CLapi.internals.use.openaire.doi = function(doi,open) {
   var res = CLapi.internals.use.openaire.search({doi:doi});
-  if (res) {
+  if (res && res.data && typeof res.data !== 'string' && res.data.length > 0) {
     // TODO find one that actually has a doi we can find, and decide how to display the record for that doi
     var rec = !open || ( open && CLapi.internals.use.openaire.open(res.data[0]) ) ? res.data[0] : undefined;
-    return {status: 'success', data: rec };
+    return {status: 'success', data: rec};
   } else {
-    return {};
+    return {status: 'success'};
   }
 }
 
@@ -70,7 +70,10 @@ CLapi.internals.use.openaire.search = function(params) {
   try {
     var res = Meteor.http.call('GET', url);
     if ( res.statusCode === 200 ) {
-      var results = res.data.response.header.total.$ === 1 ? [res.data.response.results.result] : res.data.response.results.result;
+      var results = [];
+      try {
+        results = res.data.response.header.total.$ === 1 ? [res.data.response.results.result] : res.data.response.results.result;
+      } catch (err) {}
       return { status: 'success', data: results, total: res.data.response.header.total.$}
     } else {
       return { status: 'error', data: res}

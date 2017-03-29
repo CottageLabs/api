@@ -49,8 +49,20 @@ login_services = {
     subject: 'Please sign in to Lantern',
     text: "Hi!\r\n\r\nPlease go to the link below to sign in to your account:\r\n\r\n{{LOGINURL}}\r\n\r\nOr enter this code into the login page: {{LOGINCODE}}\r\n\r\nNote: this single-use login is only valid for {{TIMEOUT}}.\r\nThis is an automated email. Replies are NOT monitored.",
     html: '<html><body><p>Hi!</p><p>Please go to the link below to sign in to your account:<p><a href="{{LOGINURL}}">{{LOGINURL}}</a></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p>Note: this single-use login is only valid for {{TIMEOUT}}.<br><br>This is an automated email. Replies are NOT monitored.</p></body></html>'
+  },
+  'https://weareleviathan.com': {
+    from: 'Leviathan Industries <mark+leviathan@cottagelabs.com>',
+    domain: '.weareleviathan.com',
+    timeout: 60,
+    service: 'leviathan',
+    name: 'Leviathan',
+    subject: 'Please sign in to Leviathan',
+    text: "Hi!\r\n\r\nPlease go to the link below to sign in to your account:\r\n\r\n{{LOGINURL}}\r\n\r\nOr enter this code into the login page: {{LOGINCODE}}\r\n\r\nNote: this single-use login is only valid for {{TIMEOUT}}.\r\nThis is an automated email. Replies are NOT monitored.",
+    html: '<html><body><p>Hi!</p><p>Please go to the link below to sign in to your account:<p><a href="{{LOGINURL}}">{{LOGINURL}}</a></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p>Note: this single-use login is only valid for {{TIMEOUT}}.<br><br>This is an automated email. Replies are NOT monitored.</p></body></html>'
   }
 }
+
+login_services['https://weareleviathan.com/levor'] = JSON.parse(JSON.stringify(login_services['https://weareleviathan.com']));
 
 login_services['https://compliance.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
 

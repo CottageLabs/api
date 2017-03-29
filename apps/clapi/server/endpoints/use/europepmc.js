@@ -278,7 +278,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
     if (pmcid) {
       var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
       //var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
-      var licsplash = CLapi.internals.limit.do(3500,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
+      var licsplash = CLapi.internals.limit.do(6000,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
       console.log(pmcid + ' licsplash HTML check on http://europepmc.org/articles/' + normalised_pmcid);
       // console.log(licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
@@ -327,7 +327,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
           //var pg = Meteor.http.call('GET',url);
-          var pg = CLapi.internals.limit.do(3500,Meteor.http.call,"lantern_epmc_ui",['GET',url]);
+          var pg = CLapi.internals.limit.do(6000,Meteor.http.call,"lantern_epmc_ui",['GET',url]);
           if (pg.statusCode === 200) {
             var page = pg.content;
             var s1 = 'Author Manuscript; Accepted for publication in peer reviewed journal';
@@ -345,8 +345,11 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
           }
         } catch(err) {
           if(err.response.statusCode === 404) {
-            return 'unknown-not-found-in-epmc'
+            return 'unknown-not-found-in-epmc';
           } else {
+            console.log(err.response);
+            console.log(err.response.statusCode);
+            CLapi.internals.mail.send({from:'alert@cottagelabs.com',to:'mark@cottagelabs.com',subject:'epmc possible limit hit '+err.response.statusCode,content:JSON.stringify(err.response)});
             return 'unknown-error-accessing-epmc';
           }
         }

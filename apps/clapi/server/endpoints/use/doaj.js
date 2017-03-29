@@ -61,6 +61,7 @@ CLapi.internals.use.doaj.journals.search = function(qry,params) {
     url += '?';
     for ( var op in params ) url += op + '=' + params[op] + '&';
   }
+  console.log(url);
   var res = Meteor.http.call('GET',url);
   if (res.statusCode === 200) {
     return {status: 'success', data: res.data}
@@ -72,6 +73,7 @@ CLapi.internals.use.doaj.journals.search = function(qry,params) {
 // title search possible with title:MY JOURNAL TITLE
 CLapi.internals.use.doaj.articles.doi = function(doi) {
   var url = 'https://doaj.org/api/v1/search/articles/doi:' + doi;
+  console.log(url);
   var res = Meteor.http.call('GET',url);
   if (res.statusCode === 200 && res.data && res.data.results && res.data.results.length > 0) {
     return {status: 'success', data: res.data.results[0]}
@@ -87,6 +89,7 @@ CLapi.internals.use.doaj.articles.search = function(qry,params) {
     url += '?';
     for ( var op in params ) url += op + '=' + params[op] + '&';
   }
+  console.log(url);
   var res = Meteor.http.call('GET',url);
   if (res.statusCode === 200) {
     return {status: 'success', data: res.data}

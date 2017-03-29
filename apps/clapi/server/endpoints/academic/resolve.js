@@ -225,7 +225,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
       ident = check.data.doi;
       ret.doi = ident;
       ret.title = check.data.title;
-      ret.journal = check.data['container-title'][0];
+      try { ret.journal = check.data['container-title'][0]; } catch(err) {}
       ret.source = 'crossref'; // source for doi, will be updated to source for full content if found later
     } else if (ident.indexOf('title') !== -1) {
       // if someone dumped a cite of various formats (marc, bibtex, etc), try to extract just a title from it
@@ -283,7 +283,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             ident = c2.data.doi;
             ret.doi = ident;
             ret.title = c2.data.title;
-          ret.journal = c2.data['container-title'][0];
+            try { ret.journal = c2.data['container-title'][0]; } catch(err) {}
             ret.source = 'crossref'; // source for doi, will be updated to source for full content if found later
           }
         }
@@ -298,61 +298,98 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         ident = c3.data.doi;
         ret.doi = ident;
         ret.title = c3.data.title;
-        ret.journal = c3.data['container-title'][0];
+        try { ret.journal = c3.data['container-title'][0]; } catch(err) {}
         ret.source = 'crossref'; // source for doi, will be updated to source for full content if found later
       }
     }
   }
   
   if (type === 'url') {
-    console.log('academic resolve processing for URL')
-    // is it worth doing a licence check on a URL? - if open, this is the URL (if there is a URL - could be content)
-    // else we look for DOIs PMIDs PMC IDs in the page content
-    if (!content) content = CLapi.internals.phantom.get(ident,undefined);
-    if (meta === undefined) meta = CLapi.internals.academic.catalogue.extract(ident,content);
-    if (meta.title) ret.title = meta.title;
-    if (meta.journal) ret.journal = meta.journal;
-    if (meta.doi) {
-      type = 'doi';
-      ident = meta.doi;
-      ret.doi = ident;
-      ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
-    }
-    if (meta.pmc) {
-      type = 'pmc';
-      ident = meta.pmc;
-      ret.pmc = ident;
-      ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
-    }
-    if (meta.pmid) {
-      type = 'pmid';
-      ident = meta.pmid;
-      ret.pmid = ident;
-      ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
+    var oabr = oab_request.findOne({type:'article',url:ident,status:'received',received:{$exists:true}});
+    if (oabr) {
+      console.log('academic resolve found in oabutton by url');
+      ret.source = 'oabutton';
+      ret.title = oabr.title;
+      ret.journal = oabr.journal;
+      if (oabr.received.url) {
+        ret.url = oabr.received.url
+      } else if (oabr.received.zenodo) {
+        ret.url = oabr.received.zenodo;
+        ret.in = 'zenodo';
+      } else if (oabr.received.osf) {
+        ret.url = oabr.received.osf;
+        ret.in = 'osf';
+      }
+    } else {
+      console.log('academic resolve processing for URL')
+      // is it worth doing a licence check on a URL? - if open, this is the URL (if there is a URL - could be content)
+      // else we look for DOIs PMIDs PMC IDs in the page content
+      if (!content) content = CLapi.internals.phantom.get(ident,undefined);
+      if (meta === undefined) meta = CLapi.internals.academic.catalogue.extract(ident,content);
+      if (meta.title) ret.title = meta.title;
+      if (meta.journal) ret.journal = meta.journal;
+      if (meta.doi) {
+        type = 'doi';
+        ident = meta.doi;
+        ret.doi = ident;
+        ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
+      }
+      if (meta.pmc) {
+        type = 'pmc';
+        ident = meta.pmc;
+        ret.pmc = ident;
+        ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
+      }
+      if (meta.pmid) {
+        type = 'pmid';
+        ident = meta.pmid;
+        ret.pmid = ident;
+        ret.source = 'URL'; // source for doi, will be updated to source for full content if found later
+      }
     }
   }
 
   // with a pmid or pmcid look up on eupmc
   if (type === 'pmid' || type === 'pmc') {
-    console.log('academic resolve processing for PMC/PMID')
-    ret[type] = ident;
-    res = CLapi.internals.use.europepmc[type](ident);
-    if (res.data.doi) ret.doi = res.data.doi;
-    if (res.data.journalInfo && res.data.journal && res.data.journal.title) ret.journal = res.data.journal.title.split('(')[0].trim();
-    if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
-      for ( var ei in res.data.fullTextUrlList.fullTextUrl ) {
-        var erl = res.data.fullTextUrlList.fullTextUrl[ei];
-        if ( erl.availabilityCode.toLowerCase() === 'oa' && erl.documentStyle.toLowerCase() === 'html') {
-          ret.source = 'EUPMC';
-          ret.url = erl.url;
-        }
+    var pident = type === 'pmid' ? 'https://www.ncbi.nlm.nih.gov/pubmed/' + ident : 'http://europepmc.org/articles/PMC' + ident.toLowerCase().replace('pmc','');
+    var oabpmr = oab_request.findOne({type:'article',url:pident,status:'received',received:{$exists:true}});
+    if (oabpmr) {
+      console.log('academic resolve found in oabutton by pmid/pmcid');
+      ret.source = 'oabutton';
+      ret.title = oabpmr.title;
+      ret.journal = oabpmr.journal;
+      if (oabpmr.received.url) {
+        ret.url = oabpmr.received.url
+      } else if (oabpmr.received.zenodo) {
+        ret.url = oabpmr.received.zenodo;
+        ret.in = 'zenodo';
+      } else if (oabpmr.received.osf) {
+        ret.url = oabpmr.received.osf;
+        ret.in = 'osf';
       }
     }
-    if (!ret.url && res.data.doi) {
-      ident = res.data.doi;
-      ret.source = 'EUPMC'; // source for doi, will be updated to source for full content if found later
-      ret.doi = ident;
-      type = 'doi';
+    if (!ret.url) {
+      console.log('academic resolve processing for PMC/PMID')
+      ret[type] = ident;
+      res = CLapi.internals.use.europepmc[type](ident);
+      if (res.data.doi) ret.doi = res.data.doi;
+      if (res.data.title) ret.title = res.data.title;
+      if (res.data.journalInfo && res.data.journal && res.data.journal.title) ret.journal = res.data.journal.title.split('(')[0].trim();
+      if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
+        for ( var ei in res.data.fullTextUrlList.fullTextUrl ) {
+          var erl = res.data.fullTextUrlList.fullTextUrl[ei];
+          if ( erl.availabilityCode.toLowerCase() === 'oa' && erl.documentStyle.toLowerCase() === 'html') {
+            ret.source = 'EUPMC';
+            ret.url = erl.url;
+          }
+        }
+      }
+      if (!ret.url && res.data.doi) {
+        ident = res.data.doi;
+        ret.source = 'EUPMC'; // source for doi, will be updated to source for full content if found later
+        ret.doi = ident;
+        type = 'doi';
+      }
     }
   }
 
@@ -360,23 +397,44 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     console.log('academic resolve processing for DOI')
     ret.doi = ident;
     // no use looking up the DOI in crossref yet because that does not indicate openness of the URLs
-    try {
-      res = CLapi.internals.use.europepmc[type](ident);
-      if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
-        for ( var oi in res.data.fullTextUrlList.fullTextUrl ) {
-          var orl = res.data.fullTextUrlList.fullTextUrl[oi];
-          if ( orl.availabilityCode.toLowerCase() === 'oa' && orl.documentStyle.toLowerCase() === 'html') {
-            // is htere a way to find the title from this?
-            ret.source = 'EUPMC';
-            ret.url = orl.url;
-          }
+    try { // check oabutton
+      var dident = 'https://doi.org/' + ident;
+      var oabdr = oab_request.findOne({type:'article',url:dident,status:'received',received:{$exists:true}});
+      if (oabdr) {
+        console.log('academic resolve found in oabutton by doi');
+        ret.source = 'oabutton';
+        ret.title = oabdr.title;
+        ret.journal = oabdr.journal;
+        if (oabdr.received.url) {
+          ret.url = oabdr.received.url
+        } else if (oabdr.received.zenodo) {
+          ret.url = oabdr.received.zenodo;
+          ret.in = 'zenodo';
+        } else if (oabdr.received.osf) {
+          ret.url = oabdr.received.osf;
+          ret.in = 'osf';
         }
       }
-      if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-        ret.blacklist = ret.url;
-        ret.url = undefined;
-      }
     } catch(err) {}
+    if (!ret.url) { // check eupmc
+      try {
+        res = CLapi.internals.use.europepmc[type](ident);
+        if (res.data.title && !ret.title) ret.title = res.data.title;
+        if ( res.data.fullTextUrlList && res.data.fullTextUrlList.fullTextUrl ) {
+          for ( var oi in res.data.fullTextUrlList.fullTextUrl ) {
+            var orl = res.data.fullTextUrlList.fullTextUrl[oi];
+            if ( orl.availabilityCode.toLowerCase() === 'oa' && orl.documentStyle.toLowerCase() === 'html') {
+              ret.source = 'EUPMC';
+              ret.url = orl.url;
+            }
+          }
+        }
+        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
+          ret.blacklist = ret.url;
+          ret.url = undefined;
+        }
+      } catch(err) {}
+    }
     if (!ret.url) {
       try { // check share
         res = CLapi.internals.use.share.doi(ident);
@@ -425,7 +483,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     if (!ret.url) { // check dissemin - it does return more things than just what is in BASE, and sometimes finds things there we can't, for unknown reason
       try {
         res = CLapi.internals.use.dissemin.doi(ident);
-        if (res.data.pdf_url) {
+        if (res.data.pdf_url && res.data.pdf_url.toLowerCase().indexOf('researchgate') === -1) {
           // TODO Dissemin will return records that are to "open" repos, but without a pdf url 
           // they could just be repos with biblio records. Should we include those too, or not?
           ret.source = "Dissemin";
@@ -511,38 +569,56 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
   if (ret.type === 'doi' && !ret.doi) ret.doi = ident;
     
   // now if type is doi but we still have no url, and still have no title, get meta from crossref
-  if (!ret.url && !ret.title && type === 'doi') {
+  if (!ret.title && type === 'doi') {
     try {
       res = CLapi.internals.use.crossref.works.doi(ident);
       if (res.data && res.data.DOI === ident && res.data.title) {
-        ret.title = res.data.title[0].toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ');
+        ret.title = res.data.title[0].toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ');
       }
     } catch(err) {}    
   }
 
   // if things could not be found by identifiers, which is the best way, then search by titles
   if (!ret.url && ret.title) {
+    try { // check oabutton
+      var oabtr = oab_request.findOne({type:'article',url:ret.title,status:'received',received:{$exists:true}});
+      if (oabtr) {
+        console.log('academic resolve found in oabutton by title/citation');
+        ret.source = 'oabutton';
+        if (oabtr.received.url) {
+          ret.url = oabtr.received.url
+        } else if (oabtr.received.zenodo) {
+          ret.url = oabtr.received.zenodo;
+          ret.in = 'zenodo';
+        } else if (oabtr.received.osf) {
+          ret.url = oabtr.received.osf;
+          ret.in = 'osf';
+        }
+      }
+    } catch(err) {}
     // check EUPMC
-    try {
-      res = CLapi.internals.use.europepmc.search('title:"'+ret.title+'"');
-      if (res.total > 0) {
-        res = res.data[0];
-        if ( res.fullTextUrlList && res.fullTextUrlList.fullTextUrl ) {
-          for ( var ei in res.fullTextUrlList.fullTextUrl ) {
-            var irl = res.fullTextUrlList.fullTextUrl[ei];
-            if ( irl.availabilityCode.toLowerCase() === 'oa' && irl.documentStyle.toLowerCase() === 'html') {
-              ret.source = 'EUPMC';
-              ret.url = irl.url;
-              if (res.doi && !ret.doi) ret.doi = res.data.doi;
+    if (!ret.url) {
+      try {
+        res = CLapi.internals.use.europepmc.search('title:"'+ret.title+'"');
+        if (res.total > 0) {
+          res = res.data[0];
+          if ( res.fullTextUrlList && res.fullTextUrlList.fullTextUrl ) {
+            for ( var ni in res.fullTextUrlList.fullTextUrl ) {
+              var irl = res.fullTextUrlList.fullTextUrl[ni];
+              if ( irl.availabilityCode.toLowerCase() === 'oa' && irl.documentStyle.toLowerCase() === 'html') {
+                ret.source = 'EUPMC';
+                ret.url = irl.url;
+                if (res.doi && !ret.doi) ret.doi = res.data.doi;
+              }
             }
           }
         }
-      }
-      if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-        ret.blacklist = ret.url;
-        ret.url = undefined;
-      }
-    } catch(err) {}
+        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
+          ret.blacklist = ret.url;
+          ret.url = undefined;
+        }
+      } catch(err) {}
+    }
     if (!ret.url) {
       try { // check share
         res = CLapi.internals.use.share.search(ident);
@@ -557,9 +633,9 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     }
     if (!ret.url) {
       try {
-        ret.title = ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ');
+        ret.title = ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ');
         // check BASE
-        res = CLapi.internals.use.base.search('dctitle:"'+ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9]/g,' ')+'"');
+        res = CLapi.internals.use.base.search('dctitle:"'+ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ')+'"');
         if (res && res.data && res.data.docs && res.data.docs.length > 0) {
           res = res.data.docs[0];
           if (res.dclink) {
@@ -593,9 +669,9 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         res = CLapi.internals.use.core.articles.search('title:"' + ret.title + '"');
         if ( res.statusCode === 200 && res.data && res.data.totalHits > 0 ) {
           var rb = res.data.data[0];
-          for ( var b in res.data.data ) {
-            if ( res.data.data[b].hasFullText === "true" ) { // should we even bother linking to anything that does not have full text?
-              rb = res.data.data[b];
+          for ( var nb in res.data.data ) {
+            if ( res.data.data[nb].hasFullText === "true" ) { // should we even bother linking to anything that does not have full text?
+              rb = res.data.data[nb];
               break;
             }
           }
@@ -638,7 +714,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     }
     if (!ret.url) {
       // check doaj
-      res = CLapi.internals.use.doaj.articles.search('title:'+ident);
+      res = CLapi.internals.use.doaj.articles.search('bibjson.title.exact:"'+ret.title+'"');
       if (res.data && res.data.bibjson && res.data.bibjson.identifier) {
         for ( var bb in res.data.bibjson.identifier ) {
           if ( res.data.bibjson.identifier[bb].type === 'doi' && res.data.bibjson.identifier[bb].id === ident ) {
@@ -660,7 +736,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
   // by now if we had title or DOI we would have found it in DOAJ anyway, ideally, so this is just last resort journal link 
   // and at least we know the journal is open, so the user can find from there
   if (!ret.url && ret.journal) {
-    res = CLapi.internals.use.doaj.journals.search('title:'+ret.journal);
+    res = CLapi.internals.use.doaj.journals.search('bibjson.journal.title:"'+ret.journal+'"');
     if (res && res.data && res.data.results && res.data.results.length > 0 ) {
       for ( var ju in res.data.results[0].bibjson.link ) {
         if (!ret.url && res.data.results[0].bibjson.link[ju].type === 'homepage') {

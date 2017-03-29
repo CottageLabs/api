@@ -65,7 +65,7 @@ clogin.addrole = function(grouprole,uid) {
     type:'POST',
     url: clogin.api + '/'+uid+'/roles/'+grouprole,
     success: function(data) {
-      console.log('role add success');
+      if (clogin.debug) console.log('role add success');
     },
     error: function(data) {}
   }
@@ -78,7 +78,7 @@ clogin.removerole = function(grouprole,uid) {
     type:'DELETE',
     url: clogin.api + '/'+uid+'/roles/'+grouprole,
     success: function(data) {
-      console.log('role remove success');
+      if (clogin.debug) console.log('role remove success');
     },
     error: function(data) {}
   }
@@ -97,6 +97,7 @@ clogin.removerole = function(grouprole,uid) {
 
 clogin.location = 'body'; // this is NECESSARY if you want the login init to build you an actual login form. It should be an ID of a div already on the page
 
+clogin.debug = false; // if true will output debug messages to console
 clogin.api = window.location.host.indexOf('test.cottagelabs.com') === -1 ? 'https://api.cottagelabs.com/accounts' : 'https://dev.api.cottagelabs.com/accounts';
 clogin.fingerprint = true; // if true the fingerprint library will be necessary before the clogin library too (this will be necessary for CL logins)
 clogin.hashlength = 40; // this should ideally be retrieved via an init request to accounts API for config settings
@@ -183,6 +184,7 @@ clogin.failureCallback = function(data,action) {
     dataType: 'json',
     data:JSON.stringify(data)
   });
+  if (clogin.debug) console.log('Clogin failure callback sent error msg to remote');
   if (typeof clogin.afterFailure === 'function') clogin.afterFailure();
 }
 
@@ -193,6 +195,7 @@ clogin.saveSuccess = function() {
   $('#'+clogin.saveSuccessDivId).show();
   if ($('#'+clogin.saveMessagesDivId).length) $('#'+clogin.saveMessagesDivId).html('<p>Your changes have been saved.</p>');
   setTimeout(function() { $('#'+clogin.saveSuccessDivId).hide(); }, 3000);
+  if (clogin.debug) console.log('Clogin save success');
   if (typeof clogin.afterSave === 'function') clogin.afterSave();
 }
 clogin.saveValidate = function() {
@@ -202,6 +205,7 @@ clogin.saveValidate = function() {
   return true;
 }
 clogin.save = function(event,data) {
+  if (clogin.debug) console.log('Clogin saving');
   if ($('#'+clogin.saveMessagesDivId).length) $('#'+clogin.saveMessagesDivId).html('');
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   if (data === undefined) {
@@ -269,6 +273,7 @@ clogin.editor = function() {
   }
 }
 clogin.form = function(matcher) {
+  if (clogin.debug) console.log('Clogin building form');
   if (matcher === undefined) matcher = clogin.locationId;
   if ( !$('#'+clogin.loginDivId).length && matcher && $('#'+matcher).length ) {
     var form = '<div id="' + clogin.loginDivId + '" class="' + clogin.notLoggedinClass + '">';
@@ -290,12 +295,18 @@ clogin.form = function(matcher) {
     $(matcher).html(form);
   }
   $('#'+clogin.emailSubmitButtonId).bind('click',clogin.token);
+  $('#'+clogin.emailInputId).bind('keyup',function(e) {
+    if (e.keyCode === 13) {
+      $('#'+clogin.emailSubmitButtonId).trigger('click');
+    }
+  });
   $('#'+clogin.tokenInputId).bind('keyup',clogin.loginWithToken);
   $('#'+clogin.logoutButtonId).bind('click',clogin.logout);
   $('#'+clogin.saveButtonId).bind('click',clogin.save);
 }
 
 clogin.retrieve = function(email,callback) {
+  if (clogin.debug) console.log('Clogin retrieving account info');
   // get account details, then do something if callback is provided
   // this will work as is, if cookies are not restricted to httponly
   // if cookies are resstricted, an api key is necessary
@@ -334,26 +345,67 @@ clogin.hash = function() {
   }
 }
 
+clogin.progress_interval;
 clogin.tokenSuccess = function(data) {
-  if (data && data.responseText) data = data.responseText;
-  console.log(data);
-  // TODO if there is an mid in data, record the ID in a cookie and trigger a 5s intervaled mail progress check
-  // this also means that on any page that inits clogin, we should check for this mid and show the token
-  // process as in progress
-  clogin.user.token = 'success';
+  if (clogin.debug) console.log('Clogin token successfully requested');
+  clogin.user.token = 'requested'; // check nothing relied on this being success, the old value
   $('#'+clogin.emailDivId).hide();
   $('#'+clogin.tokenDivId).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
+  if (data && data.responseText) data = data.responseText;
+  clogin.progress_interval = setInterval(clogin.tokenProgress,3000);
+  if (data && data.mid) {
+    clogin.setCookie('clprogress',{interval:clogin.progress_interval,mid:data.mid,email:clogin.user.email,createdAt:(new Date()).valueOf()});
+  } else {
+    clogin.tokenProgress();
+  }
+}
+clogin.tokenProgress = function() {
+  var progress = clogin.getCookie('clprogress');
+  var timeout = (new Date()).valueOf() - 180000;
+  if (progress && progress.createdAt > timeout) {
+    var opts = {
+      type:'GET',
+      url: clogin.api.replace('/accounts','/mail') + '/progress?q=Message-Id.exact:"' + progress.mid + '"',
+      success: function(data) {
+        try {
+          var event = data.hits.hits[0]._source.event;
+          clogin.user.token = event; // check the state of clogin.user if user refreshes page
+          // on delivered update the screen msg if it does not already say delivered
+          // on dropped update the screen msg, remove the token cookie, and configure to start login again
+          if (event === 'delivered') $('#'+clogin.tokenInputId).attr('placeholder','Email delivered to ' + progress.email).css('border-color','orange');
+          //if (event === 'opened') $('#'+clogin.tokenInputId).attr('placeholder','Email opened by ' + progress.email).css('border-color','green');
+          if (event === 'dropped') {
+            $('#'+clogin.tokenInputId).attr('placeholder','Please refresh - failed to deliver to ' + progress.email).css('border-color','red');
+            clearInterval(progress.interval);
+            clogin.removeCookie('clprogress');
+          }          
+        } catch(err) {}
+      }
+    }
+    $.ajax(opts);
+  } else {
+    if (progress && progress.interval) {
+      clearInterval(progress.interval);
+      clogin.removeCookie('clprogress');
+    } else if (clogin.progress_interval) {
+      clearInterval(clogin.progress_interval);      
+    }
+    if (!clogin.loggedin()) window.location = window.location.href;
+  }
 }
 clogin.token = function(e) {
+  if (clogin.debug) console.log('Clogin requesting token');
   if (e) e.preventDefault();
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   $('#'+clogin.messagesDivId).html('');
   // request a token be sent to the email address
   // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
   if (clogin.user.email === undefined) clogin.user.email = $('#'+clogin.emailInputId).val();
+  $('#' + clogin.tokenInputId ).attr('placeholder','Delivering to ' + clogin.user.email);
   var opts = {
     type:'POST',
+    cache: false,
     success:clogin.tokenSuccess,
     error:clogin.tokenSuccess,
     url: clogin.api + '/token'
@@ -389,6 +441,7 @@ clogin.token = function(e) {
   if (opts.type === 'GET') clogin.tokenSuccess();
 }
 clogin.loginWithToken = function() {
+  if (clogin.debug) console.log('Clogin logging in with token');
   var token = $('#'+clogin.tokenInputId).val();
   if ( token.length === clogin.tokenlength ) clogin.login();
 }
@@ -399,7 +452,15 @@ clogin.afterLogin = function() {
   if (clogin.next) window.location = clogin.next;
 }
 clogin.loginSuccess = function(data) {
+  if (clogin.debug) console.log('Clogin login successful');
   clogin.user.login = 'success';
+  var progress = clogin.getCookie('clprogress');
+  if (progress) {
+    clearInterval(progress.interval);
+    clogin.removeCookie('clprogress');
+  } else if (clogin.progress_interval) {
+    clearInterval(clogin.progress_interval);    
+  }
   $('#'+clogin.emailDivId).show(); // just in case they were still set to token display
   $('#'+clogin.tokenDivId).hide();
   $('.'+clogin.notLoggedinClass).hide();
@@ -431,8 +492,15 @@ clogin.loginSuccess = function(data) {
   }
 }
 clogin.login = function(e) {
+  if (clogin.debug) console.log('Clogin starting login');
   if (e) e.preventDefault();
   $('#'+clogin.messagesDivId).html('');
+  var progress = clogin.getCookie('clprogress');
+  if (progress && !$('#'+clogin.tokenInputId).val()) {
+    clogin.tokenSuccess();
+  } else {
+    clogin.removeCookie('clprogress');
+  }
   if (!clogin.next && window.location.href.indexOf('next=') !== -1) clogin.next = window.location.href.split('next=')[1].split('&')[0];
   if (!clogin.next && clogin.getCookie('clnext')) clogin.next = clogin.getCookie('clnext');
   if (clogin.next && !clogin.getCookie('clnext')) clogin.setCookie('clnext', {next:clogin.next}, {expires:1});
@@ -467,6 +535,7 @@ clogin.login = function(e) {
       data.location = cookie.url;
     }
   }
+  if (!data.email && progress) data.email = progress.email;
   opts.data = JSON.stringify(data);
   if ( data.email || data.hash ) {
     if (clogin.loadingId) $('#'+clogin.loadingId).show();
@@ -476,6 +545,7 @@ clogin.login = function(e) {
 
 clogin.afterLogout = function() {}
 clogin.logoutSuccess = function(data) {
+  if (clogin.debug) console.log('Clogin logout successful');
   clogin.removeCookie(clogin.cookie,data.data.domain);
   clogin.apikey = undefined; // just in case one was set
   clogin.user = {logout:'success'};
@@ -487,6 +557,7 @@ clogin.logoutSuccess = function(data) {
 }
 clogin.logout = function(e) {
   if (e) e.preventDefault();
+  if (clogin.debug) console.log('Clogin logging out');
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   $('#'+clogin.messagesDivId).html('');
   var opts = {
@@ -526,6 +597,10 @@ clogin.init = function(opts) {
   // just call this to get a working default installation
   if (opts) {
     for ( var o in opts ) clogin[o] = opts[o];
+  }
+  if (clogin.debug) {
+    console.log("Clogin initialising");
+    if (opts) console.log(opts);
   }
   // build the form even if it turns out to be unnecessary, because a login error could result in it being needed for a retry - unless specifically set not to
   if ( clogin.form && typeof clogin.form === 'function' ) clogin.form();

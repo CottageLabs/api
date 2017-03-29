@@ -204,7 +204,7 @@ class share.Route
   ###
   _roleAccepted: (endpointContext, endpoint) ->
     if endpoint.roleRequired
-      return CLapi.rcauth(endpoint.roleRequired,endpointContext.user,endpoint.cascade)
+      return CLapi.internals.accounts.auth(endpoint.roleRequired,endpointContext.user,endpoint.cascade)
       # could do this in a way that does not make it rely on CL api code, as shown below, but does not handle cascades
       ###ret = false
       for i of endpoint.roleRequired

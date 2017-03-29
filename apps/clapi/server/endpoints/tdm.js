@@ -21,6 +21,18 @@ CLapi.addRoute('tdm/levenshtein', {
   }
 });
 
+CLapi.addRoute('tdm/categorise', {
+  get: {
+    action: function() {
+      if ( this.queryParams.entity ) {
+        return {status: 'success', data: CLapi.internals.tdm.categorise(this.queryParams.entity)}
+      } else {
+        return {status: 'error', data: 'entity url param required'}
+      }
+    }
+  }
+});
+
 CLapi.addRoute('tdm/keywords', {
   get: {
     action: function() {
@@ -137,6 +149,59 @@ CLapi.internals.tdm.levenshtein = function(a,b) {
   
   var dist = r[ r.length - 1 ][ r[ r.length - 1 ].length - 1 ]
 	return {status:'success',data:{distance:dist,detail:r}};
+}
+
+CLapi.internals.tdm.categorise = function(entity) {
+	var rec = CLapi.internals.use.wikipedia.lookup({title:entity});
+	if (rec.status === 'error') return rec;
+	var tidy = rec.data.revisions[0]['*'].toLowerCase().replace(/http.*?\.com\//g,'').replace(/\|accessdate.*?<\/ref>/g,'')
+		.replace(/<ref.*?\|url/g,'').replace(/access\-date.*?<\/ref>/g,'').replace(/file.*?]]/g,'');
+	// already includes a default set so just add extras
+	var stops = ['http','https','ref','html','www','ref','cite','url','title','date','state','s','t','nbsp',
+		 'year','time','a','e','i','o','u','january','february','march','april','may','june','july','august','september','october','november','december',
+		'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec',
+		'news','work','post','times','york','category','newspaper','story','first1','first2','last1','last2','publisher',
+		'general','world','list','org','id','wp','main','website','blogs','media','people','years','made','location',
+		'accessdate','view_news','php','d0','dq','p','sfnref','false','true','onepage','article','chapter','book',
+		'sfn','caps','authorlink','isbn']; 
+	var tp = entity.split(' ');
+	for ( var t in tp ) stops.push(tp[t].toLowerCase());
+	var tdm = CLapi.internals.tdm.keywords(tidy,{
+		stopWords: stops,
+		min: 3,
+		limit: 50,
+		ngrams: [1,2,3,4],
+		cutoff: 0
+	});
+	var keywords = [];
+	for ( var a in tdm ) {
+		if (keywords.length < 20 && tdm[a].replace(/[^ ]/g,'').length <= 2 && keywords.indexOf(tdm[a]) === -1 && tdm[a].length > 1) {
+			var replace = false;
+			for ( var kk in keywords ) {
+				if (keywords[kk].indexOf(tdm[a]) === 0) {
+					replace = kk;
+				}
+			}
+			if (replace === false) {
+				keywords.push(tdm[a]);
+			} else {
+				keywords[replace] = tdm[a];
+			}
+		}
+	}
+	var url = 'https://en.wikipedia.org/wiki/' + rec.data.title.replace(/ /g,'_'); // can prob get api to pass this data back
+	if (rec.data.pageprops) {
+		var img = rec.data.pageprops.page_image_free;
+		if (img === undefined) img = rec.data.pageprops.page_image;
+		if (img !== undefined) {
+			var CryptoJS = Meteor.npmRequire("crypto-js");
+			var imghash = CryptoJS.MD5(img).toString();
+			img = 'https://upload.wikimedia.org/wikipedia/commons/' + imghash.charAt(0) + '/' + imghash.charAt(0) + imghash.charAt(1) + '/' + img;
+		}
+		var wikibase = rec.data.pageprops.wikibase_item;
+		var wikidata = wikibase ? 'https://www.wikidata.org/wiki/' + wikibase : undefined;
+	}
+	return {url:url,img:img,title:rec.data.title,wikibase:wikibase,wikidata:wikidata,keywords:keywords};
 }
 
 CLapi.internals.tdm.keywords = function(content,opts) {

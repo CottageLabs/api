@@ -48,11 +48,9 @@ server {
     listen          443 ssl spdy;
     server_name     api.cottagelabs.com;
 
-    include includes/cl-wildcard-ssl.conf;
-    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
-#    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/api.cottagelabs.com/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/api.cottagelabs.com/privkey.pem;
+    ssl on;
+    ssl_certificate /etc/letsencrypt/live/api.cottagelabs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.cottagelabs.com/privkey.pem;
   
     location / {
         # DO NOT add the usual origin * header to the api and dev api routes, it is already set by the software in a default way, and setting it twice results in errors
@@ -77,11 +75,9 @@ server {
     listen          443 ssl spdy;
     server_name     accounts.cottagelabs.com;
 
-    include includes/cl-wildcard-ssl.conf;
-    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
-#    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/accounts.cottagelabs.com/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/accounts.cottagelabs.com/privkey.pem;
+    ssl on;
+    ssl_certificate /etc/letsencrypt/live/accounts.cottagelabs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/accounts.cottagelabs.com/privkey.pem;
 
     location / {
         proxy_pass http://clapilocal;
@@ -106,11 +102,9 @@ server {
     listen          443 ssl spdy;
     server_name     lapi.cottagelabs.com;
 
-    include includes/cl-wildcard-ssl.conf;
-    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
-#    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/lapi.cottagelabs.com/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/lapi.cottagelabs.com/privkey.pem;
+    ssl on;
+    ssl_certificate /etc/letsencrypt/live/lapi.cottagelabs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lapi.cottagelabs.com/privkey.pem;
 
     location / {
         add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
@@ -212,11 +206,9 @@ server {
     listen          443 ssl spdy;
     server_name     test.cottagelabs.com;
 
-    include includes/cl-wildcard-ssl.conf;
-    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
-#    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/test.cottagelabs.com/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/test.cottagelabs.com/privkey.pem;
+    ssl on;
+    ssl_certificate /etc/letsencrypt/live/test.cottagelabs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/test.cottagelabs.com/privkey.pem;
 
     location / {
         proxy_pass http://clapidev;
@@ -267,7 +259,9 @@ server {
         listen 443 ssl;
         server_name static.cottagelabs.com;
         root /home/cloo/static;
-        include includes/cl-wildcard-ssl.conf;
+        ssl on;
+        ssl_certificate /etc/letsencrypt/live/static.cottagelabs.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/static.cottagelabs.com/privkey.pem;
         location / {
             expires           0;
             add_header        Cache-Control private;

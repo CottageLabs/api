@@ -290,11 +290,6 @@ clogin.form = function(matcher) {
     $(matcher).html(form);
   }
   $('#'+clogin.emailSubmitButtonId).bind('click',clogin.token);
-  $('#'+clogin.emailInputId).bind('keyup',function(e) {
-    if (e.keyCode === 13) {
-      $('#'+clogin.emailSubmitButtonId).trigger('click');
-    }
-  });
   $('#'+clogin.tokenInputId).bind('keyup',clogin.loginWithToken);
   $('#'+clogin.logoutButtonId).bind('click',clogin.logout);
   $('#'+clogin.saveButtonId).bind('click',clogin.save);
@@ -339,53 +334,16 @@ clogin.hash = function() {
   }
 }
 
-clogin.progress_interval;
 clogin.tokenSuccess = function(data) {
-  clogin.user.token = 'requested'; // check nothing relied on this being success, the old value
+  if (data && data.responseText) data = data.responseText;
+  console.log(data);
+  // TODO if there is an mid in data, record the ID in a cookie and trigger a 5s intervaled mail progress check
+  // this also means that on any page that inits clogin, we should check for this mid and show the token
+  // process as in progress
+  clogin.user.token = 'success';
   $('#'+clogin.emailDivId).hide();
   $('#'+clogin.tokenDivId).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
-  if (data && data.responseText) data = data.responseText;
-  clogin.progress_interval = setInterval(clogin.tokenProgress,3000);
-  if (data && data.mid) {
-    clogin.setCookie('clprogress',{interval:clogin.progress_interval,mid:data.mid,email:clogin.user.email,createdAt:(new Date()).valueOf()});
-  } else {
-    clogin.tokenProgress();
-  }
-}
-clogin.tokenProgress = function() {
-  var progress = clogin.getCookie('clprogress');
-  var timeout = (new Date()).valueOf() - 180000;
-  if (progress && progress.createdAt > timeout) {
-    var opts = {
-      type:'GET',
-      url: clogin.api.replace('/accounts','/mail') + '/progress?q=Message-Id.exact:"' + progress.mid + '"',
-      success: function(data) {
-        try {
-          var event = data.hits.hits[0]._source.event;
-          clogin.user.token = event; // check the state of clogin.user if user refreshes page
-          // on delivered update the screen msg if it does not already say delivered
-          // on dropped update the screen msg, remove the token cookie, and configure to start login again
-          if (event === 'delivered') $('#'+clogin.tokenInputId).attr('placeholder','Email delivered to ' + progress.email).css('border-color','orange');
-          //if (event === 'opened') $('#'+clogin.tokenInputId).attr('placeholder','Email opened by ' + progress.email).css('border-color','green');
-          if (event === 'dropped') {
-            $('#'+clogin.tokenInputId).attr('placeholder','Please refresh - failed to deliver to ' + progress.email).css('border-color','red');
-            clearInterval(progress.interval);
-            clogin.removeCookie('clprogress');
-          }          
-        } catch(err) {}
-      }
-    }
-    $.ajax(opts);
-  } else {
-    if (progress && progress.interval) {
-      clearInterval(progress.interval);
-      clogin.removeCookie('clprogress');
-    } else if (clogin.progress_interval) {
-      clearInterval(clogin.progress_interval);      
-    }
-    if (!clogin.loggedin()) window.location = window.location.href;
-  }
 }
 clogin.token = function(e) {
   if (e) e.preventDefault();
@@ -394,10 +352,8 @@ clogin.token = function(e) {
   // request a token be sent to the email address
   // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
   if (clogin.user.email === undefined) clogin.user.email = $('#'+clogin.emailInputId).val();
-  $('#' + clogin.tokenInputId ).attr('placeholder','Delivering to ' + clogin.user.email);
   var opts = {
     type:'POST',
-    cache: false,
     success:clogin.tokenSuccess,
     error:clogin.tokenSuccess,
     url: clogin.api + '/token'
@@ -444,13 +400,6 @@ clogin.afterLogin = function() {
 }
 clogin.loginSuccess = function(data) {
   clogin.user.login = 'success';
-  var progress = clogin.getCookie('clprogress');
-  if (progress) {
-    clearInterval(progress.interval);
-    clogin.removeCookie('clprogress');
-  } else if (clogin.progress_interval) {
-    clearInterval(clogin.progress_interval);    
-  }
   $('#'+clogin.emailDivId).show(); // just in case they were still set to token display
   $('#'+clogin.tokenDivId).hide();
   $('.'+clogin.notLoggedinClass).hide();
@@ -484,12 +433,6 @@ clogin.loginSuccess = function(data) {
 clogin.login = function(e) {
   if (e) e.preventDefault();
   $('#'+clogin.messagesDivId).html('');
-  var progress = clogin.getCookie('clprogress');
-  if (progress && !$('#'+clogin.tokenInputId).val()) {
-    clogin.tokenSuccess();
-  } else {
-    clogin.removeCookie('clprogress');
-  }
   if (!clogin.next && window.location.href.indexOf('next=') !== -1) clogin.next = window.location.href.split('next=')[1].split('&')[0];
   if (!clogin.next && clogin.getCookie('clnext')) clogin.next = clogin.getCookie('clnext');
   if (clogin.next && !clogin.getCookie('clnext')) clogin.setCookie('clnext', {next:clogin.next}, {expires:1});
@@ -524,7 +467,6 @@ clogin.login = function(e) {
       data.location = cookie.url;
     }
   }
-  if (!data.email && progress) data.email = progress.email;
   opts.data = JSON.stringify(data);
   if ( data.email || data.hash ) {
     if (clogin.loadingId) $('#'+clogin.loadingId).show();

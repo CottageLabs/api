@@ -119,7 +119,7 @@ var _avail = {
       if ( this.queryParams.pmc ) ident = 'pmc' + this.queryParams.pmc.toLowerCase().replace('pmc','');
       if ( this.queryParams.title ) ident = 'TITLE:' + this.queryParams.title;
       if ( this.queryParams.citation ) ident = 'CITATION:' + this.queryParams.citation;
-      var opts = {url:ident,test:this.queryParams.test}
+      var opts = {url:ident,test:this.queryParams.test,library:this.queryParams.library}
       if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
         var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
@@ -149,7 +149,7 @@ var _avail = {
       if ( this.request.body.pmc ) ident = 'pmc' + this.request.body.pmc.toLowerCase().replace('pmc','');
       if ( this.request.body.title ) ident = 'TITLE:' + this.request.body.title;
       if ( this.request.body.citation ) ident = 'CITATION:' + this.request.body.citation;
-      var opts = {url:ident,test:this.request.body.test}
+      var opts = {url:ident,test:this.request.body.test,library:this.request.body.library}
       if ( this.request.headers['x-apikey'] ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
         var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
@@ -175,14 +175,15 @@ CLapi.addRoute('service/oab/ill/:library', {
     action: function() {
       var opts = this.request.body;
       opts.library = this.urlParams.library;
-      if ( this.request.headers['x-apikey'] ) {
+      /*if ( this.request.headers['x-apikey'] ) {
         var acc = CLapi.internals.accounts.retrieve(this.request.headers['x-apikey']);
         if (acc) {
           opts.uid = acc._id;
           opts.username = acc.username;
           opts.email = acc.emails[0].address;
         }
-      }
+      }*/
+      // user info is not needed, but could be collected as above
       return {status:'success',data:CLapi.internals.service.oab.ill(opts)};
     }
   }
@@ -196,11 +197,16 @@ CLapi.addRoute('service/oab/request', {
     }
   },
   post: {
-    roleRequired:'openaccessbutton.user',
     action: function() {
       var req = this.request.body;
       req.test = this.request.headers.host === 'dev.api.cottagelabs.com' ? true : false;
-      return CLapi.internals.service.oab.request(req,this.userId);
+      var uid;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
+        if (acc) uid = acc._id;
+      }
+      return CLapi.internals.service.oab.request(req,uid);
     }
   }
 });
@@ -232,6 +238,10 @@ CLapi.addRoute('service/oab/request/:rid', {
           } catch (err) {}
         }
         if (uid) r.supports = CLapi.internals.service.oab.supports(this.urlParams.rid,uid);
+        var other = oab_request.find({url:r.url}).fetch();
+        for ( var o in other ) {
+          if (other[o]._id !== r._id && other[o].type !== r.type) r.other = other[o]._id;
+        }
         return {status: 'success', data: r}
       } else {
         return {statusCode: 404, body: {status: 'error', data:'404 not found'}}
@@ -282,17 +292,30 @@ CLapi.addRoute('service/oab/request/:rid', {
   }
 });
 
+CLapi.addRoute('service/oab/own/:rid', {
+  post: {
+    roleRequired:'openaccessbutton.user',
+    action: function() {
+      return CLapi.internals.service.oab.own(this.urlParams.rid,this.userId,this.queryParams.anonymous);
+    }
+  }
+});
+
 CLapi.addRoute('service/oab/support/:rid', {
   get: {
-    roleRequired:'openaccessbutton.user',
     action: function() {
       return CLapi.internals.service.oab.support(this.urlParams.rid,this.queryParams.story,this.userId);
     }
   },
   post: {
-    roleRequired:'openaccessbutton.user',
     action: function() {
-      return CLapi.internals.service.oab.support(this.urlParams.rid,this.request.body.story,this.userId);
+      var uid;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
+        if (acc) uid = acc._id;
+      }
+      return CLapi.internals.service.oab.support(this.urlParams.rid,this.request.body.story,uid);
     }
   }
 });
@@ -813,8 +836,9 @@ CLapi.internals.service.oab.request = function(req,uid) {
   }
   if (JSON.stringify(req).indexOf('<script') !== -1) return false; // naughty catcher
   if (req.type === undefined) req.type = 'article';
+  // TODO it is now possible to have a request just from a doi/pmid/pmcid/title/citation, so what will be known about that?
   var exists = oab_request.findOne({url:req.url,type:req.type});
-  if (exists) return false;
+  if (exists) return exists;
   // a blacklisted URL should not be sent to request, because the availability check would have returned 400
   // the request endpoint will accept blacklisted URLs, but here they just get bounced to false
   // we could do something else with them here if we wanted, but for now just false them
@@ -834,25 +858,27 @@ CLapi.internals.service.oab.request = function(req,uid) {
     }
   }
   if (rid === undefined) rid = oab_request.insert({url:req.url,type:req.type});
-  var user = Meteor.users.findOne(uid);
-  if (!req.user && user) { // this should actually never be the case but is useful for loading old data into test system
+  var user = uid ? Meteor.users.findOne(uid) : undefined;
+  if (req.user === undefined && user) {
     var un = user.profile && user.profile.firstname ? user.profile.firstname : user.username;
-    if (!un) user.username = user.emails[0].address;
+    if (!un) un = user.emails[0].address;
     req.user = {
       id: user._id,
       username: un,
       email: user.emails[0].address
     }
+    if (user.profile) {
+      req.user.firstname = user.profile.firstname;
+      req.user.lastname = user.profile.lastname;
+    }
+    try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
+    try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
   }
-  if (user.profile) {
-    req.user.firstname = user.profile.firstname;
-    req.user.lastname = user.profile.lastname;
-  }
-  try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
-  try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
   req.count = 1;
+  
+  // what of that info can be used to start a request automatically?
   if (!req.title || !req.email || !req.keywords) { // worth scraping on any other circumstance?
-    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi);
+    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi); // TODO what if there is not a url available?
     req.keywords = meta && meta.keywords ? meta.keywords : [];
     req.title = meta && meta.title ? meta.title : "";
     req.doi = meta && meta.doi ? meta.doi : "";
@@ -860,14 +886,14 @@ CLapi.internals.service.oab.request = function(req,uid) {
     req.email = meta && meta.email && meta.email.length > 0 ? meta.email[0] : "";
     if (req.email && CLapi.internals.service.oab.dnr(req.email)) req.email = "";
     
-    // some optional extract that the extract can return
+    // some optional extras that the extract can return
     req.author = meta && meta.author ? meta.author : [];
     req.journal = meta && meta.journal ? meta.journal : "";
     req.issn = meta && meta.issn ? meta.issn : "";
     req.publisher = meta && meta.publisher ? meta.publisher : "";
   }
 
-  req.status = !req.title || !req.email ? "help" : "moderate";
+  req.status = !req.title || !req.email || req.user === undefined ? "help" : "moderate";
   
   // shorten the geolocation if present
   // http://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude
@@ -879,22 +905,83 @@ CLapi.internals.service.oab.request = function(req,uid) {
     // TODO worth trying to grab location via IP or anything else?
   }
 
-  if (req.doi) req.doi = decodeURIComponent(req.doi); // just a clean-up
+  if (req.doi) req.doi = decodeURIComponent(req.doi);
   req.receiver = CLapi.internals.store.receiver(req); // is store receiver really necessary here?
   oab_request.update(rid,{$set:req});
   req._id = rid;
+  CLapi.internals.mail.send({
+    from: 'requests@openaccessbutton.org',
+    to: ['natalianonori@gmail.com'],
+    subject: 'New request created ' + req._id,
+    text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + req._id
+  });
   return req;
 }
 
+CLapi.internals.service.oab.own = function(rid,uid,anonymous) {
+  var req = oab_request.findOne(rid);
+  var user = uid ? Meteor.users.findOne(uid) : undefined;
+  if (!req || !user) {
+    return false;
+  } else {
+    if (req.user === undefined && user) {
+      if (anonymous && CLapi.internals.accounts.auth('openaccessbutton.admin',user)) {
+        req.user = {
+          admin: user._id,
+          username: 'anonymous'
+        }
+      } else {
+        var un = user.profile && user.profile.firstname ? user.profile.firstname : user.username;
+        if (!un) un = user.emails[0].address;
+        req.user = {
+          id: user._id,
+          username: un,
+          email: user.emails[0].address
+        }
+        if (user.profile) {
+          req.user.firstname = user.profile.firstname;
+          req.user.lastname = user.profile.lastname;
+        }
+        try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
+        try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
+      }
+      oab_request.update(rid,{$set:{user:req.user}});
+    }
+    return req;
+  }
+}
+
 CLapi.internals.service.oab.scrape = function(url,content,refresh,doi) {
-  return CLapi.internals.academic.catalogue.extract(url,content,refresh,doi);
+  var s = CLapi.internals.academic.catalogue.extract(url,content,refresh,doi);
+  var email;
+  var foundauthor = false;
+  if (s.email) {
+    for (var e in s.email) {
+      var isauthor = false;
+      if (s.author && !foundauthor) {
+        for ( var a in s.author ) {
+          if (s.author[a].family && s.email[e].toLowerCase().indexOf(s.author[a].family.toLowerCase()) !== -1) {
+            isauthor = true;
+            foundauthor = true;
+          }
+        }
+      }
+      if ( ( email === undefined || isauthor ) && !CLapi.internals.service.oab.dnr(s.email[e])) email = s.email[e];
+    }
+  }
+  s.email = email;
+  return s;
 }
 
 CLapi.internals.service.oab.support = function(rid,story,uid) {
   if (story && story.indexOf('<script') !== -1) return false; // ignore people being naughty
   var r = oab_request.findOne(rid);
   console.log('creating oab support');
-  if ( r.user && r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
+  if (uid === undefined) {
+    var anons = {url:r.url,rid:r._id,type:r.type,username:'anonymous',story:story}
+    anons._id = oab_support.insert(anons);
+    return anons;
+  } else if ( r.user && r.user.id !== uid && CLapi.internals.service.oab.supports(rid,uid).length === 0 ) {
     oab_request.update(rid,{$set:{count:r.count + 1}});
     var user = Meteor.users.findOne(uid);
     var s = {url:r.url,rid:r._id,type:r.type,uid:uid,username:user.username,email:user.emails[0].address,story:story}
@@ -930,11 +1017,12 @@ CLapi.internals.service.oab.ill = function(opts) {
     // library POST URL: https://www.imperial.ac.uk/library/dynamic/oabutton/oabutton3.php
     CLapi.internals.mail.send({
       from: 'requests@openaccessbutton.org',
-      to: ['joe@righttoresearch.org','mark@cottagelabs.com','s.barron@imperial.ac.uk'],
+      to: ['mark@cottagelabs.com','joe@righttoresearch.org','s.barron@imperial.ac.uk'],
       subject: 'EXAMPLE ILL TRIGGER',
       text: JSON.stringify(opts,undefined,2)
     });
-    CLapi.internals.service.oab.sendmail({template:{filename:'imperial_confirmation_example.txt'},to:opts.id})
+    CLapi.internals.service.oab.sendmail({template:{filename:'imperial_confirmation_example.txt'},to:opts.id});
+    Meteor.http.call('POST','https://www.imperial.ac.uk/library/dynamic/oabutton/oabutton3.php',{data:opts});
   }
   // TODO as we add more libraries add their forwarding endpoints here
   var illid = oab_ill.insert(opts);
@@ -977,11 +1065,22 @@ CLapi.internals.service.oab.ill_progress = function() {
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
   opts.refresh = true; // forcing brand new lookups every time for the moment... 
+  if (opts.url) {
+    if (opts.url.indexOf('10.1') === 0) {
+      opts.doi = opts.url;
+      opts.url = 'https://doi.org/' + opts.url;
+    } else if ( opts.url.toLowerCase().indexOf('pmc') === 0 ) {
+      opts.url = 'http://europepmc.org/articles/PMC' + opts.url.toLowerCase().replace('pmc','');
+    } else if ( opts.url.length < 10 && opts.url.indexOf('.') === -1 && !isNaN(parseInt(opts.url)) ) {
+      opts.url = 'https://www.ncbi.nlm.nih.gov/pubmed/' + opts.url;
+    }
+    // could still be citation string or title, so will still try lookup on that in the url...
+  }
   if (!opts.url) {
     var bu;
     if (opts.citation) bu = 'CITATION:'+opts.citation;
     if (opts.title) bu = 'TITLE:'+opts.title;
-    if (opts.pmid) bu = opts.pmid;
+    if (opts.pmid) bu = 'https://www.ncbi.nlm.nih.gov/pubmed/' + opts.pmid;
     if (opts.pmc) bu = 'http://europepmc.org/articles/PMC' + opts.pmc.toLowerCase().replace('pmc','');
     if (opts.pmcid) bu = 'http://europepmc.org/articles/PMC' + opts.pmcid.toLowerCase().replace('pmc','');
     if (opts.doi) bu = 'https://doi.org/' + opts.doi.indexOf('doi.org/') !== -1 ? opts.doi.split('doi.org/')[1] : opts.doi;
@@ -989,19 +1088,21 @@ CLapi.internals.service.oab.availability = function(opts) {
   }
   if (opts.url === undefined) return {} // opts.url could actually be doi, pmid, pmc, title, citation - what to do about how we store each?
   
-  var ret = {availability:[],requests:[],accepts:[],meta:{article:{},data:{}}};
+  var ret = {match:opts.url,availability:[],requests:[],accepts:[],meta:{article:{},data:{}}};
   var already = [];
   
   console.log('OAB availability checking for sources');
   
   var meta;
   if (opts.library) {
-    ret.library = {institution:opts.library}
+    ret.library = {institution:opts.library,primo:{}}
     meta = CLapi.internals.academic.catalogue.extract(opts.url,opts.dom);
     if (meta.title) {
       ret.library.title = meta.title;
-      var lib = CLapi.internals.use.exlibris.primo('title,exact,'+meta.title.replace(/ /g,'+'),undefined,undefined,opts.library);
+      var tqr = 'title,exact,'+meta.title.replace(/ /g,'+');
+      var lib = CLapi.internals.use.exlibris.primo(tqr,undefined,undefined,opts.library);
       if (lib.data && lib.data.length > 0) {
+        ret.library.primo.title = {query:tqr,result:lib.data};
         ret.library.local = [];
         for ( var l in lib.data ) {
           if (lib.data[l].library) {
@@ -1016,11 +1117,22 @@ CLapi.internals.service.oab.availability = function(opts) {
       // exlibris may only tell us they have access to the journal, not every article. So if not found 
       // do a check for journal availability
       ret.library.journal = {title:meta.journal};
-      var jrnls = CLapi.internals.use.exlibris.primo('rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle',undefined,undefined,opts.library);
+      var jqr = 'rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle';
+      var jrnls = CLapi.internals.use.exlibris.primo(jqr,undefined,50,opts.library);
       if (jrnls.data && jrnls.data.length > 0) {
-        var jrnl = jrnls.data[0];
-        if (jrnl.title.toLowerCase().indexOf(ret.library.journal.title.toLowerCase()) === 0 && jrnl.library) {
-          ret.library.journal = jrnl;
+        ret.library.primo.journal = {query:jqr,result:jrnls.data};
+        for ( var j in jrnls.data ) {
+          var jrnl = jrnls.data[j];
+          var inj = ret.library.journal.title.toLowerCase().replace(/[^a-z]/g,'');
+          var rnj = jrnl.title.toLowerCase().replace(/[^a-z]/g,'');
+          if (rnj.indexOf(inj) === 0 && rnj.length < inj.length+3) {// && jrnl.library) {
+            if (jrnl.library) {
+              ret.library.journal = jrnl;
+            } else {
+              ret.library.journal.library = true;
+            }
+            break;
+          }
         }
       }
     }
@@ -1028,7 +1140,6 @@ CLapi.internals.service.oab.availability = function(opts) {
   
   opts.discovered = {article:false,data:false};
   opts.source = {article:false,data:false};
-  // TODO check oab_availability for previous availability checks that already found something
   if ( opts.type === 'data' || opts.type === undefined ) {
     // any useful places to check - append discoveries to availability
     // once it is possible, check the previous availabilties as below for articles
@@ -1038,7 +1149,7 @@ CLapi.internals.service.oab.availability = function(opts) {
   }
   if ( opts.type === 'article' || opts.type === undefined ) {
     var url;
-    if (opts.refresh !== true && opts.url) { // TODO what about if provided a doi, pmid, or pmc - this should better match to academic resolve behaviour and cache
+    if (opts.refresh !== true && opts.url) {
       var avail = oab_availability.findOne({$and:[{'url':opts.url},{'discovered':{$exists:true}},{'discovered.article':{$ne:false}}]});
       if (avail && !CLapi.internals.service.oab.blacklist(avail.discovered.article,60000)) {
         console.log('found in previous availabilities ' + opts.url + ' ' + avail.url + ' ' + avail.discovered.article);
@@ -1047,15 +1158,16 @@ CLapi.internals.service.oab.availability = function(opts) {
       }
     }
     if (url === undefined) {
-      var res = CLapi.internals.academic.resolve(opts.url,opts.dom); // opts.url could actually be a pmid, pmc, or doi
+      var res = CLapi.internals.academic.resolve(opts.url,opts.dom); // opts.url could actually be a pmid, pmc, or doi - this checks oabutton for received requests too
       ret.meta.article.doi = res.doi;
       ret.meta.article.source = res.source;
       ret.meta.article.title = res.title;
+      ret.meta.article.journal_url = res.journal_url;
       ret.meta.article.blacklist = res.blacklist;
       url = res.url ? res.url : undefined;
-      if (url !== undefined) opts.source.article = res.source;
+      if (url !== undefined && !res.journal_url) opts.source.article = res.source;
     }
-    if (url !== undefined) {
+    if (url !== undefined && !ret.meta.article.journal_url) {
       ret.availability.push({type:'article',url:url});
       already.push('article');
       opts.discovered.article = url;
@@ -1064,6 +1176,8 @@ CLapi.internals.service.oab.availability = function(opts) {
   // TODO add availability checkers for any new types that are added to the accepts list  
 
   //console.log('OAB availability checking for requests');
+  // NOTE this won't list successful requests because anything already received will have been found above in the availability check
+  if (opts.url.indexOf('http') !== 0 && ret.meta.article && ret.meta.article.doi) opts.url = 'https://doi.org/' + ret.meta.article.doi;
   var matcher = {url:opts.url};
   if (opts.type) matcher.type = opts.type;
   var requests = oab_request.find(matcher).fetch();
@@ -1390,13 +1504,17 @@ CLapi.internals.service.oab.cron.osf = function() {
     var sl = '[' + l.matches[0].result[0] + ']';
     listing = JSON.parse(sl);
   } catch (err) {}
+  var none = true;
   requests.forEach(function(request) {
+    if (none) none = false;
     for ( var li in listing ) {
       if ( request.title.toLowerCase().replace(/[^a-z0-9]/g,'') === listing[li].title.toLowerCase().replace(/[^a-z0-9]/g,'') ) {
+        console.log('oabutton_osf cron updating URL for ' + request._id + ' to ' + listing[li].nodeUrl);
         oab_request.update(request._id,{$set:{'received.osf':'https://osf.io' + listing[li].nodeUrl}});
       }
     }
   });
+  if (none) console.log('oabutton_osf no received OSF requests lacking OSF url - doing nothing.');
 }
 CLapi.internals.service.oab.cron.availability = function() {
   // look for any request in progress and see how far past progress date it is

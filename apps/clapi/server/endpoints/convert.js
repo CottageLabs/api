@@ -234,6 +234,8 @@ CLapi.internals.convert.file2txt = Async.wrap(function(url, content, opts, callb
     // for as yet unknown reasons this does not work when getting a PDF. Tried changing and not changing to buffer, tried converting to string, tried octet-streaming, tried textract.fromUrl, none work.
     var res = Meteor.http.call('GET',url,{npmRequestOptions:{encoding:null}});
     content = new Buffer(res.content);
+  } else {
+    content = new Buffer(content);
   }
   textract.fromBufferWithMime(from, content, opts, function( err, result ) {
     return callback(null,result);

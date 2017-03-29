@@ -1,16 +1,21 @@
 
+var moment = Meteor.npmRequire('moment');
 
 leviathan_statement = new Mongo.Collection("leviathan_statement");
-leviathan_response = new Mongo.Collection("leviathan_response");
+leviathan_score = new Mongo.Collection("leviathan_score");
+
+//CLapi.internals.es.make(leviathan_statement,'leviathan','statement'); // this does not work yet because es is not available at this point... refactor should fix
 
 leviathan_statement.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
 leviathan_statement.after.insert(function (userId, doc) {
   CLapi.internals.es.insert('/leviathan/statement/' + this._id, doc);
 });
 leviathan_statement.before.update(function (userId, doc, fieldNames, modifier, options) {
   modifier.$set.updatedAt = Date.now();
+  doc.updated_date = moment(doc.updatedAt,"x").format("YYYY-MM-DD HHmm");
 });
 leviathan_statement.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/leviathan/statement/' + doc._id, doc);
@@ -19,34 +24,94 @@ leviathan_statement.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/leviathan/statement/' + doc._id);
 });
 
-leviathan_response.before.insert(function (userId, doc) {
+leviathan_score.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
 });
-leviathan_response.after.insert(function (userId, doc) {
-  CLapi.internals.es.insert('/leviathan/response/' + this._id, doc);
+leviathan_score.after.insert(function (userId, doc) {
+  CLapi.internals.es.insert('/leviathan/score/' + this._id, doc);
 });
-leviathan_response.before.update(function (userId, doc, fieldNames, modifier, options) {
+leviathan_score.before.update(function (userId, doc, fieldNames, modifier, options) {
   modifier.$set.updatedAt = Date.now();
+  doc.updated_date = moment(doc.updatedAt,"x").format("YYYY-MM-DD HHmm");
 });
-leviathan_response.after.update(function (userId, doc, fieldNames, modifier, options) {
-  CLapi.internals.es.insert('/leviathan/response/' + doc._id, doc);
+leviathan_score.after.update(function (userId, doc, fieldNames, modifier, options) {
+  CLapi.internals.es.insert('/leviathan/score/' + doc._id, doc);
 });
-leviathan_response.after.remove(function (userId, doc) {
-  CLapi.internals.es.delete('/leviathan/response/' + doc._id);
+leviathan_score.after.remove(function (userId, doc) {
+  CLapi.internals.es.delete('/leviathan/score/' + doc._id);
 });
 
 CLapi.addCollection(leviathan_statement);
-CLapi.addCollection(leviathan_response);
+CLapi.addCollection(leviathan_score);
 
 CLapi.addRoute('service/leviathan', {
   get: {
     action: function() {
-      return {status: 'success', data: {info: 'The Leviathan API.'} };
+      if (this.queryParams.url) {
+        return CLapi.internals.service.leviathan.import.url(this.queryParams);
+      } else if (this.queryParams.repo) {
+        return CLapi.internals.service.leviathan.import.github(this.queryParams);
+      } else if (this.queryParams.empty) {
+        leviathan_statement.remove({});
+        leviathan_score.remove({});
+        return {};
+      } else {
+        return {status: 'success', data: {info: 'The Leviathan API.'} };
+      }
     }
   }
 });
 
-CLapi.addRoute('service/leviathan/statement', {
+CLapi.addRoute('service/leviathan/statement/:sid', {
+  get: {
+    action: function() {
+      var uid = this.userId;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
+        uid = acc._id;
+      }
+      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,undefined,uid,this.queryParams);
+    }
+  },
+  post: {
+    action: function() {
+      var s = this.request.body;
+      var uid = this.userId;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
+        uid = acc._id;
+      }
+      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,s,uid,this.queryParams);
+    }
+  },
+  delete: {
+    roleRequired: 'root',
+    action: function() {
+      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,true);
+    }
+  },
+});
+
+CLapi.addRoute('service/leviathan/statement/:sid/scores', {
+  get: {
+    action: function() {
+      return CLapi.internals.service.leviathan.scores(this.urlParams.sid);
+    }
+  }
+});
+
+CLapi.addRoute('service/leviathan/statement/:sid/responses', {
+  get: {
+    action: function() {
+      return CLapi.internals.service.leviathan.responses(this.urlParams.sid);
+    }
+  }
+});
+
+CLapi.addRoute('service/leviathan/statements', {
   get: {
     action: function() {
       var rt = '/leviathan/statement/_search';
@@ -67,35 +132,11 @@ CLapi.addRoute('service/leviathan/statement', {
     }
   }
 });
-CLapi.addRoute('service/leviathan/statement/:sid', {
-  get: {
-    action: function() {
-      return CLapi.internals.service.leviathan.statement(this.urlParams.sid);
-    }
-  },
-  post: {
-    action: function() {
-      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,this.request.json);
-    }
-  },
-  delete: {
-    action: function() {
-      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,true);
-    }
-  },
-});
-CLapi.addRoute('service/leviathan/statement/:sid/responses', {
-  get: {
-    action: function() {
-      return CLapi.internals.service.leviathan.responses(this.urlParams.sid);
-    }
-  }
-});
 
-CLapi.addRoute('service/leviathan/response', {
+CLapi.addRoute('service/leviathan/scores', {
   get: {
     action: function() {
-      var rt = '/leviathan/response/_search';
+      var rt = '/leviathan/score/_search';
       if (this.queryParams) {
         rt += '?';
         for ( var op in this.queryParams ) rt += op + '=' + this.queryParams[op] + '&';
@@ -109,65 +150,481 @@ CLapi.addRoute('service/leviathan/response', {
     action: function() {
       var data;
       if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
-      return CLapi.internals.es.query('POST','/leviathan/response/_search',data);
+      return CLapi.internals.es.query('POST','/leviathan/score/_search',data);
     }
   }
 });
-CLapi.addRoute('service/leviathan/response/:sid', {
+
+CLapi.addRoute('service/leviathan/levor/scoreboard', {
   get: {
     action: function() {
-      return CLapi.internals.service.leviathan.response(this.urlParams.sid);
+      var uid = this.userId;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        var acc = CLapi.internals.accounts.retrieve(apikey);
+        uid = acc._id;
+      }
+      if (this.queryParams.uid) uid = this.queryParams.uid;
+      return CLapi.internals.service.leviathan.levor.scoreboard(this.queryParams.count,this.queryParams.score,this.queryParams.target,this.queryParams.daily,uid);
     }
-  },
-  post: {
-    action: function() {
-      return CLapi.internals.service.leviathan.response(this.urlParams.sid,this.request.json);
-    }
-  },
-  delete: {
-    action: function() {
-      return CLapi.internals.service.leviathan.statement(this.urlParams.sid,true);
-    }
-  },
+  }
 });
 
+CLapi.addRoute('service/leviathan/:uid', {
+  get: {
+    action: function() {
+      return CLapi.internals.service.leviathan.user(this.urlParams.uid);
+    }
+  }
+});
+
+CLapi.addRoute('service/leviathan/:uid/statements', {
+  get: {
+    action: function() {
+      return CLapi.internals.service.leviathan.statements(this.urlParams.uid);
+    }
+  }
+});
 
 
 CLapi.internals.service.leviathan = {};
 
-CLapi.internals.service.leviathan.statement = function(sid,obj) {
-  // user, url, highlight, cite, statement, sentiment, hash, tags (provided, derived), keywords (like / same as derived tags?), 
-  
-  // STATEMENT TYPES
-  // positive / negative (e.g. MUST vs MUST NOT)
-  // request (e.g. is this true, can this be reviewed)
+CLapi.internals.service.leviathan.lid = function(prev) {
+  var allowed = ['1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','J','K','M','N','P','R','T','V','W','X','Y','Z'];
+  var length = 8;
+  var lid;
+  if (prev === undefined) prev = {}
+  var last = leviathan_statement.findOne(prev,{sort:{_id:1}});
+  if (last) {
+    lid = last._id;
+    var trip = false;
+    var back = [];
+    for ( var l = lid.length-1; l > 0; l-- ) {
+      var lp = allowed.indexOf(lid[l]);
+      if (trip || l === lid.length-1) {
+        lp += 1;
+        trip = false;
+      }
+      if (lp >= allowed.length) {
+        trip = true;
+        lp = 0;
+      }
+      back.push(allowed[lp]);
+    }
+    lid = 'L';
+    for ( var b = length-2; b >= 0; b-- ) lid += back[b];
+  } else {
+    lid = 'L';
+    for ( var c = 1; c < length; c++ ) lid += allowed[0];
+  }
+  if (leviathan_statement.findOne(lid)) { // this is good enough for now, but beware the race...
+    return CLapi.internals.service.leviathan.lid(lid);
+  } else {
+    return lid;
+  }
 }
 
-CLapi.internals.service.leviathan.response = function(rid,obj) {
-  // user, sid, cite, sentiment, hash, tags
-  // should responses actually just be statements that are ABOUT other statements?
-  // YES - and they could be framed as rebuttals or supports, or...
-  
-  // RESPONSE TYPES
-  // agree / disagree
-  // positive / negative
-  // strongly stated (positive or negative)
-  // alternative (Let's go dancing - yes, no, no let's go running)
-  // authoritative (user can claim authority - that is a statement, and other users can agree or disagree)
-  // support (with or without evidence)
-  // refute (with or without evidence)
-  // proof - logical, that statement is / is not true
-  // accept (e.g. if multiple refutations, what is the accepted answer?)
-  // duplicate - indicate that the question is a duplicate, and others can agree / disagree on that too, to weight whether it is or not
-  // contradiction - indicate that the user stating "the sky is blue" elsewhere already said "the sky is red"
-  // a more complex contradiction would be "men mostly commit violence, target men to reduce it" but elsehwere says "black people mostly commit crime, don't profile black people"
-  // should a user being agreed to have made contradictory statements have a reduction applied to the weight of all their responses?
-  // probably - so if user makes 1000 statements, and is marked as being contradictory 500 times, then any response they make to other questions only has +- .5 instead of 1
-  // how many users need to agree to a response claiming a statement is a duplicate or a contradiction before it is accepted as being such?
-  // perhaps it does not matter - just flag it as possibly contradictory, possibly duplicate, and leave it up to the creator to change it
-  // in which case, dups are accepted as such by the creator, and just become pointers to the one they dup'd, and add scores to it
-  // whilst contradictions if left standing have negative effect on creator vote power. if accepted as contradiction, don't have negative effect, but not deleted - stand as evidence
+/*
+{
+  _id: 'Leviathan ID of this statement'
+  category: 'statement', 'or', 'compatible' ... (applies to the score)
+  statement: 'I am the statement that was made'
+  about: 'leviathan statement ID or external URL that this statement/response is about'
+  info: 'I am extra supporting info that could include URLs'
+  tags: [list of tags - could be extracted from statement and info too]
+  mentions: [list of usernames that appear to be mentioned]
+  score: -1, 0, 1
+  sentiment: 'agree', 'disagree', 'neutral'
+  relation: 'Leviathan ID of related statement e.g. the statement this one is incompatible with'
+  uid: 1234567890
+  username: myusername
+  email: myemal - keep this as well as username, or just as username when no username?
 }
+*/
+CLapi.internals.service.leviathan.statement = function(sid,obj,uid,filters) {
+  if (obj === true) {
+    leviathan_statement.remove(sid); // remove the scores related to the ID?
+    return {};
+  } else if (obj) {
+    delete obj._id; // is set from incoming url route, into sid param, so don't overwrite
+    if (!obj.category) obj.category = 'statement';
+    if (!obj.sentiment) obj.sentiment = 'neutral';
+    if (!obj.score) { // could allow UI to set scores for different terms
+      if (obj.sentiment === 'disagree') {
+        obj.score = -1;
+      } else if (obj.sentiment === 'agree') {
+        obj.score = 1;
+      } else {
+        obj.score = 0;
+      }
+    }
+    if (obj.statement) { // it is possible to receive a statement with no "statement" - essentially a sentiment response, so just creates a score
+      // TODO still to fix multiple newlines problem in statement
+      obj.statement = obj.statement.replace(/\r\n/g,'\n').replace(/\n+/g,'\n');
+      // TODO trim leading and trailing newlines
+      // do additional keyword extraction and sentiment analysis on the statement?
+      //obj.extraction = CLapi.internals.use.google.cloud.language(obj.statement);
+      // extract all URLs, domains, email addresses?
+      // what about doing @username#tag ...
+      obj.tags = [];
+      if (obj.statement.indexOf('#') !== -1) {
+        if (obj.statement.indexOf('#') === 0) obj.statement = ' ' + obj.statement;
+        var hashsplit = obj.statement.split(' #');
+        for ( var h in hashsplit) {
+          var hash = hashsplit[h].split(' ')[0].split(',')[0].split('\n')[0].toLowerCase();
+          if (h !== "0" && obj.tags.indexOf(hash) === -1) obj.tags.push(hash);
+        }
+        obj.tags = obj.tags.sort();
+      }
+      obj.mentions = [];
+      if (obj.statement.indexOf('@') !== -1) {
+        if (obj.statement.indexOf('@') === 0) obj.statement = ' ' + obj.statement;
+        var atsplit = obj.statement.split(' @');
+        for ( var a in atsplit) {
+          var at = atsplit[a].split(' ')[0].split(',')[0].split('\n')[0].toLowerCase();
+          if (a !== "0" && obj.mentions.indexOf(at) === -1) obj.mentions.push(at);
+        }
+        obj.mentions = obj.mentions.sort(); // worth sorting tags and mentions?
+      }
+      // just from the statement or the info too? info is harder cos could have urls etc, but could be relevant...
+      obj.statement = obj.statement.trim();
+      if (!obj.about && obj.statement.indexOf('\n') !== -1 && obj.statement.trim().toLowerCase().replace(/ /g,'').indexOf('about:') === 0) {
+        obj.about = obj.statement.split('\n')[0].trim().toLowerCase().replace(/ /g,'').split('about:')[1];
+        obj.statement = obj.statement.split('\n')[1].trim();
+        // TODO trim leading and trailing newlines again
+      }
+      if (obj.statement.indexOf('\n') !== -1) {
+        obj.info = obj.statement.split(/\n(.+)/)[1];
+        obj.statement = obj.statement.split('\n')[0];
+        // TODO trim leading and trailing newlines again
+      }
+      if (sid && sid !== 'new') {
+        leviathan_statement.update(sid,{$set:obj});
+      } else {
+        obj._id = CLapi.internals.service.leviathan.lid();
+        obj = leviathan_statement.insert(obj);
+      }
+    }
+    // create a score record of this response - track any score data in statement itself, for convenience?
+    // TODO check if the user has already created a score on the statement, if so, delete the previous score
+    if (obj.about && obj.about.indexOf('http') === -1 && obj.about.indexOf('L') === 0) {
+      var prev = leviathan_score.findOne({about:obj.about,uid:obj.uid});
+      if (prev) leviathan_score.remove(prev._id);
+    }
+    var scr = {
+      category: obj.category,
+      about: obj.about ? obj.about : obj._id,
+      score: obj.score,
+      sentiment: obj.sentiment,
+      relation: obj.relation,
+      uid: obj.uid
+    }
+    if (uid) {
+      scr.uid = uid;
+      var usr = CLapi.internals.accounts.retrieve(uid);
+      scr.email = usr.emails[0].address;
+      scr.name = usr.emails[0].address.split('@')[0];
+    }
+    leviathan_score.insert(scr);
+    if (filters && filters.random) {
+      filters.size = filters.random;
+      delete filters.random;
+      return CLapi.internals.service.leviathan.statement('random',undefined,uid,filters);
+    } else {
+      return obj;
+    }
+  } else if (sid === 'random') {
+    // if there are filters, apply them to the statements that can be returned
+    var sz = 1;
+    if (filters) {
+      if (filters.size) {
+        sz = parseInt(filters.size);
+        delete filters.size;
+      }
+      // format the filters into a proper mongo query filter
+    } else {
+      filters = {};
+    }
+    var statement;
+    if (uid) {
+      var statements = leviathan_statement.find(filters).count();
+      filters.uid = uid;
+      var scores = leviathan_score.find(filters).count();
+      if (scores < statements) {
+        statement = leviathan_statement.aggregate([{$match:filters}, { $sample: { size: sz } }]);
+      }
+    } else {
+      statement = leviathan_statement.aggregate([{$match:filters}, { $sample: { size: sz } }]);
+    }
+    if (statement) {
+      for ( var st in statement ) {
+        statement[st].views = statement[st].views === undefined ? 1 : statement[st].views + 1; // this could become unmanageable at large scale but OK for now
+        leviathan_statement.update(statement[st]._id,{$set:{views:statement[st].views}});
+      }
+      return statement;
+    } else {
+      return {};
+    }
+  } else {
+    var s = leviathan_statement.findOne(sid);
+    s.views = s.views === undefined ? 1 : s.views + 1; // this could become unmanageable at large scale but OK for now
+    leviathan_statement.update(s._id,{$set:{views:s.views}});
+    return s;
+  }
+  
+}
+
+CLapi.internals.service.leviathan.responses = function(sid) {
+  // get the chain of responses from this statement sid if any
+}
+
+CLapi.internals.service.leviathan.scores = function(sid,filters) {
+  // get the scores for this statement sid, possibly filtered
+}
+
+CLapi.internals.service.leviathan.user = function(uid) {
+  // is this worth doing? get specific user info related to leviathan - not profile stuff, not private stuff
+  // could be things like their scores 
+}
+
+CLapi.internals.service.leviathan.statements = function(uid) {
+  // is this worth doing? get all statements made by a user - would it be too many? May be as well to use statement querying
+  // or is there any sort of useful statements overview for a given user?
+}
+
+CLapi.internals.service.leviathan.import = {}
+
+CLapi.internals.service.leviathan.import.url = function(opts) {
+  var src = Meteor.http.call('GET', opts.url).content;
+  //src = src.replace(/\n/g,'').replace(/<ul.*?<\/ul>/g,'').replace(/<a.*?<\/a>/g,''); // these can lead to slightly tidier results but lose a lot of interesting words
+  var content = CLapi.internals.convert.xml2txt(undefined,src);
+  var ggl = CLapi.internals.use.google.cloud.language(content,'entities');
+  var lthings = [];
+  var things = [];
+  var length = opts.words ? opts.words : 2;
+  for ( var e in ggl.entities ) {
+    for ( var t in ggl.entities[e] ) {
+      var sts = (ggl.entities[e][t][0].toUpperCase() + ggl.entities[e][t].substring(1,ggl.entities[e][t].length)).split(' ');
+      var psts = [];
+      for ( var ps in sts ) {
+        if (sts[ps].replace(/[^a-zA-Z]/g,'').length > 1 && sts[ps].indexOf('@') === -1 && psts.indexOf(sts[ps]) === -1) psts.push(sts[ps]); 
+      }
+      if (psts.length === 2) psts = [psts[0] + ' ' + psts[1]];
+      for ( var pe in psts ) {
+        var per = psts[pe];
+        if (lthings.indexOf(per.toLowerCase()) === -1 && per.toUpperCase() !== per) { // avoid things that are all caps...
+          lthings.push(per.toLowerCase());
+          things.push(per);
+          var category = opts.category ? opts.category : 'or';
+          var exists = leviathan_statement.findOne({statement:per}); // what params should be used to check existence? How old to limit new versions, or within categories?
+          if (!exists) {
+            // should get user data for statement, but for now just assume they are all by me
+            var keywords = [];
+            if ( ggl.entities[e][t][0].toUpperCase() === ggl.entities[e][t][0] && e === 'people' || e === 'organizations' ) { // could do places as well... 
+              if ( e === 'people' && per.indexOf(' ') !== -1 ) {
+                if ( per.split(' ')[1][0].toUpperCase() === per.split(' ')[1][0] ) keywords = CLapi.internals.tdm.categorise(per);
+              } else {
+                keywords = CLapi.internals.tdm.categorise(per);
+              }
+            }
+            CLapi.internals.service.leviathan.statement('new',{
+              keywords:keywords,
+              category: category,
+              source: opts.url,
+              entity: e,
+              statement:per,
+              uid:'WhPxWCrbZgRS5Hv4W',
+              username:'Leviathan',
+              email:'mark@cottagelabs.com'
+            });
+          }
+        }
+      }
+    }
+  }
+  return {status:'success',count:things.length,things:things,ggl:ggl,src:src,content:content};
+}
+
+CLapi.internals.service.leviathan.import.github = function(opts) {
+  var issues = CLapi.internals.use.github.issues(opts);
+  var count = 0;
+  for ( var i in issues.data ) {
+    var issue = issues.data[i];
+    var exists = leviathan_statement.findOne({statement:issue.title});
+    if (!exists) {
+      count += 1;
+      CLapi.internals.service.leviathan.statement('new',{
+        category: 'statement',
+        about: issue.html_url,
+        entity: 'github',
+        owner: opts.owner,
+        repo: opts.repo,
+        statement:issue.title,
+        info: issue.body,
+        meta: issue,
+        uid:'WhPxWCrbZgRS5Hv4W',
+        username:'Leviathan',
+        email:'mark@cottagelabs.com'
+      });
+    }
+  }
+  return {status:'success',count:count};
+}
+
+CLapi.internals.service.leviathan.import.sheet = function(opts) {
+  
+}
+
+CLapi.internals.service.leviathan.import.csv = function(opts) {
+  
+}
+
+
+
+CLapi.internals.service.leviathan.levor = {}
+
+CLapi.internals.service.leviathan.levor.scoreboard = function(count,score,target,daily,uid) {
+  if (count === undefined && score === undefined) count = true;
+  var res = {}
+  var d = {$match:{category:'levor'}};
+  var s = {$sort: {count:-1}};
+  if (daily) {
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    d.$match.createdAt = {$gte:start.valueOf()};
+  }
+  if (count) {
+    var qc = [];
+    if (d) qc.push(d);
+    qc.push({ $group: { _id: {uid:"$uid", name: "$name", email: "$email"}, count: {$sum:1}}  });
+    qc.push(s);
+    res.count = leviathan_score.aggregate(qc);
+    if (res.count.length && res.count[0]._id.uid === null) res.count.shift();
+  }
+  if (score) {
+    var qs = [];
+    if (d) {
+      d.$match.category = {$in:['levor','coin']};
+      qs.push(d);
+    }
+    qs.push({ $group: { _id: {uid:"$uid", name: "$name", email: "$email"}, count: {$sum:"$score"}}  });
+    qs.push(s);
+    res.score = leviathan_score.aggregate(qs);
+    if (res.score.length && res.score[0]._id.uid === null) res.score.shift();
+  }
+  if (target) res.target = CLapi.internals.service.leviathan.levor.target(daily,uid);
+  if (uid) {
+    res.user = {position:{},uid:uid};
+    if (target) {
+      res.user.target = {found:[],available:0}
+      for ( var ut in res.target ) {
+        if (res.target[ut].scored === true) {
+          res.user.target.found.push(res.target[ut].statement);
+        } else {
+          res.user.target.available.push(res.target[ut].statement);
+        }
+      }
+    }
+    if (count) {
+      for ( var c in res.count ) {
+        if (res.count[c]._id.uid === uid) {
+          res.user.position.count = parseInt(c);
+          break;
+        }
+      }
+    }
+    if (score) {
+      for ( var sc in res.score ) {
+        if (res.score[sc]._id.uid === uid) {
+          res.user.position.score = parseInt(sc);
+          break;
+        }
+      }
+    }
+  }
+  return res;
+}
+
+CLapi.internals.service.leviathan.levor.target = function(daily,uid) {
+  // levor requires target words that the user can appear to be moving towards
+  // this means a statement about another word, that is the "most popular" - and has some bonus score
+  // if a levor user finds it, they get X points - like say the amount of points equal to that targets most popular score
+  // so the target statements need a count of how often they occurred, or some other representation of their high value
+  // possibly friends can choose/set a target word for the day/game, and their other friends have to try to find it
+  // like for obscure words, this may be a reflection of their obscurity
+  // to know that any levor selection is a move towards a target word, it needs to somehow match with the target
+  // this could mean being the same sort of entity, sharing a keyword, or sharing a similar size or similar letters (levensthein distance could work here)
+  // there should be a range of target words, starting with the most popular/valuable down to the least
+  // or perhaps in the case of topical news, it is actually the least popular that are worth more... so an inversion of min and max occurrences
+  // so this function just needs to return a list of target statements ordered by their value, and stating their value, and then all their metadata
+  // then the UI can work out any time a user moves closer to a target word (this could be intentionally lost between play sessions, or stored in a cookie)
+  // when the UI sees a user pick a target word, the UI submits a coin score matching that target word
+  // so the target list should then be updated for that user - meaning target should be filtered by existing coin scores for the day by that user,
+  // and the target list should indicate that user has already scored that target
+  // so this just needs to be a statement find ordered by value, once a way to decide value is added to the statements
+  // then if the user is known, just record whether or not the user has already scored on those targets
+  // how many targets should there be? start with 10
+  var d = {category:'levor'};
+  var s = {sort: {value:-1}, limit:10}; // TODO need a value key on the statement obj, and possibly accept a limit option
+  if (daily) {
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    d.createdAt = {$gte:start.valueOf()};
+  }
+  var targets = leviathan_statement.find(d,s).fetch();
+  if (uid) {
+    for ( var t in targets ) {
+      var tr = {about:targets[t]._id,category:'coin',uid:uid};
+      if (daily) tr.createdAt = d.createdAt;
+      var scored = leviathan_score.findOne(tr);
+      if (scored) targets[t].scored = true;
+    }
+  }
+  return targets;
+}
+
+
+/*
+Leviathan scoring
+L1111111:24:17:3
+leviathan ID, disagree, agree, related statements
+
+or could just use contention ratio as score, but also need popularity score to indicate how many responses
+contention 0 is highly contentious, 1 is not contentious. New statement with 0 stated value 
+is therefore more contentious than one with a stated value (because more likely to indicate a personal choice)
+(this may seem counter-intuitive but does not need to be explicitly stated to users)
+when showing questions, show contentious statements first
+contention of course can go down as question increases in popularity, if more answers favour one direction
+Does contention have to be calculated directly at all, or just left to be read from scores?
+maybe score format is better as count of responses, strength of feeling, contention ratio
+in which case contention probably more intuitive if inverted and scaled to 100
+so L%123A:r1000s25c100 has 1000 answers, 25% strong feels, and max contention (meaning 50/50 response weight)
+or how about r1000/c100 which would put popular contentious answers below popular uncontentious ones
+that would mean the system favours popular uncontentious issues to the top of search results
+but isn't it contentious issues we want more responses to? perhaps depends on params then. 
+to see what we "know", search by popular with low contention
+can also search what to weigh in on - popular with high contention
+*/
+
+// SCORE DETAILS
+// agree / disagree
+// positive / negative
+// strongly stated (positive or negative)
+// alternative (Let's go dancing - yes, no, no let's go running)
+// authoritative (user can claim authority - that is a statement, and other users can agree or disagree)
+// support (with or without evidence)
+// refute (with or without evidence)
+// proof - logical, that statement is / is not true
+// accept (e.g. if multiple refutations, what is the accepted answer?)
+// duplicate - indicate that the question is a duplicate, and others can agree / disagree on that too, to weight whether it is or not
+// contradiction - indicate that the user stating "the sky is blue" elsewhere already said "the sky is red"
+// a more complex contradiction would be "men mostly commit violence, target men to reduce it" but elsehwere says "black people mostly commit crime, don't profile black people"
+// should a user being agreed to have made contradictory statements have a reduction applied to the weight of all their responses?
+// probably - so if user makes 1000 statements, and is marked as being contradictory 500 times, then any response they make to other questions only has +- .5 instead of 1
+// how many users need to agree to a response claiming a statement is a duplicate or a contradiction before it is accepted as being such?
+// perhaps it does not matter - just flag it as possibly contradictory, possibly duplicate, and leave it up to the creator to change it
+// in which case, dups are accepted as such by the creator, and just become pointers to the one they dup'd, and add scores to it
+// whilst contradictions if left standing have negative effect on creator vote power. if accepted as contradiction, don't have negative effect, but not deleted - stand as evidence
 
 // user has to be able to sign up using our usual account auth
 // also need to ask user to give us access to facebook and twitter (and other places they may make statements)
@@ -196,25 +653,11 @@ CLapi.internals.service.leviathan.response = function(rid,obj) {
 // such a browser app could also check for any comments on a given page
 // but this is just like commentator / annotator - useful? maybe. different context.
 
-// user answers statement / question
-// extract keywords
-// calculate response hash?
-// are answers complex or yes/no? preferably complex
-// but have to start with simple ones
-
-// link relevant reference material to statement (as statement, or as answer to statement)
-// indicate / calculate whether reference material is in support or in contradiction to statement
-
 // demonstrate proximity of statements, answers, and users solely by what is written
 // (assumption is content is an illusion at an individual level, and meaning is ONLY in relation)
 
 // email users with questions to generate more responses
 // allow email responses direct to questions
-
-// some way to encourage new users to sign up
-// a front page of recent statements - news
-// a page of responses to view - activity
-// a page of recent URLs submitted for review - action
 
 // what does a new user get out of it, beyond the first group who volunteer as tests?
 // a user could see the flavour of their locale, to get a better sense of their own community
@@ -225,593 +668,6 @@ CLapi.internals.service.leviathan.response = function(rid,obj) {
 // or for users signed up directly themselves having their profile coloured based on the entirety 
 // of their user activity - indicating their leanings to other people
 
-// how does this fit into the red vs blue teams on the train video example?
-// can people be compared not only on statements but on metadata of themselves and their network?
-
-// the aim is not to compare specific people
-// instead the aim is to show that people group by interest - not by perspective
-// e.g. football supporters are all football supporters regardless of their internal rivalry about teams
-// what they care about is football - and it does not matter which way they care about it
-// attempt to show the same about political affiliation, moral / religious belief etc
-// it is not HOW or WHAT you believe that matters, but THAT you do so
-// if you talk about god, either dismissing or affirming, you are part of the people who care about god
-// ultimate aim? to examine if / how activism is causal, or is caused by, actions (or at least (stated) beliefs about actions)
-
-
-
-/* 
-
-the old answer
-
-@blueprint.route('/', methods=['GET','POST'])
-@blueprint.route('/<identifier>', methods=['GET','POST'])
-def answer(identifier=None):
-
-    if request.method == 'GET':
-
-        if identifier is None:
-            abort(404)
-        else:
-            f = models.Answer().pull(identifier)
-            if f:
-                resp = make_response( f.json )
-                resp.mimetype = "application/json"
-                return resp
-            else:
-                abort(404)
-
-    else:
-        if identifier is not None:
-            f = models.Answer.pull(identifier)
-            if f is None: abort(404)
-        else:
-            f = models.Answer()
-
-        if request.json:
-            for k in request.json.keys():
-                f.data[k] = request.json[k]
-        else:
-            for k, v in request.values.items():
-                if k not in ['submit']:
-                    f.data[k] = v
-        
-        f.save()
-
-        return ""
-        
-*/
-
-
-
-/*
-
-the old question
-
-@blueprint.route('/', methods=['GET','POST'])
-@blueprint.route('/<identifier>', methods=['GET','POST'])
-def question(identifier=None):
-    if request.method == 'GET':
-
-        params = {
-            'tags': request.values.get('tags',False),
-            'keywords': request.values.get('keywords',False)
-        }
-
-        res = None
-        
-        if identifier is None:
-            # TODO: this query should be filtered so as not to include questions 
-            # the currently logged in user has already answered (if the user is logged in)
-            
-            # TODO: it is necessary for the UI to be able to pass query params into this
-            # so that people can filter questions by tags
-            
-            qry = {
-                "query" : { "match_all" : {} },
-                "sort" : {
-                    "_script" : { 
-                        "script" : "Math.random()",
-                        "type" : "string",
-                        "params" : {},
-                        "order" : "asc"
-                    }
-                }
-            }
-
-            if params['tags']:
-                if 'bool' not in qry['query'].keys():
-                    qry['query'] = {'bool':{'must':[]}}
-                for v in params['tags'].split(','):
-                    qry['query']['bool']['must'].append({'term':{'tags.exact':v}})
-            if params['keywords']:
-                if 'bool' not in qry['query'].keys():
-                    qry['query'] = {'bool':{'must':[]}}
-                for v in params['keywords'].split(','):
-                    qry['query']['bool']['must'].append({'term':{'keywords.exact':v}})
-
-            f = models.Question().query(q=qry)
-            try:
-                res = json.dumps(f['hits']['hits'][0]['_source'])
-            except:
-                pass
-        else:
-            f = models.Question().pull(identifier)
-            if f is not None: res = f.json
-
-            
-        if res is not None:
-            resp = make_response( res )
-            resp.mimetype = "application/json"
-            return resp
-        else:
-            abort(404)
-
-    else:
-        if identifier is not None:
-            f = models.Question().pull(identifier)
-        else:
-            f = models.Question()
-
-        if request.json:
-            for k in request.json.keys():
-                if k == 'tags':
-                    f.data[k] = [i.strip(" ") for i in request.json[k].split(',')]
-                else:
-                    f.data[k] = request.json[k]
-        else:
-            for k, v in request.values.items():
-                if k == 'tags':
-                    f.data[k] = [i.strip(" ") for i in v.split(',')]
-                elif k not in ['submit']:
-                    f.data[k] = v
-
-        if len(f.data.get('question','')) > 2:        
-            f.data['question'] = strip_tags(f.data['question'])
-
-        if len(f.data.get('question','')) > 2:
-            f.data['formattedquestion'] = markdown.markdown(f.data['question'])
-            f.data['shortquestion'] = ''
-        
-            tt = []
-            for val in f.data['tags']:
-                val = val.replace('#','').replace('@','')
-                if len(val) > 1:
-                    tt.append(val)
-            f.data['tags'] = tt
-            
-            f.data['keywords'] = mine(blurb=f.data['question'],omitscores=True,raw=True)
-            tk = []
-            for val in f.data['keywords']:
-                val = val.replace('#','').replace('@','')
-                if len(val) > 2:
-                    tk.append(val)
-            f.data['keywords'] = tk
-            
-            f.data = metadata(request,f.data)
-            
-            f.save()
-            flash("Thanks, your question has been added.","success")
-
-        else:
-            flash("Sorry, your question was not sufficiently verbose. Please try again.","danger")
-
-        return redirect("/")
-        
-
-
-# get metadata about the question or answer submitted
-def metadata(request,data):
-    if 'request' not in data:
-        try:
-            try:
-                ra = request.access_route[len(request.access_route)-1]
-            except:
-                ra = request.remote_addr
-            src = requests.get('http://api.hostip.info/get_json.php?position=true&ip=' + ra)
-            try:
-                data['request'] = {
-                    'country_name': src.json()['country_name'],
-                    'country_code': src.json()['country_code'],
-                    'city': src.json()['city'],
-                    'ip': src.json()['ip'],
-                    'geo':{
-                        'lat': src.json()['lat'],
-                        'lng': src.json()['lng']
-                    }
-                }
-            except:
-                pass
-        except:
-            pass
-
-    if 'groups' not in data:
-        data['groups'] = []
-
-    if current_user.is_anonymous() and 'anonymous' not in data['groups']:
-        data['groups'].append('anonymous')
-    elif current_user.id not in data['groups']:
-        data['groups'].append(current_user.id)
-
-    if data['request'].get('city',''):
-        if data['request']['city'] not in data['groups']:
-            data['groups'].append(data['request']['city'])
-    if data['request'].get('ip',''):
-        if data['request']['ip'] not in data['groups']:
-            data['groups'].append(data['request']['ip'])
-    if data['request'].get('geo',{}).get('lat',False) and data['request'].get('geo',{}).get('lng',False):
-        latlng = str(data['request']['geo']['lat']) + ',' + str(data['request']['geo']['lng'])
-        if latlng not in data['groups']:
-            data['groups'].append(latlng)
-
-    return data
-
-
-# strip html from the input question
-class MLStripper(HTMLParser):
-    def __init__(self):
-        self.reset()
-        self.fed = []
-    def handle_data(self, d):
-        self.fed.append(d)
-    def get_data(self):
-        return ''.join(self.fed)
-
-def strip_tags(html):
-    s = MLStripper()
-    s.feed(html)
-    return s.get_data()
-
-*/
-
-
-
-/*
-
-the old leviathan graph
-
-'''
-
-a completely customised graph endpoint for leviathan
-
-receives a query with which to filter the questions, e.g. 
-by tags or by user or by specific question.
-
-then gets all the relevant questions
-and all their tags
-and all their answers
-
-and get all the users - that created questions and submitted answers
-connect users to the questions and answers they created
-
-connect tags to questions they are about
-connect answers to questions they are for
-where a positive answer, shade green
-where negative, shade red
-
-pass the question text so it can be displayed too, and usernames and tags text
-
-get hierarchies once they are enabled, and set a depth controller
-so that for result set can get next level in all three directions
-parents, siblings, children
-then can recurse to depth setting
-
-'''
-
-import json, urllib2, requests
-
-from flask import Blueprint, request, make_response
-
-from portality.core import app
-import portality.models as models
-import portality.util as util
-
-
-blueprint = Blueprint('graph', __name__)
-
-
-@blueprint.route('/', methods=['GET','POST'])
-@util.jsonp
-def graph():
-
-    def qvals(qid):
-        # get the answers for this question and work out value as number of answers
-        ans = [x for x in answers if x['qid.exact'] == qid]
-        val = len(ans)
-
-        # then get the color as avg of answers
-        c = 0.0
-        for a in ans: 
-            c += float(a['answer'])
-        if val != 0: c = c/val
-        f = (c+1) / 2
-        col = '#%02x%02x%02x' % ((1-f)*255, f*255, 0.)
-
-        # if value is 0, increase it to 1 so that the dot shows up
-        if val == 0: val = 1
-
-        return {'value':val,'color':col,'score':c}
-
-
-    def fuzzify(val):
-        if '*' not in val and '~' not in val and ':' not in val:
-            valparts = val.split(',')
-            nval = ""
-            for vp in valparts:
-                if len(vp):
-                    nval += '*' + vp + '* '
-            val = nval
-
-        return val.strip(" ")
-
-    # get any query parameters
-    params = {
-        'facets':request.values.get('facets','').split(','),    
-        'answers': request.values.get('answers',False),
-        'selectedtags': request.values.get('selectedtags',False),
-        'oneoftags': request.values.get('oneoftags',False),
-        'selectedkeywords': request.values.get('selectedkeywords',False),
-        'selectedgroups': request.values.get('selectedgroups',False),
-        'query': request.values.get('query',False),
-        'question': request.values.get('question',False)
-    }
-
-    # the starting query
-    qs = {
-        'query':{
-            'match_all':{
-            }
-        },
-        'size':10000,
-        'fields':[
-            'question.exact',
-            'groups.exact',
-            'tags.exact',
-            'author.exact',
-            'id.exact'
-        ],
-        'facets':{
-        }
-    }
-
-    for fct in params['facets']:
-        if len(fct) > 0:
-            qs['facets'][fct] = {
-                'terms':{
-                    'field':fct + '.exact',
-                    'size':10000
-                }
-            }
-
-    if params['selectedtags']:
-        if 'bool' not in qs['query'].keys():
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        for s in params['selectedtags'].split(','):
-            qs['query']['bool']['must'].append({'term':{'tags.exact':s}})
-
-    if params['oneoftags']:
-        if 'bool' not in qs['query'].keys():
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        if 'should' not in qs['query']['bool'].keys():
-            qs['query']['bool']['should'] = []
-        for s in params['oneoftags'].split(','):
-            qs['query']['bool']['should'].append({'term':{'tags.exact':s}})
-
-    if params['selectedkeywords']:
-        if 'bool' not in qs['query'].keys():
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        for s in params['selectedkeywords'].split(','):
-            qs['query']['bool']['must'].append({'term':{'keywords.exact':s}})
-
-    if params['selectedgroups']:
-        if 'bool' not in qs['query'].keys():
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        for s in params['selectedgroups'].split(','):
-            qs['query']['bool']['must'].append({'term':{'groups.exact':s}})
-
-    if params['query']:
-        if 'bool' not in qs['query'].keys():
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        qs['query']['bool']['must'].append({'query_string':{'query':fuzzify(params['query'])}})
-
-    if params['question']:
-        if 'bool' not in qs['query']:
-            qs['query'] = {
-                'bool':{
-                    'must':[]
-                }
-            }
-        qs['query']['bool']['must'] = {'term':{'id.exact':params['question']}}
-
-    # get all the questions that match the query
-    res = models.Question.query(q=qs)
-    questions = [i['fields'] for i in res.get('hits',{}).get('hits',[])]
-    if 'tags' in params['facets']:
-        tags = [i for i in res.get('facets',{}).get('tags',{}).get('terms',[])]
-    else:
-        tags = []
-    if 'usernames' in params['facets']:
-        usernames = [i for i in res.get('facets',{}).get('usernames',{}).get('terms',[])]
-    else:
-        usernames = []
-    if 'groups' in params['facets']:
-        groups = [i for i in res.get('facets',{}).get('groups',{}).get('terms',[])]
-    else:
-        groups = []
-        
-
-    # get all the answers to those questions
-    aq = {
-        'query':{
-            'filtered':{
-                'query':{
-                    'match_all':{}
-                },
-                'filter':{
-                    'terms':{
-                        'qid.exact':[i['id.exact'] for i in questions]
-                    }
-                }
-            }
-        },
-        'size':100000,
-        'fields':[
-            'answer',
-            'author.exact',
-            'qid.exact',
-            'id.exact'
-        ]
-    }
-    ares = models.Answer.query(q=aq)
-    answers = [i['fields'] for i in ares.get('hits',{}).get('hits',[])]
-
-
-    # put everything into the nodes and work out the links
-    positions = {}
-    nodes = []
-    links = []
-    linksindex = {}
-
-    # put all tags into the nodes
-    for t in tags:    
-        nodes.append({
-            'type':'tag',
-            'id':t['term'],
-            'className':t['term'],
-            'label': '#' + t['term'],
-            'hoverlabel': t['term'] + " (" + str(t['count']) + ')',
-            'value':t['count'],
-            'color':'white'
-        })
-        positions[t['term']] = len(nodes) - 1
-
-    # put all usernames into the nodes
-    for u in usernames:    
-        nodes.append({
-            'type':'username',
-            'id':u['term'],
-            'className':u['term'],
-            'label': '@' + u['term'],
-            'hoverlabel': u['term'] + " (" + str(u['count']) + ')',
-            'value':u['count'],
-            'color':'orange'
-        })
-        positions[u['term']] = len(nodes) - 1
-
-    # put all groups into the nodes
-    for g in groups:
-        nodes.append({
-            'type':'group',
-            'id':g['term'],
-            'className':g['term'],
-            'label': '@' + g['term'],
-            'hoverlabel': g['term'] + " (" + str(g['count']) + ')',
-            'value':g['count'],
-            'color':'#ffeeaa'
-        })
-        positions[g['term']] = len(nodes) - 1
-
-    for q in questions:
-        # add every question to the nodes
-        qv = qvals(q['id.exact'])
-        nodes.append({
-            'type':'question',
-            'id':q['id.exact'],
-            'className':q.get('question.exact',""),
-            'label': q.get('shortquestion.exact',q.get('question.exact',"")),
-            'hoverlabel': q.get('question.exact',"") + " - averaged " + str(qv['score']) + " over " + str(qv['value']) + " votes",
-            'score':qv['score'],
-            'value':qv['value'],
-            'color':qv['color']
-        })
-        positions[q['id.exact']] = len(nodes) - 1
-        # for every question write a link to the author
-        if 'usernames' in params['facets']:
-            links.append({
-                'source':positions[q['id.exact']],
-                'target':positions[q['author.exact']]
-            })
-            linksindex[str(positions[q['id.exact']]) + "," + str(positions[q['author.exact']])] = 1
-        # for every question write a link to all of its tags
-        if 'tags' in params['facets']:
-            tgs = q.get('tags.exact',[])
-            if not isinstance(tgs,list): tgs = [tgs]
-            for tag in tgs:
-                links.append({
-                    'source':positions[q['id.exact']],
-                    'target':positions[tag]
-                })
-                linksindex[str(positions[q['id.exact']]) + "," + str(positions[tag])] = 1    
-        # for every question write a link to all of its tags
-        if 'groups' in params['facets']:
-            gps = q.get('groups.exact',[])
-            if not isinstance(gps,list): gps = [gps]
-            for gp in gps:
-                links.append({
-                    'source':positions[q['id.exact']],
-                    'target':positions[gp]
-                })
-                linksindex[str(positions[q['id.exact']]) + "," + str(positions[gp])] = 1
-
-        
-    if params['answers']:
-
-        for a in answers:
-            # add every answer to the nodes
-            if a['answer'] > 0:
-                col = '#33CC00'
-            elif a['answer'] == 0:
-                col = '#666'
-            elif a['answer'] < 0:
-                col = 'red'
-            nodes.append({
-                'type':'answer',
-                'id':a['id.exact'],
-                'label': "",
-                'hoverlabel': a['author.exact'] + " voted " + str(a['answer']),
-                'value':1,
-                'color':col
-            })
-            positions[a['id.exact']] = len(nodes) - 1
-            # for every answer write a link to the question
-            links.append({
-                'source':positions[a['id.exact']],
-                'target':positions[a['qid.exact']]
-            })
-            linksindex[str(positions[a['id.exact']]) + "," + str(positions[a['qid.exact']])] = 1
-            # TODO: put links to faceted things that are relevant to answers, like groups or usernames
-            '''if params['usernames']:
-                links.append({
-                    'source':positions[a['id.exact']],
-                    'target':positions[a['author.exact']]
-                })
-                linksindex[str(positions[a['id.exact']]) + "," + str(positions[a['author.exact']])] = 1'''
-
-
-    # send back the answer
-    resp = make_response( json.dumps( {'nodes':nodes,'links':links, 'linksindex':linksindex} ) )
-    resp.mimetype = "application/json"
-    return resp
-
-*/
+// is activism causal, or caused by, actions (or at least (stated) beliefs about actions)
 
 

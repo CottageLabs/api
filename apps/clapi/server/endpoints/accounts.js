@@ -569,21 +569,13 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
     }
     if (Meteor.settings.ROOT_LOGIN_WARN && user.roles && user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1) {
       console.log('root user logged in ' + user._id);
-      var from = loc.indexOf('test.cottagelabs.com') === -1 ? 'sysadmin@cottagelabs.com' : 'alert@cottagelabs.com';
-      var xf = request.headers['x-forwarded-for'];
-      var xr = request.headers['x-real-ip'];
-      var subject = loc.indexOf('test.cottagelabs.com') === -1 ? 'root login' : 'dev accounts endpoint root login';
-      subject += ' ' + xr;
-      var cache = [];
-      var req = JSON.stringify(request, function(key, value) {
-        if (typeof value === 'object' && value !== null) {
-          if (cache.indexOf(value) !== -1) return;
-          cache.push(value);
-        }
-        return value;
-      },2);
-      cache = null;
-      CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + user._id + '\n\n' + loc + '\n\n' + xr + '\n\n' + xf + '\n\n'}); //  + req
+      if (!Meteor.settings.dev) {
+        var from = 'alert@cottagelabs.com';
+        var xf = request.headers['x-forwarded-for'];
+        var xr = request.headers['x-real-ip'];
+        var subject = 'root account login ' + xr;
+        CLapi.internals.mail.send({from: from, to:'mark@cottagelabs.com',subject:subject,text:'root user logged in\n\n' + user._id + '\n\n' + loc + '\n\n' + xr + '\n\n' + xf + '\n\n'});
+      }
     }
     // generating new resume tokens every time was always going to push quite a load to the db, 
     // but it also seems impossible to reliably implement, due to what appears to be browser prefetching
@@ -857,49 +849,53 @@ CLapi.internals.accounts.delete = function(uid,user,service) {
   }
 }
 
-CLapi.internals.accounts.auth = function(gr,user,cascade) {
-  if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
-  if ( !user.roles ) return false; // if no roles can't have any auth, except on own group (above)
-  // override if user has global root always return true
-  if ( user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1 ) {
-    console.log('user ' + user._id + ' has role root');
-    return 'root';
-  }
-  // otherwise get group and role from gr or assume global role
-  var role, grp;
-  var rp = gr.split('.');
-  if ( rp.length === 1 ) {
-    grp = '__global_roles__';
-    role = rp[0];
-  } else {
-    grp = rp[0];
-    role = rp[1];
-  }
-  // check if user has group role specified
-  if ( user.roles[grp] && user.roles[grp].indexOf(role) !== -1 ) {
-    console.log('user ' + user._id + ' has role ' + gr);
-    return role;
-  }
-  // or else check for higher authority in cascading roles for group
-  // TODO ALLOW CASCADE ON GLOBAL OR NOT?
-  // cascading roles, most senior on left, allowing access to all those to the right
-  var cascading = ['root','service','super','owner','admin','auth','publish','edit','read','user','info','public'];
-  if ( cascade === undefined ) cascade = true;
-  if ( cascade ) {
-    var ri = cascading.indexOf(role);
-    if ( ri !== -1 ) {
-      var cascs = cascading.splice(0,ri);
-      for ( var r in cascs) {
-        var rl = cascs[r];
-        if ( user.roles[grp] && user.roles[grp].indexOf(rl) !== -1 ) {
-          console.log('user ' + user._id + ' has cascaded role ' + grp + '.' + rl + ' overriding ' + gr);
-          return rl;
+CLapi.internals.accounts.auth = function(grl,user,cascade) {
+  if (typeof grl === 'string') grl = [grl];
+  for ( var g in grl ) {
+    var gr = grl[g];
+    if ( gr.split('.')[0] === user._id ) return 'root'; // any user is effectively root on their own group - which matches their user ID
+    if ( !user.roles ) return false; // if no roles can't have any auth, except on own group (above)
+    // override if user has global root always return true
+    if ( user.roles.__global_roles__ && user.roles.__global_roles__.indexOf('root') !== -1 ) {
+      console.log('user ' + user._id + ' has role root');
+      return 'root';
+    }
+    // otherwise get group and role from gr or assume global role
+    var role, grp;
+    var rp = gr.split('.');
+    if ( rp.length === 1 ) {
+      grp = '__global_roles__';
+      role = rp[0];
+    } else {
+      grp = rp[0];
+      role = rp[1];
+    }
+    // check if user has group role specified
+    if ( user.roles[grp] && user.roles[grp].indexOf(role) !== -1 ) {
+      console.log('user ' + user._id + ' has role ' + gr);
+      return role;
+    }
+    // or else check for higher authority in cascading roles for group
+    // TODO ALLOW CASCADE ON GLOBAL OR NOT?
+    // cascading roles, most senior on left, allowing access to all those to the right
+    var cascading = ['root','service','super','owner','admin','auth','publish','edit','read','user','info','public'];
+    if ( cascade === undefined ) cascade = true;
+    if ( cascade ) {
+      var ri = cascading.indexOf(role);
+      if ( ri !== -1 ) {
+        var cascs = cascading.splice(0,ri);
+        for ( var r in cascs) {
+          var rl = cascs[r];
+          if ( user.roles[grp] && user.roles[grp].indexOf(rl) !== -1 ) {
+            console.log('user ' + user._id + ' has cascaded role ' + grp + '.' + rl + ' overriding ' + gr);
+            return rl;
+          }
         }
       }
     }
+    // otherwise user fails role check
+    console.log('user ' + user._id + ' does not have role ' + gr);
   }
-  // otherwise user fails role check
-  console.log('user ' + user._id + ' does not have role ' + gr);
   return false;
 }
 
