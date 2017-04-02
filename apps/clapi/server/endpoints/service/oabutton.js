@@ -206,7 +206,7 @@ CLapi.addRoute('service/oab/request', {
         var acc = CLapi.internals.accounts.retrieve(apikey);
         if (acc) uid = acc._id;
       }
-      return CLapi.internals.service.oab.request(req,uid);
+      return CLapi.internals.service.oab.request(req,uid,this.queryParams.fast);
     }
   }
 });
@@ -253,6 +253,7 @@ CLapi.addRoute('service/oab/request/:rid', {
     action: function() {
       var r = oab_request.findOne(this.urlParams.rid);
       if (r) {
+        if (r.user === undefined && !r.story && this.request.body.story ) r = CLapi.internals.service.oab.own(r._id,this.userId);
         // depending on whether user, creator, or admin, affects what things can be updated
         var n = {};
         if (CLapi.internals.accounts.auth('openaccessbutton.admin',this.user)) {
@@ -268,9 +269,9 @@ CLapi.addRoute('service/oab/request/:rid', {
         if (this.request.body.title !== undefined) n.title = this.request.body.title;
         if (this.request.body.doi !== undefined) n.doi = this.request.body.doi;
         if (n.status === undefined) {
-          if ( (!r.title && !n.title) || (!r.email && !n.email) ) {
+          if ( (!r.title && !n.title) || (!r.email && !n.email) || (!r.story && !n.story) ) {
             n.status = 'help';
-          } else if (r.status === 'help' && ( (r.title || n.title) && (r.email || n.email) ) ) {
+          } else if (r.status === 'help' && ( (r.title || n.title) && (r.email || n.email) && (r.story || n.story) ) ) {
             n.status = 'moderate';
           }
         }
@@ -525,7 +526,7 @@ CLapi.addRoute('service/oab/accepts', {
 CLapi.addRoute('service/oab/blacklist', {
   get: {
     action: function() {
-      return {status:'success',data:CLapi.internals.service.oab.blacklist(undefined,this.queryParams.stale)};
+      return {status:'success',data:CLapi.internals.service.oab.blacklist(undefined,undefined,this.queryParams.stale)};
     }
   }
 });
@@ -659,21 +660,23 @@ CLapi.addRoute('service/oab/bug', {
   post: {
     action: function() {
       // this.request.body - holds hte form info. what will we do with it
-      console.log(this.request.body);
-      return this.request.body;
-      /* submit general feedback / uninstall / dnr feedback to zendesk
-         submit general bug reports to github issues & notify help@openaccessbutton.org (to make it easy to follow up and thank)
-         submit "wrong link" info to github issue & notify help@openaccessbutton.org (to make it easy to follow up and thank)
-         send a notification about "why you can't share something" to requests@openaccessbutton.org. & save data alongside request data in request system
-       */
-      /*return {
+      // if this.request.body.form = bug or wrong should also create on github
+      // if it is noshare, should save info into the related request and email requests@openaccessbutton.org (need the request ID in a url param somewhere)
+      CLapi.internals.mail.send({
+        from: 'help@openaccessbutton.org',
+        to: ['help@openaccessbutton.org'],
+        subject: 'Feedback form submission',
+        text: JSON.stringify(this.request.body,undefined,2)
+      });
+      
+      return {
         statusCode: 302,
         headers: {
           'Content-Type': 'text/plain',
           'Location': 'https://openaccessbutton.org/bug#defaultthanks'
         },
         body: 'Location: ' + 'https://openaccessbutton.org/bug#defaultthanks'
-      };*/
+      };
     }    
   }
 });
@@ -764,7 +767,9 @@ CLapi.internals.service.oab.dnr = function(email,add,refuse) {
   return ondnr !== undefined || add === true;
 }
 
-CLapi.internals.service.oab.blacklist = function(url,stale) {
+CLapi.internals.service.oab.blacklist = function(url,fulltextable,stale) {
+  if (stale === false) stale = 0;
+  if (stale === undefined) stale = 60000;
   if (url !== undefined && (url.length < 4 || url.indexOf('.') === -1) ) return false;
   var bl = CLapi.internals.use.google.sheets.feed(Meteor.settings.openaccessbutton.blacklist_sheetid,stale);
   var blacklist = [];
@@ -773,6 +778,15 @@ CLapi.internals.service.oab.blacklist = function(url,stale) {
     for ( var b in blacklist ) {
       if (url.indexOf(blacklist[b]) !== -1) return true;
     }
+    /*if (fulltextable) {
+      var ft = CLapi.internals.use.google.sheets.feed(Meteor.settings.openaccessbutton.repositories_sheetid,stale);
+      for ( var f in ft ) {
+        // TODO see if we can discern fulltext link from current URL
+        // or if we can discern fulltext link from page, then get page content and look for it
+        // if a suitable url can be found, return it
+        // otherwise continue
+      }
+    }*/
     return false;
   } else {
     return blacklist;
@@ -825,7 +839,7 @@ to create a request the url and type are required, What about story?
   }
 }
 */
-CLapi.internals.service.oab.request = function(req,uid) {
+CLapi.internals.service.oab.request = function(req,uid,fast) {
   // this can contain user-side data so fail silently if anything wrong
   console.log('oabutton creating new request');
   var dom;
@@ -859,7 +873,7 @@ CLapi.internals.service.oab.request = function(req,uid) {
   }
   if (rid === undefined) rid = oab_request.insert({url:req.url,type:req.type});
   var user = uid ? Meteor.users.findOne(uid) : undefined;
-  if (req.user === undefined && user) {
+  if (req.user === undefined && user && req.story) {
     var un = user.profile && user.profile.firstname ? user.profile.firstname : user.username;
     if (!un) un = user.emails[0].address;
     req.user = {
@@ -874,11 +888,10 @@ CLapi.internals.service.oab.request = function(req,uid) {
     try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
     try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
   }
-  req.count = 1;
+  req.count = req.story ? 1 : 0;
   
-  // what of that info can be used to start a request automatically?
-  if (!req.title || !req.email || !req.keywords) { // worth scraping on any other circumstance?
-    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi); // TODO what if there is not a url available?
+  if (!fast && (!req.title || !req.email) ) { // worth scraping on any other circumstance?
+    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi);
     req.keywords = meta && meta.keywords ? meta.keywords : [];
     req.title = meta && meta.title ? meta.title : "";
     req.doi = meta && meta.doi ? meta.doi : "";
@@ -893,7 +906,7 @@ CLapi.internals.service.oab.request = function(req,uid) {
     req.publisher = meta && meta.publisher ? meta.publisher : "";
   }
 
-  req.status = !req.title || !req.email || req.user === undefined ? "help" : "moderate";
+  req.status = !req.story || !req.title || !req.email || req.user === undefined ? "help" : "moderate";
   
   // shorten the geolocation if present
   // http://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude
@@ -945,7 +958,8 @@ CLapi.internals.service.oab.own = function(rid,uid,anonymous) {
         try {req.user.affiliation = user.service.openaccessbutton.profile.affiliation; } catch(err) {}
         try {req.user.profession = user.service.openaccessbutton.profile.profession; } catch(err) {}
       }
-      oab_request.update(rid,{$set:{user:req.user}});
+      if (req.count === undefined || req.count === 0) req.count = 1;
+      oab_request.update(rid,{$set:{user:req.user,count:req.count}});
     }
     return req;
   }
@@ -1151,7 +1165,7 @@ CLapi.internals.service.oab.availability = function(opts) {
     var url;
     if (opts.refresh !== true && opts.url) {
       var avail = oab_availability.findOne({$and:[{'url':opts.url},{'discovered':{$exists:true}},{'discovered.article':{$ne:false}}]});
-      if (avail && !CLapi.internals.service.oab.blacklist(avail.discovered.article,60000)) {
+      if (avail && !CLapi.internals.service.oab.blacklist(avail.discovered.article)) {
         console.log('found in previous availabilities ' + opts.url + ' ' + avail.url + ' ' + avail.discovered.article);
         url = avail.discovered.article;
         if (avail.source && avail.source.article) ret.meta.article.source = avail.source.article;
@@ -1160,6 +1174,7 @@ CLapi.internals.service.oab.availability = function(opts) {
     if (url === undefined) {
       var res = CLapi.internals.academic.resolve(opts.url,opts.dom); // opts.url could actually be a pmid, pmc, or doi - this checks oabutton for received requests too
       ret.meta.article.doi = res.doi;
+      if (ret.meta.article.doi && ret.match.indexOf('http') !== 0 ) ret.match = 'https://doi.org/' + ret.meta.article.doi;
       ret.meta.article.source = res.source;
       ret.meta.article.title = res.title;
       ret.meta.article.journal_url = res.journal_url;
@@ -1555,7 +1570,7 @@ if ( Meteor.settings.openaccessbutton && Meteor.settings.openaccessbutton.cron )
   if (Meteor.settings.openaccessbutton.cron.osf) {
     SyncedCron.add({
       name: 'oabutton_osf',
-      schedule: function(parser) { return parser.recur().every(4).minute(); },
+      schedule: function(parser) { return parser.recur().every(10).minute(); },
       job: CLapi.internals.service.oab.cron.osf
     });
   }

@@ -33,7 +33,7 @@ CLapi.internals.use.figshare = {};
 
 CLapi.internals.use.figshare.doi = function(doi) {
   var res = CLapi.internals.use.figshare.search({search_for:doi});
-  if (res.data && res.data[0].doi === doi) {
+  if (res.data && res.data.length && res.data[0].doi === doi) {
     return {status: 'success', data: res.data[0]};
   } else {
     return {status:'error'};

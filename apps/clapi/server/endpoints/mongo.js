@@ -116,6 +116,8 @@ CLapi.internals.mongo.delete = function(coll,rec) {
   if ( coll === 'academic_resolved' ) academic_resolved.remove(rec);
   if ( coll === 'hidden_gems' ) hidden_gems.remove(rec);
   if ( coll === 'users' ) Meteor.users.remove(rec);
+  if ( coll === 'leviathan_statement' ) leviathan_statement.remove(rec);
+  if ( coll === 'leviathan_score' ) leviathan_score.remove(rec);
   return {status: 'success'}
 }
 

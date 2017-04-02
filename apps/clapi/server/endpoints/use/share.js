@@ -78,7 +78,12 @@ CLapi.internals.use.share.open = function(record) {
       for ( var id in record.identifiers) {
         if (record.identifiers[id].indexOf('http') === 0) {
           if (record.identifiers[id].indexOf('doi.org') === -1) {
-            if (!CLapi.internals.service.oab.blacklist(u)) u = record.identifiers[id];
+            var bl = CLapi.internals.service.oab.blacklist(u);
+            if (bl && bl !== true) {
+              u = bl;
+            } else if (!bl) {
+              u = record.identifiers[id];
+            }
           } else if (d === undefined) {
             d = record.identifiers[id];
           }

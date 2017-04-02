@@ -429,10 +429,6 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             }
           }
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
-        }
       } catch(err) {}
     }
     if (!ret.url) {
@@ -458,13 +454,18 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           ret.licence = res.data.license; // are these two useful, to save use looking up?
           ret.color = res.data.oa_color;
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
+        if (ret.url) {
+          var bl = CLapi.internals.service.oab.blacklist(ret.url,true);
+          if (bl && bl !== true) {
+            ret.url = bl;
+          } else if (bl) {
+            ret.blacklist = ret.url;
+            ret.url = undefined;          
+          }
         }
       } catch(err) {}
     }
-    if (!ret.url) {
+    /*if (!ret.url) {
       // Dissemin sometimes returns things it says it found in BASE even though we cannot find them in BASE
       // but search BASE first anyway, as often we do find things there, then go on to Dissemin
       try { // check BASE
@@ -474,13 +475,18 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           ret.title = res.data.dctitle;
           ret.source = 'BASE';
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
+        if (ret.url) {
+          var bl = CLapi.internals.service.oab.blacklist(ret.url,true);
+          if (bl && bl !== true) {
+            ret.url = bl;
+          } else if (bl) {
+            ret.blacklist = ret.url;
+            ret.url = undefined;          
+          }
         }
       } catch(err) {}
-    }
-    if (!ret.url) { // check dissemin - it does return more things than just what is in BASE, and sometimes finds things there we can't, for unknown reason
+    }*/
+    /*if (!ret.url) { // check dissemin - it does return more things than just what is in BASE, and sometimes finds things there we can't, for unknown reason
       try {
         res = CLapi.internals.use.dissemin.doi(ident);
         if (res.data.pdf_url && res.data.pdf_url.toLowerCase().indexOf('researchgate') === -1) {
@@ -490,12 +496,8 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           ret.title = res.data.title;
           ret.url = res.data.pdf_url;
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
-        }
       } catch(err) {}
-    }
+    }*/
     if (!ret.url) {
       try {
         res = CLapi.internals.use.core.articles.doi(ident);
@@ -507,8 +509,15 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           var uu;
           for ( var u in res.data.fulltextUrls ) {
             var tu = res.data.fulltextUrls[u];
-            if ( tu.indexOf('dx.doi.org') === -1 && tu.indexOf('core.ac.uk') === -1 && !CLapi.internals.service.oab.blacklist(tu) && (uu === undefined || ( uu.indexOf('.pdf') === -1 && tu.indexOf('.pdf') !== -1 ) ) ) {
-              uu = tu;
+            if ( tu.indexOf('dx.doi.org') === -1 && tu.indexOf('core.ac.uk') === -1 && (uu === undefined || ( uu.indexOf('.pdf') === -1 && tu.indexOf('.pdf') !== -1 ) ) ) {
+              var bl = CLapi.internals.service.oab.blacklist(tu,true);
+              if (bl && bl !== true) {
+                uu = bl;
+              } else if (bl) {
+                ret.blacklist = tu;
+              } else {
+                uu = tu;
+              }
             }
           }
           if (uu !== undefined) {
@@ -541,10 +550,6 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             ret.url = res.data.url_public_html;
           }
           if (!ret.title) ret.title = res.data.title;
-        }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
         }
       } catch(err) {}
     }
@@ -613,10 +618,6 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             }
           }
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
-        }
       } catch(err) {}
     }
     if (!ret.url) {
@@ -645,9 +646,14 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             ret.source = 'BASE';
           }
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
+        if (ret.url) {
+          var bl = CLapi.internals.service.oab.blacklist(ret.url,true);
+          if (bl && bl !== true) {
+            ret.url = bl;
+          } else if (bl) {
+            ret.blacklist = ret.url;
+            ret.url = undefined;          
+          }
         }
       } catch(err) {}
     }
@@ -684,8 +690,15 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             var cu;
             for ( var c in rb.fulltextUrls ) {
               var ou = rb.fulltextUrls[c];
-              if ( ou.indexOf('dx.doi.org') === -1 && ou.indexOf('core.ac.uk') === -1 && !CLapi.internals.service.oab.blacklist(ou) && (cu === undefined || ( cu.indexOf('.pdf') === -1 && cu.indexOf('.pdf') !== -1 ) ) ) {
-                cu = ou;
+              if ( ou.indexOf('dx.doi.org') === -1 && ou.indexOf('core.ac.uk') === -1 && (cu === undefined || ( cu.indexOf('.pdf') === -1 && cu.indexOf('.pdf') !== -1 ) ) ) {
+                var bl =  CLapi.internals.service.oab.blacklist(ou,true);
+                if (bl && bl !== true) {
+                  cu = bl;
+                } else if (bl) {
+                  ret.blacklist = ou;
+                } else {
+                  cu = ou;                
+                }
               }
             }
             if (cu !== undefined) {
@@ -697,7 +710,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         }
       } catch (err) {}
     }
-    if (!ret.url) { // check figshare
+    /*if (!ret.url) { // check figshare
       try {
         res = CLapi.internals.use.figshare.search({'search_for':'"' + ret.title + '"'});
         if (res.data && res.data.length > 0) {
@@ -706,12 +719,8 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
             ret.url = res.data[0].url_public_html;
           }
         }
-        if (ret.url && CLapi.internals.service.oab.blacklist(ret.url)) {
-          ret.blacklist = ret.url;
-          ret.url = undefined;
-        }
       } catch(err) {}
-    }
+    }*/
     if (!ret.url) {
       // check doaj
       res = CLapi.internals.use.doaj.articles.search('bibjson.title.exact:"'+ret.title+'"');

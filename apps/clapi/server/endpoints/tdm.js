@@ -117,6 +117,24 @@ CLapi.addRoute('tdm/match', {
 
 CLapi.internals.tdm = {};
 
+// http://stackoverflow.com/questions/4009756/how-to-count-string-occurrence-in-string
+CLapi.internals.tdm.occurrence = function (content, sub, overlap) {
+	content += "";
+	sub += "";
+	if (sub.length <= 0) return (content.length + 1);
+	var n = 0,
+		pos = 0,
+		step = overlap ? 1 : sub.length;
+	while (true) {
+		pos = content.indexOf(sub, pos);
+		if (pos >= 0) {
+			++n;
+			pos += step;
+		} else break;
+	}
+	return n;
+}
+
 CLapi.internals.tdm.levenshtein = function(a,b) {
 	function minimator(x, y, z) {
 		if (x <= y && x <= z) return x;

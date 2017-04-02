@@ -491,6 +491,11 @@ clogin.loginSuccess = function(data) {
     if (typeof clogin.afterLogin === 'function') clogin.afterLogin();
   }
 }
+clogin.nologin = function() {
+  // a function to run if there is nothing to perform for a login, e.g. no email or hash available
+  // this is most handily replaced by a function that does what is needed on pages where users must be logged in
+  if (clogin.debug) console.log('No login info available');
+}
 clogin.login = function(e) {
   if (clogin.debug) console.log('Clogin starting login');
   if (e) e.preventDefault();
@@ -540,6 +545,8 @@ clogin.login = function(e) {
   if ( data.email || data.hash ) {
     if (clogin.loadingId) $('#'+clogin.loadingId).show();
     $.ajax(opts);
+  } else {
+    clogin.nologin();
   }
 }
 

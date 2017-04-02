@@ -93,6 +93,18 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
 			var ud = mr.exec(decodeURIComponent(url));
       if (ud && ud.length > 1 && 9 < ud[1].length && ud[1].length < 45) meta.doi = ud[1];
     }
+		if (!meta.doi && content) {
+			try {
+				//<meta name="DC.Identifier" content="10.1126/science.aam5488" /
+				var cl = content.toLowerCase();
+				if (cl.indexOf('dc.identifier') !== -1) {
+					cl = cl.split('dc.identifier')[1].split('content')[1];
+					if (cl.indexOf('"') !== -1) cl = cl.split('"')[1];
+					if (cl.indexOf("'") !== -1) cl = cl.split("'")[1];
+					if (cl.indexOf('10.') === 0 && cl.indexOf('/') !== -1) meta.doi = cl;
+				}
+			} catch(err) {}
+		}
     if (!meta.doi && content) { // look for DOI in content
 			// TODO add a check for <meta name="citation_doi" content="DOI" />
       try {

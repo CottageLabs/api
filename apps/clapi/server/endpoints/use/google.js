@@ -65,6 +65,24 @@ CLapi.addRoute('use/google/language/entities', {
   }
 });
 
+CLapi.addRoute('use/google/knowledge/retrieve/:letter/:id', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      // knowledge mids appear to look like /m/0k8z - but is it always m, are they always this format? Assume yes for now
+      return CLapi.internals.use.google.knowledge.retrieve('/' + this.urlParams.letter + '/' + this.urlParams.id,this.queryParams.types,this.queryParams.wikidata);
+    }
+  }
+});
+CLapi.addRoute('use/google/knowledge/search', {
+  get: {
+    roleRequired:'root',
+    action: function() {
+      return CLapi.internals.use.google.knowledge.search(this.queryParams.q,this.queryParams.limit);
+    }
+  }
+});
+
 
 
 CLapi.internals.use.google = {};
@@ -72,6 +90,44 @@ CLapi.internals.use.google.places = {};
 CLapi.internals.use.google.docs = {};
 CLapi.internals.use.google.sheets = {};
 CLapi.internals.use.google.cloud = {};
+CLapi.internals.use.google.knowledge = {};
+
+// https://developers.google.com/knowledge-graph/
+// https://developers.google.com/knowledge-graph/reference/rest/v1/
+CLapi.internals.use.google.knowledge.retrieve = function(mid,types,wikidata) {
+  var u = 'https://kgsearch.googleapis.com/v1/entities:search?key=' + Meteor.settings.GOOGLE_SERVER_KEY + '&limit=1&ids=' + mid;
+  if (types) {
+    if (typeof types !== 'string') types = types.join('&types='); // are multiple types done by comma separation or key repetition?
+    u += '&types=' + types;
+  }
+  var ret = {}
+  try {
+    var res = Meteor.http.call('GET',u);
+    ret = res.data.itemListElement[0].result;
+    ret.score = res.data.itemListElement[0].resultScore;
+    if (wikidata) {
+      ret.wikidata = CLapi.internals.use.google.knowledge.wikidata(ret["@id"].replace('kg:',''),ret.detailedDescription.url);
+    }
+  } catch(err) {}
+  return ret;
+}
+
+CLapi.internals.use.google.knowledge.search = function(qry,limit) {
+  if (limit === undefined) limit = 10;
+  var u = 'https://kgsearch.googleapis.com/v1/entities:search?key=' + Meteor.settings.GOOGLE_SERVER_KEY + '&limit=' + limit + '&query=' + qry;
+  var res = Meteor.http.call('GET',u);
+  return res.data;
+}
+
+CLapi.internals.use.google.knowledge.wikidata = function(mid,wurl) {
+  if (mid && !wurl) {
+    var k = CLapi.internals.use.google.knowledge.retrieve(mid);
+    if (k.detailedDescription && k.detailedDescription.url) wurl = k.detailedDescription.url
+  }
+  if (wurl) {
+    return CLapi.internals.use.wikidata.find(undefined,wurl);
+  }
+}
 
 // https://cloud.google.com/natural-language/docs/getting-started
 // https://cloud.google.com/natural-language/docs/basics
@@ -91,7 +147,7 @@ CLapi.internals.use.google.cloud.language = function(content,actions,auth) {
   var client = language(auth);
   var document = client.document(content);
   var res = {};
-    
+
   var entities = Async.wrap(function(content,callback) {
     document.detectEntities(content, function(err, result) {
       return callback(null,result);
@@ -111,7 +167,7 @@ CLapi.internals.use.google.cloud.language = function(content,actions,auth) {
 
 CLapi.internals.use.google.places.autocomplete = function(qry) {
   console.log('Using google places autocomplete to query ' + qry);
-  var url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + qry + '&key=' + Meteor.settings.GOOGLE_API_KEY;
+  var url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + qry + '&key=' + Meteor.settings.GOOGLE_SERVER_KEY;
   try {
     return Meteor.http.call('GET',url).data;
   } catch(err) {
@@ -129,7 +185,7 @@ CLapi.internals.use.google.places.place = function(id,qry) {
       return {status:'error'}
     }
   }
-  var url = 'https://maps.googleapis.com/maps/api/place/details/json?placeid=' + id + '&key=' + Meteor.settings.GOOGLE_API_KEY;
+  var url = 'https://maps.googleapis.com/maps/api/place/details/json?placeid=' + id + '&key=' + Meteor.settings.GOOGLE_SERVER_KEY;
   try {
     return Meteor.http.call('GET',url).data;
   } catch(err) {

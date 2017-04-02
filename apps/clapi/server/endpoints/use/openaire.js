@@ -89,9 +89,15 @@ CLapi.internals.use.openaire.open = function(rec) {
   if (rec.metadata && rec.metadata['oaf:result'] && rec.metadata['oaf:result'].bestlicense && rec.metadata['oaf:result'].bestlicense['@classid'] === 'OPEN' && rec.metadata['oaf:result'].children && rec.metadata['oaf:result'].children.instance && rec.metadata['oaf:result'].children.instance.length > 0 ) {
     for ( var o in rec.metadata['oaf:result'].children.instance ) {
       var i = rec.metadata['oaf:result'].children.instance[o];
-      if (i.licence && i.licence['@classid'] === 'OPEN' && i.webresource && i.webresource.url && i.webresource.url.$ && !CLapi.internals.service.oab.blacklist(i.webresource.url.$) ) {
-        open = i.webresource.url.$;
-        break;
+      if (i.licence && i.licence['@classid'] === 'OPEN' && i.webresource && i.webresource.url && i.webresource.url.$ ) {
+        var bl = CLapi.internals.service.oab.blacklist(i.webresource.url.$);
+        if (bl && bl !== true) {
+          open = bl;
+          break;
+        } else if (!bl) {
+          open = i.webresource.url.$;
+          break;          
+        }
       }
     }
   }

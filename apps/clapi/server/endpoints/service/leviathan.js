@@ -155,21 +155,6 @@ CLapi.addRoute('service/leviathan/scores', {
   }
 });
 
-CLapi.addRoute('service/leviathan/levor/scoreboard', {
-  get: {
-    action: function() {
-      var uid = this.userId;
-      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
-        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
-        var acc = CLapi.internals.accounts.retrieve(apikey);
-        uid = acc._id;
-      }
-      if (this.queryParams.uid) uid = this.queryParams.uid;
-      return CLapi.internals.service.leviathan.levor.scoreboard(this.queryParams.count,this.queryParams.score,this.queryParams.target,this.queryParams.daily,uid);
-    }
-  }
-});
-
 CLapi.addRoute('service/leviathan/:uid', {
   get: {
     action: function() {
@@ -397,52 +382,77 @@ CLapi.internals.service.leviathan.import = {}
 CLapi.internals.service.leviathan.import.url = function(opts) {
   var src = Meteor.http.call('GET', opts.url).content;
   //src = src.replace(/\n/g,'').replace(/<ul.*?<\/ul>/g,'').replace(/<a.*?<\/a>/g,''); // these can lead to slightly tidier results but lose a lot of interesting words
+  src = src.replace(/<\/li>/g,'.');
   var content = CLapi.internals.convert.xml2txt(undefined,src);
   var ggl = CLapi.internals.use.google.cloud.language(content,'entities');
   var lthings = [];
   var things = [];
   var length = opts.words ? opts.words : 2;
   for ( var e in ggl.entities ) {
-    for ( var t in ggl.entities[e] ) {
-      var sts = (ggl.entities[e][t][0].toUpperCase() + ggl.entities[e][t].substring(1,ggl.entities[e][t].length)).split(' ');
-      var psts = [];
-      for ( var ps in sts ) {
-        if (sts[ps].replace(/[^a-zA-Z]/g,'').length > 1 && sts[ps].indexOf('@') === -1 && psts.indexOf(sts[ps]) === -1) psts.push(sts[ps]); 
-      }
-      if (psts.length === 2) psts = [psts[0] + ' ' + psts[1]];
-      for ( var pe in psts ) {
-        var per = psts[pe];
-        if (lthings.indexOf(per.toLowerCase()) === -1 && per.toUpperCase() !== per) { // avoid things that are all caps...
-          lthings.push(per.toLowerCase());
-          things.push(per);
-          var category = opts.category ? opts.category : 'or';
-          var exists = leviathan_statement.findOne({statement:per}); // what params should be used to check existence? How old to limit new versions, or within categories?
-          if (!exists) {
-            // should get user data for statement, but for now just assume they are all by me
-            var keywords = [];
-            if ( ggl.entities[e][t][0].toUpperCase() === ggl.entities[e][t][0] && e === 'people' || e === 'organizations' ) { // could do places as well... 
-              if ( e === 'people' && per.indexOf(' ') !== -1 ) {
-                if ( per.split(' ')[1][0].toUpperCase() === per.split(' ')[1][0] ) keywords = CLapi.internals.tdm.categorise(per);
-              } else {
-                keywords = CLapi.internals.tdm.categorise(per);
-              }
-            }
-            CLapi.internals.service.leviathan.statement('new',{
-              keywords:keywords,
-              category: category,
-              source: opts.url,
-              entity: e,
-              statement:per,
-              uid:'WhPxWCrbZgRS5Hv4W',
-              username:'Leviathan',
-              email:'mark@cottagelabs.com'
-            });
+    var ent = ggl.entities[e];
+    var per = ent.name;
+    /*var sts = (ent.name[0].toUpperCase() + ent.name.substring(1,ent.name.length)).split(' ');
+    var psts = [];
+    for ( var ps in sts ) {
+      if (sts[ps].replace(/[^a-zA-Z]/g,'').length > 1 && sts[ps].indexOf('@') === -1 && psts.indexOf(sts[ps]) === -1) psts.push(sts[ps]); 
+    }
+    if (psts.length === 2) psts = [psts[0] + ' ' + psts[1]];
+    for ( var pe in psts ) {
+      var per = psts[pe];*/
+      if (lthings.indexOf(per.toLowerCase()) === -1){// && per.toUpperCase() !== per) { // avoid things that are all caps...
+        lthings.push(per.toLowerCase());
+        things.push(per);
+        var category = opts.category ? opts.category : 'or';
+        var exists = leviathan_statement.findOne({statement:per}); // what params should be used to check existence? How old to limit new versions, or within categories?
+        //var occurrence = CLapi.internals.tdm.occurrence(content.toLowerCase(),per.toLowerCase());
+        // the newer google entities returns a mentions list, so can use the length of that as occurrence count
+        var occurrence = ent.mentions.length;
+        if (!exists) {
+          var keywords = [];
+          var wp = undefined;
+          if /*( ent.name[0].toUpperCase() === ent.name[0] &&*/ (ent.type === 'PERSON' || ent.type === 'ORGANIZATION' || ent.type === 'LOCATION' ) { // could do places as well... 
+            var wlp = ent.metadata && ent.wikipedia_url ? ent.wikipedia_url.split('wiki/').pop() : per;
+            /*if ( ent.type === 'PERSON' && per.indexOf(' ') !== -1 ) {
+              if ( per.split(' ')[1][0].toUpperCase() === per.split(' ')[1][0] ) wp = CLapi.internals.tdm.categorise(wlp);
+            } else {*/
+              wp = CLapi.internals.tdm.categorise(wlp);
+            //}
           }
+          // should get user data for statement, but for now just assume they are all by me
+          // is it worth looking up google knowledge graph mid and wikidata info (returned from categorise) now?
+          // e.g. for companies can extract ticker ID, address, website, etc...
+          var ns = {
+            occurrence:occurrence,
+            category: category,
+            source: opts.url,
+            type: ent.type.toLowerCase(),
+            salience:ent.salience,
+            statement:per,
+            uid:'WhPxWCrbZgRS5Hv4W',
+            username:'Leviathan',
+            email:'mark@cottagelabs.com'
+          };
+          if (wp) {
+            ns.keywords = wp.keywords;
+            ns.about = wp.url;
+            ns.wikidata = wp.wikidata;
+            ns.img = wp.img;
+          }
+          if (ent.metadata && ent.metadata.mid) ns.mid = ent.metadata.mid;
+          CLapi.internals.service.leviathan.statement('new',ns);
+        } else {
+          leviathan_statement.update(exists._id,{$set:{occurrence:(exists.occurrence ? exists.occurrence + occurrence : occurrence)}});
         }
       }
-    }
+    //}
   }
-  return {status:'success',count:things.length,things:things,ggl:ggl,src:src,content:content};
+  var ret = {status:'success',count:things.length,things:things,ggl:ggl,url:opts.url,category:opts.category,src:src,content:content};
+  CLapi.internals.mail.send({
+    to: 'mark@cottagelabs.com',
+    subject: 'Leviathan statements imported',
+    text: JSON.stringify(ret,undefined,2)
+  });
+  return ret;
 }
 
 CLapi.internals.service.leviathan.import.github = function(opts) {
@@ -481,107 +491,6 @@ CLapi.internals.service.leviathan.import.csv = function(opts) {
 
 
 
-CLapi.internals.service.leviathan.levor = {}
-
-CLapi.internals.service.leviathan.levor.scoreboard = function(count,score,target,daily,uid) {
-  if (count === undefined && score === undefined) count = true;
-  var res = {}
-  var d = {$match:{category:'levor'}};
-  var s = {$sort: {count:-1}};
-  if (daily) {
-    var now = new Date();
-    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    d.$match.createdAt = {$gte:start.valueOf()};
-  }
-  if (count) {
-    var qc = [];
-    if (d) qc.push(d);
-    qc.push({ $group: { _id: {uid:"$uid", name: "$name", email: "$email"}, count: {$sum:1}}  });
-    qc.push(s);
-    res.count = leviathan_score.aggregate(qc);
-    if (res.count.length && res.count[0]._id.uid === null) res.count.shift();
-  }
-  if (score) {
-    var qs = [];
-    if (d) {
-      d.$match.category = {$in:['levor','coin']};
-      qs.push(d);
-    }
-    qs.push({ $group: { _id: {uid:"$uid", name: "$name", email: "$email"}, count: {$sum:"$score"}}  });
-    qs.push(s);
-    res.score = leviathan_score.aggregate(qs);
-    if (res.score.length && res.score[0]._id.uid === null) res.score.shift();
-  }
-  if (target) res.target = CLapi.internals.service.leviathan.levor.target(daily,uid);
-  if (uid) {
-    res.user = {position:{},uid:uid};
-    if (target) {
-      res.user.target = {found:[],available:0}
-      for ( var ut in res.target ) {
-        if (res.target[ut].scored === true) {
-          res.user.target.found.push(res.target[ut].statement);
-        } else {
-          res.user.target.available.push(res.target[ut].statement);
-        }
-      }
-    }
-    if (count) {
-      for ( var c in res.count ) {
-        if (res.count[c]._id.uid === uid) {
-          res.user.position.count = parseInt(c);
-          break;
-        }
-      }
-    }
-    if (score) {
-      for ( var sc in res.score ) {
-        if (res.score[sc]._id.uid === uid) {
-          res.user.position.score = parseInt(sc);
-          break;
-        }
-      }
-    }
-  }
-  return res;
-}
-
-CLapi.internals.service.leviathan.levor.target = function(daily,uid) {
-  // levor requires target words that the user can appear to be moving towards
-  // this means a statement about another word, that is the "most popular" - and has some bonus score
-  // if a levor user finds it, they get X points - like say the amount of points equal to that targets most popular score
-  // so the target statements need a count of how often they occurred, or some other representation of their high value
-  // possibly friends can choose/set a target word for the day/game, and their other friends have to try to find it
-  // like for obscure words, this may be a reflection of their obscurity
-  // to know that any levor selection is a move towards a target word, it needs to somehow match with the target
-  // this could mean being the same sort of entity, sharing a keyword, or sharing a similar size or similar letters (levensthein distance could work here)
-  // there should be a range of target words, starting with the most popular/valuable down to the least
-  // or perhaps in the case of topical news, it is actually the least popular that are worth more... so an inversion of min and max occurrences
-  // so this function just needs to return a list of target statements ordered by their value, and stating their value, and then all their metadata
-  // then the UI can work out any time a user moves closer to a target word (this could be intentionally lost between play sessions, or stored in a cookie)
-  // when the UI sees a user pick a target word, the UI submits a coin score matching that target word
-  // so the target list should then be updated for that user - meaning target should be filtered by existing coin scores for the day by that user,
-  // and the target list should indicate that user has already scored that target
-  // so this just needs to be a statement find ordered by value, once a way to decide value is added to the statements
-  // then if the user is known, just record whether or not the user has already scored on those targets
-  // how many targets should there be? start with 10
-  var d = {category:'levor'};
-  var s = {sort: {value:-1}, limit:10}; // TODO need a value key on the statement obj, and possibly accept a limit option
-  if (daily) {
-    var now = new Date();
-    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    d.createdAt = {$gte:start.valueOf()};
-  }
-  var targets = leviathan_statement.find(d,s).fetch();
-  if (uid) {
-    for ( var t in targets ) {
-      var tr = {about:targets[t]._id,category:'coin',uid:uid};
-      if (daily) tr.createdAt = d.createdAt;
-      var scored = leviathan_score.findOne(tr);
-      if (scored) targets[t].scored = true;
-    }
-  }
-  return targets;
-}
 
 
 /*
