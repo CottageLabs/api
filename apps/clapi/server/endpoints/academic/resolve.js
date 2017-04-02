@@ -639,7 +639,7 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
         res = CLapi.internals.use.base.search('dctitle:"'+ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ')+'"');
         if (res && res.data && res.data.docs && res.data.docs.length > 0) {
           res = res.data.docs[0];
-          if (res.dclink) {
+          if (res.dclink && res.dctitle.toLowerCase().replace(/[^a-z0-9 ]/g,' ') === ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ') ) {
             // is it worth getting the DOI from here, if present and if not yet known?
             ret.url = res.dclink;
             ret.title = res.dctitle;
