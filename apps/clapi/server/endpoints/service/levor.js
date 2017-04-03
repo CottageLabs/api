@@ -148,11 +148,11 @@ CLapi.internals.service.levor.target = function(daily,uid) {
 CLapi.internals.service.levor.import = function(urls) {
   if (urls === undefined) {
     urls = [
-      //'http://www.bbc.co.uk/news',
+      /*'http://www.bbc.co.uk/news',
       'https://www.theguardian.com/uk',
       'http://www.independent.co.uk',
       'https://www.ft.com',
-      'http://www.huffingtonpost.co.uk',
+      'http://www.huffingtonpost.co.uk',*/
       'https://www.nytimes.com',
       'http://www.newyorker.com'
     ];

@@ -137,31 +137,17 @@ CLapi.internals.use.google.cloud.language = function(content,actions,auth) {
   } else if (actions === undefined) {
     actions = ['entities','sentiment']
   }
-  // worth passing a url to get content from? or setting entities/sentiment on/off?
+  // worth passing a url to get content from?
   if (content === undefined || !content.length) return {};
-  if (auth === undefined) auth = {
-    projectId: Meteor.settings.GOOGLE_PROJECT_ID,
-    credentials: Meteor.settings.GOOGLE_CREDENTIALS
-  };
-  var language = Meteor.npmRequire('@google-cloud/language');
-  var client = language(auth);
-  var document = client.document(content);
+  var lurl = 'https://language.googleapis.com/v1/documents:analyzeEntities?key=' + Meteor.settings.GOOGLE_SERVER_KEY;
+  var document = {document: {type: "PLAIN_TEXT",content:content},encodingType:"UTF8"};
   var res = {};
-
-  var entities = Async.wrap(function(content,callback) {
-    document.detectEntities(content, function(err, result) {
-      return callback(null,result);
-    });
-  });
-  if (actions.indexOf('entities') !== -1) res.entities = entities(content);
-  
-  var sentiment = Async.wrap(function(content,callback) {
-    document.detectSentiment(content, function(err, result) {
-      return callback(null,result);
-    });
-  });
-  if (actions.indexOf('sentiment') !== -1) res.sentiment = sentiment(content);
-  
+  if (actions.indexOf('entities') !== -1) {
+    try { res.entities = Meteor.http.call('POST',lurl,{data:document,headers:{'Content-Type':'application/json'}}).data.entities; } catch(err) {}
+  }
+  if (actions.indexOf('sentiment') !== -1) {
+    try { res.sentiment = Meteor.http.call('POST',lurl.replace('analyzeEntities','analyzeSentiment'),{data:document,headers:{'Content-Type':'application/json'}}).data; } catch(err) {}
+  }
   return res;
 }
 
