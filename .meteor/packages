@@ -34,12 +34,9 @@ matb33:collection-hooks
 percolate:synced-cron
 standard-minifier-css@1.2.0_1
 standard-minifier-js@1.2.0_1
-mizzao:autocomplete
 meteorhacks:aggregate
 json-routes-mm
 restivus-mm
-meteorhacks:cluster
-sergeyt:typeahead
 tomi:upload-server
 tomi:upload-jquery
 shell-server

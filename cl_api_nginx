@@ -131,11 +131,9 @@ server {
     listen          443 ssl spdy;
     server_name     capi.cottagelabs.com;
 
-    include includes/cl-wildcard-ssl.conf;
-    # ONCE SWITCHING TO LETSENCRYPT USE THE BELOW SETTINGS INSTEAD
-#    ssl on;
-#    ssl_certificate /etc/letsencrypt/live/capi.cottagelabs.com/fullchain.pem;
-#    ssl_certificate_key /etc/letsencrypt/live/capi.cottagelabs.com/privkey.pem;
+    ssl on;
+    ssl_certificate /etc/letsencrypt/live/capi.cottagelabs.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/capi.cottagelabs.com/privkey.pem;
 
     location / {
         add_header Access-Control-Allow-Methods 'GET, PUT, POST, DELETE, OPTIONS';
