@@ -218,7 +218,7 @@ CLapi.internals.es.query = function(action,route,data,url) {
   if (Meteor.settings.dev_index && route !== '/_status' && route !== '/_cluster/health') {
     route = '/dev' + route.substring(1,route.length);
   }
-  console.log('Performing elasticsearch ' + action + ' on ' + route);
+  //console.log('Performing elasticsearch ' + action + ' on ' + route);
   var routeparts = route.substring(1,route.length).split('/');
   // check if route to indextype exists, if it does not, autocreate with default mapping if this is a post or a put
   if (route.indexOf('/_') === -1 && routeparts.length >= 1 && action !== 'DELETE' && action !== 'GET') {
