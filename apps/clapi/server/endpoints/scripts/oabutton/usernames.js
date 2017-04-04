@@ -20,7 +20,7 @@ var usernames = function() {
         console.log('updating ' + uid);
         output.updated += 1;
         var set = {'profile.firstname':fn};
-        if (ln) set['profile.lastname'] = ln;
+        if (ln) set['profile.lastname'] = ln.replace('\r','');
         Meteor.users.update(uid, {$set: set});
       }
     }
