@@ -14,7 +14,7 @@ module.exports = {
 
   meteor: {
     name: 'clapi3001',
-    path: '.',
+    path: '../',
     servers: {
       one: {}, two: {}
     },
