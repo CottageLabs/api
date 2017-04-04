@@ -506,7 +506,7 @@ clogin.login = function(e) {
   } else {
     clogin.removeCookie('clprogress');
   }
-  if (!clogin.next && window.location.href.indexOf('next=') !== -1) clogin.next = window.location.href.split('next=')[1].split('&')[0];
+  if (!clogin.next && window.location.href.indexOf('next=') !== -1) clogin.next = decodeURIComponent(window.location.href.split('next=')[1].split('&')[0]);
   if (!clogin.next && clogin.getCookie('clnext')) clogin.next = clogin.getCookie('clnext');
   if (clogin.next && !clogin.getCookie('clnext')) clogin.setCookie('clnext', {next:clogin.next}, {expires:1});
   var opts = {
