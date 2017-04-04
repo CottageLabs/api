@@ -26,7 +26,7 @@ module.exports = {
       allowIncompatibleUpdates: true,
     },
     env: {
-      ROOT_URL: 'https://api.cottagelabs.com',
+      ROOT_URL: 'http://api.cottagelabs.com',
       MONGO_URL: 'mongodb://10.131.177.187:27017/clapi'
     },
     deployCheckWaitTime: 240
