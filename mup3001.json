@@ -1,0 +1,28 @@
+{
+  "servers": [
+    {
+      "host": "10.131.20.129",
+      "username": "cloo",
+      "pem": "~/.ssh/id_dsa",
+      "env": {
+      }
+    },
+    {
+      "host": "10.131.11.72",
+      "username": "cloo",
+      "pem": "~/.ssh/id_dsa",
+      "env": {
+      }
+    }
+  ],
+  "setupMongo": false,
+  "enableUploadProgressBar": true,
+  "appName": "clapi3001",
+  "app": ".",
+  "env": {
+    "ROOT_URL": "http://api.cottagelabs.com",
+    "PORT": 3001,
+    "MONGO_URL": "mongodb://10.131.177.187:27017/clapi"
+  },
+  "deployCheckWaitTime": 240
+}
