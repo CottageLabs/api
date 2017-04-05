@@ -667,7 +667,7 @@ CLapi.addRoute('service/oab/bug', {
         to: ['help@openaccessbutton.org'],
         subject: 'Feedback form submission',
         text: JSON.stringify(this.request.body,undefined,2)
-      });
+      },Meteor.settings.openaccessbutton.mail_url);
       
       return {
         statusCode: 302,
@@ -924,10 +924,10 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
   req._id = rid;
   CLapi.internals.mail.send({
     from: 'requests@openaccessbutton.org',
-    to: ['natalianonori@gmail.com'],
+    to: ['natalianorori@gmail.com'],
     subject: 'New request created ' + req._id,
     text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + req._id
-  });
+  },Meteor.settings.openaccessbutton.mail_url);
   return req;
 }
 
@@ -1034,7 +1034,7 @@ CLapi.internals.service.oab.ill = function(opts) {
       to: ['mark@cottagelabs.com','joe@righttoresearch.org','s.barron@imperial.ac.uk'],
       subject: 'EXAMPLE ILL TRIGGER',
       text: JSON.stringify(opts,undefined,2)
-    });
+    },Meteor.settings.openaccessbutton.mail_url);
     CLapi.internals.service.oab.sendmail({template:{filename:'imperial_confirmation_example.txt'},to:opts.id});
     Meteor.http.call('POST','https://www.imperial.ac.uk/library/dynamic/oabutton/oabutton3.php',{data:opts});
   }

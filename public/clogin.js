@@ -391,7 +391,7 @@ clogin.tokenProgress = function() {
     } else if (clogin.progress_interval) {
       clearInterval(clogin.progress_interval);      
     }
-    if (!clogin.loggedin()) window.location = window.location.href;
+    //if (!clogin.loggedin()) window.location = window.location.href;
   }
 }
 clogin.token = function(e) {

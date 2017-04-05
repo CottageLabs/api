@@ -26,7 +26,9 @@ upstream clapilocal {
 # DEFINE A CLUSTER UPSTREAM CL API FOR CHECKING
 upstream clapicluster {
     server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
+    server 10.131.20.129:3001 max_fails=1 fail_timeout=60;
     server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
+    server 10.131.11.72:3001 max_fails=1 fail_timeout=60;
 }
 
 # LIVE API PROPER VIA CLUSTER
@@ -35,8 +37,10 @@ upstream clapi {
     #ip_hash;
     keepalive 16;
     server localhost:3333 max_fails=1 fail_timeout=60;
-    server 10.131.20.129:3000 max_fails=1 fail_timeout=60 down;
-    server 10.131.11.72:3000 max_fails=1 fail_timeout=60 down;
+    server 10.131.20.129:3000 max_fails=1 fail_timeout=60;
+    server 10.131.20.129:3001 max_fails=1 fail_timeout=60;
+    server 10.131.11.72:3000 max_fails=1 fail_timeout=60;
+    server 10.131.11.72:3001 max_fails=1 fail_timeout=60;
 }
 
 server {

@@ -203,7 +203,7 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
     
     // try to get emails out of the page content
     if (!meta.email) {
-      meta.email = [];
+			var mls = [];
       try {
         var m = CLapi.internals.tdm.extract({
           content:content,
@@ -217,9 +217,16 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
         for ( var i in m.matches) {
           var mm = m.matches[i].result[1].replace('mailto:','');
           if (mm.endsWith('.')) mm = mm.substring(0,mm.length-1);
-          if (meta.email.indexOf(mm) === -1) meta.email.push(mm);
+          if (mls.indexOf(mm) === -1) mls.push(mm);
         }
       } catch(err) {}
+			mls.sort(function(a, b) { return b.length - a.length; });
+			var mstr = '';
+      meta.email = [];
+			for ( var me in mls) {
+				if (mstr.indexOf(mls[me]) === -1) meta.email.push(mls[me]);
+				mstr += mls[me];
+			}
     }
     
     //meta._id = Catalogue.insert(meta);
