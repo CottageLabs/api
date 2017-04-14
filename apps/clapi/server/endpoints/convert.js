@@ -4,7 +4,7 @@
 CLapi.addRoute('convert', {
   get: {
     action: function() {
-      if ( this.queryParams.url || this.queryParams.content ) {
+      if ( this.queryParams.url || this.queryParams.content || this.queryParams.es ) {
         var opts = {};
         if (this.queryParams.subset) opts.subset = this.queryParams.subset;
         if (this.queryParams.start) opts.start = this.queryParams.start;
@@ -16,12 +16,16 @@ CLapi.addRoute('convert', {
         if (this.queryParams.to === 'csv') to = 'text/csv';
         if (this.queryParams.to === 'json') to = 'application/json';
         if (this.queryParams.to === 'xml') to = 'application/xml';
+        var out = CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,this.queryParams.content,opts);
+        try {
+          if (out.statusCode === 401) return out; // an es query can cause a 401 unauth passback
+        } catch(err) {}
         return {
           statusCode: 200,
           headers: {
             'Content-Type': to
           },
-          body: CLapi.internals.convert.run(this.queryParams.url,this.queryParams.from,this.queryParams.to,this.queryParams.content,opts)
+          body: out
         }
       } else {
         return {status: 'success', data: {info: 'Accepts URLs of content files and converts them. from csv to json,txt. from html to txt. from xml to txt, json. from pdf to txt. from file to txt. For json to csv a subset param can be provided, giving dot notation to the part of the json object that should be converted.'} };
@@ -95,6 +99,7 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
       if (opts.es.substring(0,1) === '/') opts.es = opts.es.substring(1,opts.es.length-1);
       var rts = opts.es.split('/');
       content = CLapi.internals.es.action(uid,'GET',rts,params);
+      if (content.statusCode === 401) return content;
       delete opts.es;
       delete opts.apikey;
       url = undefined;
@@ -121,7 +126,7 @@ CLapi.internals.convert.run = function(url,from,to,content,opts) {
   if ( output === undefined ) {
     return {status: 'error', data: 'conversion from ' + from + ' to ' + to + ' is not currently possible.'}
   } else {
-    console.log(output);
+    //console.log(output);
     return output;
   }
 }
@@ -274,6 +279,13 @@ CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callb
         content = c;
       } else  {
         content = content[parts[p]];
+      }
+    }
+  }
+  for ( var l in content ) {
+    for ( var k in content[l] ) {
+      if ( Array.isArray(content[l][k]) ) {
+        content[l][k] = content[l][k].join(',');
       }
     }
   }

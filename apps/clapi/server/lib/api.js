@@ -242,3 +242,49 @@ CLapi.addRoute('list', {
     }
   }
 });
+
+
+
+
+JsonRoutes.Middleware.use(function(req, res, next) {
+	if (req.headers && req.headers['content-type'] && req.headers['content-type'].match(/^multipart\/form\-data/)) {
+    var Busboy = Meteor.npmRequire('busboy');
+		var busboy = new Busboy({headers: req.headers});
+    req.files = [];
+
+    busboy.on('file', function(fieldname, file, filename, encoding, mimetype) {
+      var uploadedFile = {
+        filename,
+        mimetype,
+        encoding,
+        fieldname,
+        data: null
+      };
+
+      console.log('busboy have file...', uploadedFile);
+      var buffers = [];
+      file.on('data', function(data){
+        console.log('data: ', data.length);
+        buffers.push(data);
+      });
+      file.on('end', function() {
+        console.log('EOF');
+        uploadedFile.data = Buffer.concat(buffers);
+        req.files.push(uploadedFile);
+      });
+    });
+
+    busboy.on("field", function(fieldname, value) {
+      req.body[fieldname] = value;
+    });
+    
+    busboy.on('finish', function() {
+      console.log('busboy finish');
+      next();
+    });
+
+    req.pipe(busboy);
+    return;
+  }
+	next();
+});

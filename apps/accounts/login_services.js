@@ -62,7 +62,11 @@ login_services = {
   }
 }
 
-login_services['https://weareleviathan.com/levor'] = JSON.parse(JSON.stringify(login_services['https://weareleviathan.com']));
+login_services['http://levor.club'] = JSON.parse(JSON.stringify(login_services['https://weareleviathan.com']));
+login_services['http://levor.club'].domain = '.levor.club';
+login_services['http://levor.club'].name = 'Levor';
+login_services['http://levor.club'].subject = 'Please sign in to Levor';
+login_services['http://levor.club'].secure = false;
 
 login_services['https://compliance.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
 

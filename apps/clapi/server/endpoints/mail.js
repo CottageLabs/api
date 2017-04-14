@@ -72,6 +72,10 @@ CLapi.addRoute('mail/progress', {
   },
   post: {
     action: function() {
+      //var headers = []
+      //for ( var h in this.request ) headers.push(h)
+      //console.log(headers)
+      console.log(this.request.files)
       CLapi.internals.mail.progress(this.request.body,this.queryParams.token);
       return {};      
     }
@@ -182,12 +186,21 @@ CLapi.internals.mail.progress = function(content,token) {
   mail_progress.insert(content);
   try {
     if (content.event === 'dropped') {
-      CLapi.internals.mail.send({
-        from: "alert@cottagelabs.com",
-        to: ["mark@cottagelabs.com","joe@righttoresearch.org","natalianonori@gmail.com"],
-        subject: "mailgun dropped email",
-        text: JSON.stringify(content,undefined,2)
-      });    
+      if (content.domain.indexOf('cottagelabs') !== -1) {
+        CLapi.internals.mail.send({
+          from: "alert@cottagelabs.com",
+          to: ["mark@cottagelabs.com"],
+          subject: "mailgun dropped email",
+          text: JSON.stringify(content,undefined,2)
+        });    
+      } else if (content.domain.indexOf('openaccessbutton') !== -1) {
+        CLapi.internals.mail.send({
+          from: "requests@openaccessbutton.org",
+          to: ["natalianorori@gmail.com"],
+          subject: "mailgun dropped email",
+          text: JSON.stringify(content,undefined,2)
+        },Meteor.settings.openaccessbutton.mail_url);
+      }
     }
   } catch(err) {}
 }

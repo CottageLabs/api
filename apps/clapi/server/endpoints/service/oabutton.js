@@ -762,6 +762,12 @@ CLapi.internals.service.oab.dnr = function(email,add,refuse) {
     if (refuse) {
       var rqs = oab_request.find({email:email}).fetch();
       for ( var req in rqs ) CLapi.internals.service.oab.refuse(req._id,'Author DNRd their email address');
+    } else {
+      oab_request.find({email:email}).forEach(function(r) {
+        if (['help','moderate','progress'].indexOf(r.status) !== -1) {
+          oab_request.update(r._id,{$set:{email:'',status:'help'}});
+        }
+      });
     }
   }
   return ondnr !== undefined || add === true;
@@ -922,12 +928,14 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
   req.receiver = CLapi.internals.store.receiver(req); // is store receiver really necessary here?
   oab_request.update(rid,{$set:req});
   req._id = rid;
-  CLapi.internals.mail.send({
-    from: 'requests@openaccessbutton.org',
-    to: ['natalianorori@gmail.com'],
-    subject: 'New request created ' + req._id,
-    text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + req._id
-  },Meteor.settings.openaccessbutton.mail_url);
+  if (req.story) {
+    CLapi.internals.mail.send({
+      from: 'requests@openaccessbutton.org',
+      to: ['natalianorori@gmail.com'],
+      subject: 'New request created ' + req._id,
+      text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + req._id
+    },Meteor.settings.openaccessbutton.mail_url);
+  }
   return req;
 }
 
@@ -1352,20 +1360,33 @@ CLapi.internals.service.oab.receive = function(rid,content,url,title,description
           } catch(err) {}
         }
         var z = CLapi.internals.use.zenodo.deposition.create({title:title,description:description,creators:creators,doi:r.doi},up,Meteor.settings.openaccessbutton.zenodo_token);
-        if (z.id) r.received.zenodo = 'https://zenodo.org/record/' + z.id + '/files/' + fl;
+        // linking direct to the zenodo file did not appear to work in live publications, so revert to just linking to the record
+        // see https://zenodo.org/record/546117 for example
+        if (z.id) r.received.zenodo = 'https://zenodo.org/record/' + z.id;// + '/files/' + fl;
       }
     } else {
       // if we are given a URL we just record that fact, and that closes the request
       r.received.url = url;
     }
     
-    //var mf = Meteor.settings.openaccessbutton.mail_from;
-    // email the person that provided the content, confirming receipt
-    // email the person that started the request
-    // email everyone who wanted it (requestor and supporters)
-    // NOTE the emails to send are different if this content was received via a cron check
-    // admin is true, a different email should be sent, as an admin provided the content rather than the author
-    if (cron) {} else if (admin) {} else {}
+    var whoto = [];
+    var tmplfn;
+    if (r.user) {
+      if (r.user.email) {
+        whoto.push(r.user.email);
+      } else if (r.user.id) {
+        var u = CLapi.internals.accounts.retrieve(r.user.id);
+        whoto.push(u.emails[0].address);
+      }
+    }
+    if (cron || admin) {
+      tmplfn = 'searcher_successviafind.html';
+    } else {
+      // email request creator and supporters saying it is available - why does this template need to differ from the above?
+      // email the author to say thanks for providing?
+    }
+    // need to provide articleurl var to this template too
+    //if (tmplfn) CLapi.internals.service.oab.sendmail({template:{filename:tmplfn},bcc:whoto});
     
     oab_request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
     return {status: 'success', data: r};
@@ -1471,8 +1492,12 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     }
     vars.userid = vars.user.id;
     vars.fullname = u && u.profile && u.profile.name ? u.profile.name : '';
-    vars.username = vars.user.username ? vars.user.username : vars.user.email;
-    if (!vars.fullname) vars.fullname = vars.username;
+    if (!vars.fullname && u && u.profile && u.profile.firstname) {
+      vars.fullname = u.profile.firstname;
+      if (u.profile.lastname) vars.fullname += ' ' + u.profile.lastname;
+    }
+    if (!vars.fullname) vars.fullname = 'User';
+    vars.username = vars.user.username ? vars.user.username : vars.fullname;
     vars.useremail = vars.user.email
   }
   if (Meteor.settings.dev) content = content.replace(/https:\/\/openaccessbutton.org/g,'https://dev.openaccessbutton.org');

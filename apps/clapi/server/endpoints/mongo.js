@@ -109,13 +109,14 @@ CLapi.internals.mongo.edit = function(coll,rec,record,replace,del) {
 
 CLapi.internals.mongo.delete = function(coll,rec) {
   if ( rec === undefined ) rec = {};
+  //if ( coll === 'oab_request' ) oab_request.remove(rec);
   if ( coll === 'lantern_jobs' ) lantern_jobs.remove(rec);
   if ( coll === 'lantern_processes' ) lantern_processes.remove(rec);
   if ( coll === 'lantern_results' ) lantern_results.remove(rec);
   if ( coll === 'academic_licence' ) academic_licence.remove(rec);
   if ( coll === 'academic_resolved' ) academic_resolved.remove(rec);
   if ( coll === 'hidden_gems' ) hidden_gems.remove(rec);
-  if ( coll === 'users' ) Meteor.users.remove(rec);
+  //if ( coll === 'users' ) Meteor.users.remove(rec);
   if ( coll === 'leviathan_statement' ) leviathan_statement.remove(rec);
   if ( coll === 'leviathan_score' ) leviathan_score.remove(rec);
   return {status: 'success'}

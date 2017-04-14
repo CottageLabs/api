@@ -16,6 +16,22 @@ CLapi.addRoute('service/levor/scoreboard', {
   }
 });
 
+CLapi.addRoute('service/levor/graph', {
+  get: {
+    action: function() {
+      return CLapi.internals.service.levor.graph();
+    }
+  }
+});
+
+CLapi.addRoute('service/levor/sources', {
+  get: {
+    action: function() {
+      return leviathan_source.find({for:'levor'}).fetch();
+    }
+  }
+});
+
 CLapi.addRoute('service/levor/target', {
   get: {
     action: function() {
@@ -42,6 +58,59 @@ CLapi.addRoute('service/levor/import', {
 
 
 CLapi.internals.service.levor = {}
+
+CLapi.internals.service.levor.graph = function() {
+  var scores = CLapi.internals.service.levor.scoreboard();
+  var res = {nodes:[],links:[]};
+  var entitynodes = {};
+  var scorelinks = {};
+  for ( var s in scores.count ) {
+    var user = {
+      key: 'user',
+      group: 'user',
+      value: scores.count[s]._id.email[0].toUpperCase() + scores.count[s]._id.email.substring(1,scores.count[s]._id.email.indexOf('@')),
+      size: 0,
+      position: parseInt(s),
+      img: CLapi.internals.avatar(scores.count[s]._id.email)
+    }
+    res.nodes.push(user);
+    var pos = res.nodes.length-1;
+    leviathan_score.find({uid:scores.count[s]._id.uid,category:'levor'}).forEach(function(usc) {
+      user.size += 1;
+      if (scorelinks[usc.statement] === undefined) {
+        var kl = {
+          key: 'score',
+          group: 'score',
+          value: usc.statement,
+          size: usc.occurrence,
+          occurrence: usc.occurrence,
+          sentiment: usc.score,
+          img: usc.img
+        }
+        res.nodes.push(kl);
+        scorelinks[usc.statement] = res.nodes.length-1;
+        res.links.push({source:pos,target:res.nodes.length-1,sentiment:usc.score});
+      } else {
+        res.nodes[scorelinks[usc.statement]].size += 1;
+        res.nodes[scorelinks[usc.statement]].sentiment += usc.score;
+        res.links.push({source:pos,target:scorelinks[usc.statement],sentiment:usc.score});
+      }
+      /*var lp = res.nodes.length-1; // an experiment in linking nodes by type
+      if (entitynodes[usc.type] === undefined) {
+        res.nodes.push({
+          key: 'type',
+          group: 'type',
+          value: 0,
+          size: 0
+        });
+        entitynodes[usc.type] = res.nodes.length-1;
+      }
+      res.links.push({source:lp,target:entitynodes[usc.type]});*/
+    });
+    res.nodes[pos].size = user.size;
+  }
+  return res;
+}
 
 CLapi.internals.service.levor.scoreboard = function(count,score,target,daily,uid) {
   if (count === undefined && score === undefined) count = true;
@@ -105,7 +174,7 @@ CLapi.internals.service.levor.scoreboard = function(count,score,target,daily,uid
   return res;
 }
 
-CLapi.internals.service.levor.target = function(daily,uid) {
+CLapi.internals.service.levor.target = function(daily,uid,limit) {
   // levor requires target words that the user can appear to be moving towards
   // this means a statement about another word, that is the "most popular" - and has some bonus score
   // if a levor user finds it, they get X points - like say the amount of points equal to that targets most popular score
@@ -124,8 +193,9 @@ CLapi.internals.service.levor.target = function(daily,uid) {
   // so this just needs to be a statement find ordered by value, once a way to decide value is added to the statements
   // then if the user is known, just record whether or not the user has already scored on those targets
   // how many targets should there be? start with 10
+  if (limit === undefined) limit = 10;
   var d = {category:'levor'};
-  var s = {sort: {occurrence:-1}, limit:10};
+  var s = {sort: {occurrence:-1}, limit:limit};
   if (daily) {
     var now = new Date();
     var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -147,19 +217,33 @@ CLapi.internals.service.levor.target = function(daily,uid) {
 
 CLapi.internals.service.levor.import = function(urls) {
   if (urls === undefined) {
-    urls = [
-      /*'http://www.bbc.co.uk/news',
-      'https://www.theguardian.com/uk',
-      'http://www.independent.co.uk',
-      'https://www.ft.com',
-      'http://www.huffingtonpost.co.uk',*/
-      'https://www.nytimes.com',
-      'http://www.newyorker.com'
-    ];
+    urls = [];
+    leviathan_source.find({for:'levor'}).forEach(function(src) {
+      urls.push(src.url);
+    });
+    if (urls.length === 0) {
+      urls = [
+        'http://www.bbc.co.uk/news',
+        'https://www.theguardian.com/uk',
+        'http://www.independent.co.uk',
+        'https://www.ft.com',
+        'http://www.huffingtonpost.co.uk',
+        'https://www.nytimes.com',
+        'http://www.newyorker.com'
+      ];
+    }
   }
   if (typeof urls === 'string') urls = urls.split(',');
   var res = {};
+  urls = [
+    'https://www.ft.com',
+    'http://www.huffingtonpost.co.uk',
+    'https://www.nytimes.com',
+    'http://www.newyorker.com'
+  ];
   for ( var u in urls ) {
+    var e = leviathan_source.findOne({for:'levor',url:urls[u]});
+    if (!e) leviathan_source.insert({for:'levor',url:urls[u]});
     res[urls[u]] = CLapi.internals.service.leviathan.import.url({url:urls[u],category:'levor'});
   }
   return res;

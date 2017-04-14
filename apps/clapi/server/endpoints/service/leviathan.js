@@ -3,8 +3,14 @@ var moment = Meteor.npmRequire('moment');
 
 leviathan_statement = new Mongo.Collection("leviathan_statement");
 leviathan_score = new Mongo.Collection("leviathan_score");
+leviathan_source = new Mongo.Collection("leviathan_source");
 
 //CLapi.internals.es.make(leviathan_statement,'leviathan','statement'); // this does not work yet because es is not available at this point... refactor should fix
+
+leviathan_source.before.insert(function (userId, doc) {
+  if (!doc.createdAt) doc.createdAt = Date.now();
+  doc.created_date = moment(doc.createdAt,"x").format("YYYY-MM-DD HHmm");
+});
 
 leviathan_statement.before.insert(function (userId, doc) {
   if (!doc.createdAt) doc.createdAt = Date.now();
@@ -41,9 +47,6 @@ leviathan_score.after.update(function (userId, doc, fieldNames, modifier, option
 leviathan_score.after.remove(function (userId, doc) {
   CLapi.internals.es.delete('/leviathan/score/' + doc._id);
 });
-
-CLapi.addCollection(leviathan_statement);
-CLapi.addCollection(leviathan_score);
 
 CLapi.addRoute('service/leviathan', {
   get: {
@@ -226,7 +229,7 @@ CLapi.internals.service.leviathan.lid = function(prev) {
   email: myemal - keep this as well as username, or just as username when no username?
 }
 */
-CLapi.internals.service.leviathan.statement = function(sid,obj,uid,filters) {
+CLapi.internals.service.leviathan.statement = function(sid,obj,uid,filters,imported) {
   if (obj === true) {
     leviathan_statement.remove(sid); // remove the scores related to the ID?
     return {};
@@ -287,30 +290,41 @@ CLapi.internals.service.leviathan.statement = function(sid,obj,uid,filters) {
         leviathan_statement.update(sid,{$set:obj});
       } else {
         obj._id = CLapi.internals.service.leviathan.lid();
-        obj = leviathan_statement.insert(obj);
+        leviathan_statement.insert(obj);
       }
     }
     // create a score record of this response - track any score data in statement itself, for convenience?
     // TODO check if the user has already created a score on the statement, if so, delete the previous score
-    if (obj.about && obj.about.indexOf('http') === -1 && obj.about.indexOf('L') === 0) {
+    if (obj.about && obj.about.indexOf('L') === 0 && obj.about.length === 8) {
       var prev = leviathan_score.findOne({about:obj.about,uid:obj.uid});
       if (prev) leviathan_score.remove(prev._id);
     }
-    var scr = {
-      category: obj.category,
-      about: obj.about ? obj.about : obj._id,
-      score: obj.score,
-      sentiment: obj.sentiment,
-      relation: obj.relation,
-      uid: obj.uid
+    // TOD should score just contain everything about the statement? Makes it big but perhaps more useful...
+    if (!imported) {
+      var rel = obj.about && obj.about.indexOf('L') === 0 && obj.about.length === 8 ? leviathan_statement.findOne(obj.about) : obj;
+      var scr = {
+        category: rel.category,
+        occurrence: rel.occurrence,
+        source: rel.source,
+        type: rel.type,
+        salience: rel.salience,
+        keywords: rel.keywords,
+        img: rel.img,
+        about: obj.about ? obj.about : rel._id,
+        relation: obj.relation ? obj.relation : rel.relation,
+        score: obj.score ? obj.score :rel.score,
+        statement: obj.statement ? obj.statement : rel.statement,
+        sentiment: obj.sentiment ? obj.sentiment : rel.sentiment,
+        uid: obj.uid
+      }
+      if (uid) {
+        scr.uid = uid;
+        var usr = CLapi.internals.accounts.retrieve(uid);
+        scr.email = usr.emails[0].address;
+        scr.name = usr.emails[0].address.split('@')[0];
+      }
+      leviathan_score.insert(scr);
     }
-    if (uid) {
-      scr.uid = uid;
-      var usr = CLapi.internals.accounts.retrieve(uid);
-      scr.email = usr.emails[0].address;
-      scr.name = usr.emails[0].address.split('@')[0];
-    }
-    leviathan_score.insert(scr);
     if (filters && filters.random) {
       filters.size = filters.random;
       delete filters.random;
@@ -439,7 +453,7 @@ CLapi.internals.service.leviathan.import.url = function(opts) {
             ns.img = wp.img;
           }
           if (ent.metadata && ent.metadata.mid) ns.mid = ent.metadata.mid;
-          CLapi.internals.service.leviathan.statement('new',ns);
+          CLapi.internals.service.leviathan.statement('new',ns,undefined,undefined,true);
         } else {
           leviathan_statement.update(exists._id,{$set:{occurrence:(exists.occurrence ? exists.occurrence + occurrence : occurrence)}});
         }
@@ -475,7 +489,7 @@ CLapi.internals.service.leviathan.import.github = function(opts) {
         uid:'WhPxWCrbZgRS5Hv4W',
         username:'Leviathan',
         email:'mark@cottagelabs.com'
-      });
+      },undefined,undefined,true);
     }
   }
   return {status:'success',count:count};

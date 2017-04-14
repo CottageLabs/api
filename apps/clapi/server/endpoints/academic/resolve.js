@@ -641,9 +641,14 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
           res = res.data.docs[0];
           if (res.dclink && res.dctitle.toLowerCase().replace(/[^a-z0-9 ]/g,' ') === ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ') ) {
             // is it worth getting the DOI from here, if present and if not yet known?
-            ret.url = res.dclink;
-            ret.title = res.dctitle;
-            ret.source = 'BASE';
+            if (res.dclink.toLowerCase().indexOf('pmc') !== -1 && res.dclink.toLowerCase().split('/').pop() === 'pmc') {
+              // add a check for BASE having wrong PMC links, sometimes possible, according to http://blog.impactstory.org/dirty-data/
+              // any way to find it otherwise here?
+            } else {
+              ret.url = res.dclink;
+              ret.title = res.dctitle;
+              ret.source = 'BASE';
+            }
           }
         }
         if (ret.url) {
