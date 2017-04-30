@@ -84,8 +84,10 @@ CLapi.addRoute('service/leviathan/statement/:sid', {
       var uid = this.userId;
       if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
         var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
-        var acc = CLapi.internals.accounts.retrieve(apikey);
-        uid = acc._id;
+        if (apikey) {
+          var acc = CLapi.internals.accounts.retrieve(apikey);
+          if (acc) uid = acc._id;
+        }
       }
       return CLapi.internals.service.leviathan.statement(this.urlParams.sid,s,uid,this.queryParams);
     }
@@ -289,7 +291,7 @@ CLapi.internals.service.leviathan.statement = function(sid,obj,uid,filters,impor
       if (sid && sid !== 'new') {
         leviathan_statement.update(sid,{$set:obj});
       } else {
-        obj._id = CLapi.internals.service.leviathan.lid();
+        //obj._id = CLapi.internals.service.leviathan.lid();
         leviathan_statement.insert(obj);
       }
     }
@@ -455,7 +457,8 @@ CLapi.internals.service.leviathan.import.url = function(opts) {
           if (ent.metadata && ent.metadata.mid) ns.mid = ent.metadata.mid;
           CLapi.internals.service.leviathan.statement('new',ns,undefined,undefined,true);
         } else {
-          leviathan_statement.update(exists._id,{$set:{occurrence:(exists.occurrence ? exists.occurrence + occurrence : occurrence)}});
+          var occ = exists.occurrence ? exists.occurrence + occurrence : occurrence;
+          leviathan_statement.update(exists._id,{$set:{occurrence:occ}});
         }
       }
     //}

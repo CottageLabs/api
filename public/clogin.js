@@ -336,6 +336,9 @@ clogin.hash = function() {
     var hash = window.location.hash.replace('#','');
     if ( hash && hash.length === clogin.hashlength ) {
       clogin.user.hash = hash;
+      try {
+        if ('pushState' in window.history) window.history.pushState("", "token", window.location.pathname + window.location.search);
+      } catch(err) {}
       return hash;
     } else {
       return '';
@@ -349,6 +352,7 @@ clogin.progress_interval;
 clogin.tokenSuccess = function(data) {
   if (clogin.debug) console.log('Clogin token successfully requested');
   clogin.user.token = 'requested'; // check nothing relied on this being success, the old value
+  $('#'+clogin.loginDivId).show();
   $('#'+clogin.emailDivId).hide();
   $('#'+clogin.tokenDivId).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
@@ -361,6 +365,7 @@ clogin.tokenSuccess = function(data) {
   }
 }
 clogin.tokenProgress = function() {
+  if (clogin.getCookie(clogin.cookie)) window.location = window.location.href;
   var progress = clogin.getCookie('clprogress');
   var timeout = (new Date()).valueOf() - 180000;
   if (progress && progress.createdAt > timeout) {
@@ -395,13 +400,16 @@ clogin.tokenProgress = function() {
   }
 }
 clogin.token = function(e) {
-  if (clogin.debug) console.log('Clogin requesting token');
   if (e) e.preventDefault();
+  if (clogin.debug) console.log('Clogin requesting token');
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   $('#'+clogin.messagesDivId).html('');
-  // request a token be sent to the email address
-  // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
   if (clogin.user.email === undefined) clogin.user.email = $('#'+clogin.emailInputId).val();
+  if (!clogin.user.email) {
+    // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
+    $('#'+clogin.emailInputId).css('border-color','#f04717').focus();
+    return;
+  }
   $('#' + clogin.tokenInputId ).attr('placeholder','Delivering to ' + clogin.user.email);
   var opts = {
     type:'POST',

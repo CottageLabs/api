@@ -293,6 +293,16 @@ CLapi.addRoute('service/oab/request/:rid', {
   }
 });
 
+CLapi.addRoute('service/oab/request/:rid/admin/:action', {
+  get: {
+    roleRequired:'openaccessbutton.admin',
+    action: function() {
+      CLapi.internals.service.oab.admin(this.urlParams.rid,this.urlParams.action);
+      return {}
+    }
+  }
+});
+
 CLapi.addRoute('service/oab/own/:rid', {
   post: {
     roleRequired:'openaccessbutton.user',
@@ -578,7 +588,7 @@ CLapi.addRoute('service/oab/receive/:rid', {
           var acc = CLapi.internals.accounts.retrieve(apikey);
           if (acc && CLapi.internals.accounts.auth('openaccessbutton.admin',acc)) admin = true;
         }
-        return CLapi.internals.service.oab.receive(this.urlParams.rid,this.bodyParams.content,this.bodyParams.url,this.bodyParams.title,this.bodyParams.description,this.bodyParams.firstname,this.bodyParams.lastname,admin);
+        return CLapi.internals.service.oab.receive(this.urlParams.rid,this.bodyParams.content,this.bodyParams.url,this.bodyParams.title,this.bodyParams.description,this.bodyParams.firstname,this.bodyParams.lastname,undefined,admin);
       } else {
         return {statusCode: 404, body: {status: 'error', data:'404 not found'}}        
       }
@@ -897,13 +907,12 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
   req.count = req.story ? 1 : 0;
   
   if (!fast && (!req.title || !req.email) ) { // worth scraping on any other circumstance?
-    var meta = CLapi.internals.academic.catalogue.extract(req.url,dom,undefined,req.doi);
+    var meta = CLapi.internals.service.oab.scrape(req.url,dom,undefined,req.doi);
     req.keywords = meta && meta.keywords ? meta.keywords : [];
     req.title = meta && meta.title ? meta.title : "";
     req.doi = meta && meta.doi ? meta.doi : "";
 
-    req.email = meta && meta.email && meta.email.length > 0 ? meta.email[0] : "";
-    if (req.email && CLapi.internals.service.oab.dnr(req.email)) req.email = "";
+    req.email = meta && meta.email ? meta.email : "";
     
     // some optional extras that the extract can return
     req.author = meta && meta.author ? meta.author : [];
@@ -937,6 +946,53 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
     },Meteor.settings.openaccessbutton.mail_url);
   }
   return req;
+}
+
+CLapi.internals.service.oab.admin = function(rid,action) {
+  var r = oab_request.findOne(rid);
+  var usermail;
+  if (r.user && r.user.id) {
+    var u = CLapi.internals.accounts.retrieve(r.user.id);
+    usermail = u.emails[0].address;
+  }
+  var update = {};
+  var requestors = [];
+  if (usermail) requestors.push(usermail);
+  oab_support.find({rid:rid}).forEach(function(s) {
+    if (s.email && requestors.indexOf(s.email) === -1) requestors.push(s.email);
+  });
+  if (action === 'send_to_author') {
+    update.status = 'progress';
+    if (r.story) update.rating = 'pass';
+    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_inprogress.html'},to:requestors});
+    if (r.type === 'article') {
+      if (r.story) {
+        if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2.html'},to:r.email});
+      } else {
+        if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2_nostory.html'},to:r.email});
+      }
+    } else {
+      if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_data_v2.html'},to:r.email});      
+    }
+  } else if (action === 'story_too_bad') {
+    update.rating = 'fail';
+    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_inprogress.html'},to:requestors});
+    if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2_nostory.html'},to:r.email});      
+  } else if (action === 'not_a_scholarly_article') {
+    update.status = 'closed';
+    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_invalid.html'},to:usermail});
+  } else if (action === 'dead_author') {
+    update.status = 'closed';
+    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_failed_authordeath.html'},to:requestors});
+  } else if (action === 'user_testing') {
+    update.test = true;
+    update.status = 'closed';
+    if (r.story) update.rating = 'fail';
+    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_testing.html'},to:usermail});
+  } else if (action === 'broken_link') {
+    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_brokenlink.html'},to:usermail});
+  }
+  if (JSON.stringify(update) !== '{}') oab_request.update(rid,{$set:update});
 }
 
 CLapi.internals.service.oab.own = function(rid,uid,anonymous) {
@@ -988,7 +1044,7 @@ CLapi.internals.service.oab.scrape = function(url,content,refresh,doi) {
           }
         }
       }
-      if ( ( email === undefined || isauthor ) && !CLapi.internals.service.oab.dnr(s.email[e])) email = s.email[e];
+      if ( ( email === undefined || isauthor ) && !CLapi.internals.service.oab.dnr(s.email[e]) && CLapi.internals.mail.validate(s.email[e]).is_valid ) email = s.email[e];
     }
   }
   s.email = email;
@@ -1486,8 +1542,8 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
   if (vars && vars.user) {
     var u = CLapi.internals.accounts.retrieve(vars.user.id);
     if (u) {
-      vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : '';
-      if (vars.profession.toLowerCase() === 'other') vars.profession = 'user';
+      vars.profession = u.service.openaccessbutton.profile.profession ? u.service.openaccessbutton.profile.profession : 'person';
+      if (vars.profession.toLowerCase() === 'other') vars.profession = 'person';
       vars.affiliation = u.service.openaccessbutton.profile.affiliation ? u.service.openaccessbutton.profile.affiliation : '';
     }
     vars.userid = vars.user.id;
@@ -1496,7 +1552,7 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
       vars.fullname = u.profile.firstname;
       if (u.profile.lastname) vars.fullname += ' ' + u.profile.lastname;
     }
-    if (!vars.fullname) vars.fullname = 'User';
+    if (!vars.fullname) vars.fullname = 'a user';
     vars.username = vars.user.username ? vars.user.username : vars.fullname;
     vars.useremail = vars.user.email
   }
@@ -1524,13 +1580,6 @@ CLapi.internals.service.oab.sendmail = function(opts) {
     opts.bcc = emails;
   }
   
-  if (opts.template === 'status_received') {
-    // special cases that send multiple emails will have to be coded here specifically
-    // the main one should be the one to send to the creator of the request
-    // also get and send status_received_author and status_received_supporters
-    //CLapi.internals.sendmail(ml,mu);
-  }
-
   return CLapi.internals.mail.send(opts,Meteor.settings.openaccessbutton.mail_url);
 }
 

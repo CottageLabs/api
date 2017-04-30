@@ -16,7 +16,7 @@ CLapi.addRoute('use/opendoar', {
 CLapi.addRoute('use/opendoar/search', {
   get: {
     action: function() {
-      return CLapi.internals.use.opendoar.search(this.queryParams.q,this.queryParams.show);
+      return CLapi.internals.use.opendoar.search(this.queryParams.q,this.queryParams.show,this.queryParams.raw);
     }
   }
 });
@@ -24,7 +24,7 @@ CLapi.addRoute('use/opendoar/search', {
 CLapi.addRoute('use/opendoar/search/:qry', {
   get: {
     action: function() {
-      return CLapi.internals.use.opendoar.search(this.urlParams.qry,this.queryParams.show);
+      return CLapi.internals.use.opendoar.search(this.urlParams.qry,this.queryParams.show,this.queryParams.raw);
     }
   }
 });
@@ -63,9 +63,9 @@ CLapi.internals.use.opendoar.parse = function(rec) {
   if (rec.rSoftwareName && rec.rSoftwareName.length > 0 && rec.rSoftwareName[0].length > 0) ret.software = rec.rSoftwareName[0];
   if (rec.rSoftwareVersion && rec.rSoftwareVersion.length > 0 && rec.rSoftwareVersion[0].length > 0) ret.version = rec.rSoftwareVersion[0];
   if (rec.paLatitude && rec.paLongitude) ret.location = {geo:{lat:rec.paLatitude[0],lon:rec.paLongitude[0]}}
-  if (rec.country) {
-    if (rec.country.cCountry) ret.country = rec.country.cCountry[0];
-    if (rec.country.cIsoCode) ret.countryIso = rec.country.cIsoCode[0];
+  if (rec.country && rec.country.length > 0 && rec.country[0].cCountry) {
+    ret.country = rec.country[0].cCountry[0];
+    if (rec.country[0].cIsoCode) ret.countryIso = rec.country[0].cIsoCode[0];
   }
   if (rec.classes && rec.classes.length > 0 && rec.classes[0].class) {
     ret.classes = [];
@@ -85,7 +85,7 @@ CLapi.internals.use.opendoar.parse = function(rec) {
       ret.languages.push(ll);
     }
   }
-  if (rec.contentTypes && rec.contentTypes.lenght > 0 && rec.contentTypes[0].contentType) {
+  if (rec.contentTypes && rec.contentTypes.length > 0 && rec.contentTypes[0].contentType) {
     ret.contents = [];
     for ( var t in rec.contentTypes[0].contentType ) {
       var co = {};
@@ -124,7 +124,7 @@ CLapi.internals.use.opendoar.parse = function(rec) {
   return ret;
 }
 
-CLapi.internals.use.opendoar.search = function(qrystr,show) {
+CLapi.internals.use.opendoar.search = function(qrystr,show,raw) {
   if (show === undefined) show = 'basic';
   var url = 'http://opendoar.org/api13.php?show=' + show + '&kwd=' + qrystr;
   console.log(url);
@@ -133,8 +133,11 @@ CLapi.internals.use.opendoar.search = function(qrystr,show) {
     if ( res.statusCode === 200 ) {
       var js = CLapi.internals.convert.xml2json(undefined,res.content);
       var data = [];
-      for ( var r in js.OpenDOAR.repositories[0].repository ) data.push(CLapi.internals.use.opendoar.parse(js.OpenDOAR.repositories[0].repository[r])); 
-      //for ( var r in js.OpenDOAR.repositories[0].repository ) data.push(js.OpenDOAR.repositories[0].repository[r]); 
+      if (raw) {
+        for ( var rr in js.OpenDOAR.repositories[0].repository ) data.push(js.OpenDOAR.repositories[0].repository[rr]);
+      } else {
+        for ( var r in js.OpenDOAR.repositories[0].repository ) data.push(CLapi.internals.use.opendoar.parse(js.OpenDOAR.repositories[0].repository[r])); 
+      }
       return { status: 'success', total: js.OpenDOAR.repositories[0].repository.length, data: data}
     } else {
       return { status: 'error', data: res}

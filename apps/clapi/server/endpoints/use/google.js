@@ -92,6 +92,10 @@ CLapi.internals.use.google.sheets = {};
 CLapi.internals.use.google.cloud = {};
 CLapi.internals.use.google.knowledge = {};
 
+// TODO add old deprecated google finance API, if useful for anything. Runs 15 mins delay
+// see http://finance.google.com/finance/info?client=ig&q=NASDAQ:AAPL
+// which runs pages lik https://finance.yahoo.com/quote/AAPL/profile
+
 // https://developers.google.com/knowledge-graph/
 // https://developers.google.com/knowledge-graph/reference/rest/v1/
 CLapi.internals.use.google.knowledge.retrieve = function(mid,types,wikidata) {
@@ -214,7 +218,7 @@ CLapi.internals.use.google.sheets.feed = function(sheetid,stale) {
       for ( var l in list ) {
         var val = {};
         for ( var k in list[l] ) {
-          if (k.indexOf('gsx$') === 0) val[k.replace('gsx$','')] = list[l][k].$t;
+          try { if (k.indexOf('gsx$') === 0) val[k.replace('gsx$','')] = list[l][k].$t; } catch(err) {} // blank lines may error but keep going
         }
         values.push(val);
       }

@@ -65,13 +65,15 @@ CLapi.internals.service.levor.graph = function() {
   var entitynodes = {};
   var scorelinks = {};
   for ( var s in scores.count ) {
+    var val = '';
+    try { val = scores.count[s]._id.email[0].toUpperCase() + scores.count[s]._id.email.substring(1,scores.count[s]._id.email.indexOf('@')); } catch(err) {}
     var user = {
       key: 'user',
       group: 'user',
-      value: scores.count[s]._id.email[0].toUpperCase() + scores.count[s]._id.email.substring(1,scores.count[s]._id.email.indexOf('@')),
+      value: val,
       size: 0,
       position: parseInt(s),
-      img: CLapi.internals.avatar(scores.count[s]._id.email)
+      img: (scores.count[s]._id.email ? CLapi.internals.avatar(scores.count[s]._id.email) : undefined)
     }
     res.nodes.push(user);
     var pos = res.nodes.length-1;
@@ -229,17 +231,15 @@ CLapi.internals.service.levor.import = function(urls) {
         'https://www.ft.com',
         'http://www.huffingtonpost.co.uk',
         'https://www.nytimes.com',
-        'http://www.newyorker.com'
+        'http://www.newyorker.com',
+        'http://www.dailymail.co.uk/home/index.html'
       ];
     }
   }
   if (typeof urls === 'string') urls = urls.split(',');
   var res = {};
   urls = [
-    'https://www.ft.com',
-    'http://www.huffingtonpost.co.uk',
-    'https://www.nytimes.com',
-    'http://www.newyorker.com'
+    'http://www.dailymail.co.uk/home/index.html'
   ];
   for ( var u in urls ) {
     var e = leviathan_source.findOne({for:'levor',url:urls[u]});

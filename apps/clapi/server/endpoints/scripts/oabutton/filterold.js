@@ -7,8 +7,9 @@ CLapi.addRoute('scripts/oabutton/filterold', {
       var qp = this.queryParams;
       qp.requests = true;
       qp.users = true;
+      // and pass in qp scrape to run scrape for email, and qp execute to actually save changes
       
-      var counts = {updated:0,removed:0,requests:0,scrape:0,users:0,userupdated:0};
+      var counts = {updated:0,removed:0,requests:0,presentemailremoved:0,scrape:0,newvalidemail:0,users:0,userupdated:0};
       
       var professions = ['Student','Health professional','Patient','Researcher','Librarian'];
       if (qp.requests) {
@@ -19,6 +20,9 @@ CLapi.addRoute('scripts/oabutton/filterold', {
             if (qp.execute) oab_request.remove(req._id);
           } else {
             var update = {};
+            if (req.rating) {
+              update.rating = parseInt(req.rating) === 3 || parseInt(req.rating) === 4 || parseInt(req.rating) === 5 ? 'pass' : 'fail';
+            }
             if (req.user) {
               if (req.user.profession === undefined) {
                 update['user.profession'] = 'Other';
@@ -38,16 +42,23 @@ CLapi.addRoute('scripts/oabutton/filterold', {
                   update['user.profession'] = 'Other';
                 }
               }
-              if (['help','moderate'].indexOf(req.status) !== -1 && req.email && CLapi.internals.service.oab.dnr(req.email)) {
-                update.email = '';
-              } else if (!req.email) {
-                counts.scrape += 1;
-                if (qp.scrape) {
-                  try {
-                    // run the oab scraper to try to extract an email, if found, add to the update object
-                    var s = CLapi.internals.service.oab.scrape(req.url);
-                    if (s.email) update.email = s.email;
-                  } catch(err) {}
+              if (['help','moderate'].indexOf(req.status) !== -1) {
+                if ( req.email && ( CLapi.internals.service.oab.dnr(req.email) || !CLapi.internals.mail.validate(req.email).is_valid ) ) {
+                  counts.presentemailremoved += 1;
+                  req.email = undefined;
+                  update.email = '';
+                }
+                if ( !req.email ) {
+                  counts.scrape += 1;
+                  if (qp.scrape) {
+                    try {
+                      var s = CLapi.internals.service.oab.scrape(req.url);
+                      if ( s.email ) {
+                        counts.newvalidemail += 1;
+                        update.email = s.email;
+                      }
+                    } catch(err) {}
+                  }
                 }
               }
             }
