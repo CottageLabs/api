@@ -260,11 +260,12 @@ CLapi.addRoute('service/oab/request/:rid', {
           if (this.request.body.test !== undefined) n.test = this.request.body.test;
           if (this.request.body.status !== undefined) n.status = this.request.body.status;
           if (this.request.body.rating !== undefined) n.rating = this.request.body.rating;
+          if (this.request.body.name !== undefined) n.name = this.request.body.name;
           if (this.request.body.email !== undefined) n.email = this.request.body.email;
           if (this.request.body.story !== undefined) n.story = this.request.body.story;
         }
         if (this.request.body.email !== undefined && ( CLapi.internals.accounts.auth('openaccessbutton.admin',this.user) || r.status === undefined || r.status === 'help' || r.status === 'moderate' || r.status === 'refused' ) ) n.email = this.request.body.email;
-        if (this.userId === r.user.id && this.request.body.story !== undefined) n.story = this.request.body.story;
+        if (r.user && this.userId === r.user.id && this.request.body.story !== undefined) n.story = this.request.body.story;
         if (this.request.body.url !== undefined) n.url = this.request.body.url;
         if (this.request.body.title !== undefined) n.title = this.request.body.title;
         if (this.request.body.doi !== undefined) n.doi = this.request.body.doi;

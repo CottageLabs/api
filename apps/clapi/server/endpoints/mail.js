@@ -156,8 +156,20 @@ CLapi.internals.mail.send = CLapi.internals.sendmail;
 CLapi.internals.mail.validate = function(email,apikey) {
   if (apikey === undefined) apikey = Meteor.settings.MAIL_PUBLIC_APIKEY; // NOTE should use public key, not private key
   var u = 'https://api.mailgun.net/v3/address/validate?syntax_only=false&address=' + email + '&api_key=' + apikey;
-  var v = Meteor.http.call('GET',u);
-  return v.data;
+  try {
+    var v = Meteor.http.call('GET',u);
+    return v.data;
+  } catch(err) {
+    CLapi.internals.mail.send({
+      post:true,
+      from: "alert@cottagelabs.com",
+      to: "alert@cottagelabs.com",
+      subject: 'mailgun validate error',
+      text: JSON.stringify(err),
+    });
+    console.log(err); // mailgun can 401 us if we send too many
+    return {};
+  }
 }
 
 CLapi.internals.mail.test = function() {
