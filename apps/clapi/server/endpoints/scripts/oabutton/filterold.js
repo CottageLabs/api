@@ -43,7 +43,7 @@ CLapi.addRoute('scripts/oabutton/filterold', {
                 }
               }
               if (['help','moderate'].indexOf(req.status) !== -1) {
-                if ( req.email && ( CLapi.internals.service.oab.dnr(req.email) || !CLapi.internals.mail.validate(req.email).is_valid ) ) {
+                if ( req.email && ( req.email.indexOf('@') === -1 || req.email.indexOf('.') === -1 || CLapi.internals.service.oab.dnr(req.email) ) ) {
                   counts.presentemailremoved += 1;
                   req.email = undefined;
                   update.email = '';
