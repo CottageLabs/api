@@ -21,7 +21,7 @@ CLapi.addRoute('scripts/oabutton/filterold', {
           } else {
             var update = {};
             if (req.rating) {
-              update.rating = parseInt(req.rating) === 3 || parseInt(req.rating) === 4 || parseInt(req.rating) === 5 ? 'pass' : 'fail';
+              update.rating = parseInt(req.rating) >= 3 ? 1 : 0;
             }
             if (req.user) {
               if (req.user.profession === undefined) {

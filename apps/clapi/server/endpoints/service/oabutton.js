@@ -951,6 +951,7 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
 
 CLapi.internals.service.oab.admin = function(rid,action) {
   var r = oab_request.findOne(rid);
+  var vars = CLapi.internals.service.oab.vars(r);
   var usermail;
   if (r.user && r.user.id) {
     var u = CLapi.internals.accounts.retrieve(r.user.id);
@@ -964,34 +965,34 @@ CLapi.internals.service.oab.admin = function(rid,action) {
   });
   if (action === 'send_to_author') {
     update.status = 'progress';
-    if (r.story) update.rating = 'pass';
-    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_inprogress.html'},to:requestors});
+    if (r.story) update.rating = 1;
+    if (requestors.length) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_inprogress.html'},to:requestors});
     if (r.type === 'article') {
       if (r.story) {
-        if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2.html'},to:r.email});
+        if (r.email) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'author_request_article_v2.html'},to:r.email});
       } else {
-        if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2_nostory.html'},to:r.email});
+        if (r.email) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'author_request_article_v2_nostory.html'},to:r.email});
       }
     } else {
-      if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_data_v2.html'},to:r.email});      
+      if (r.email) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'author_request_data_v2.html'},to:r.email});      
     }
   } else if (action === 'story_too_bad') {
-    update.rating = 'fail';
-    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_inprogress.html'},to:requestors});
-    if (r.email) CLapi.internals.service.oab.sendmail({template:{filename:'author_request_article_v2_nostory.html'},to:r.email});      
+    update.rating = 0;
+    if (requestors.length) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_inprogress.html'},to:requestors});
+    if (r.email) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'author_request_article_v2_nostory.html'},to:r.email});      
   } else if (action === 'not_a_scholarly_article') {
     update.status = 'closed';
-    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_invalid.html'},to:usermail});
+    if (usermail) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'initiator_invalid.html'},to:usermail});
   } else if (action === 'dead_author') {
     update.status = 'closed';
-    if (requestors.length) CLapi.internals.service.oab.sendmail({template:{filename:'requesters_request_failed_authordeath.html'},to:requestors});
+    if (requestors.length) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_failed_authordeath.html'},to:requestors});
   } else if (action === 'user_testing') {
     update.test = true;
     update.status = 'closed';
-    if (r.story) update.rating = 'fail';
-    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_testing.html'},to:usermail});
+    if (r.story) update.rating = 0;
+    if (usermail) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'initiator_testing.html'},to:usermail});
   } else if (action === 'broken_link') {
-    if (usermail) CLapi.internals.service.oab.sendmail({template:{filename:'initiator_brokenlink.html'},to:usermail});
+    if (usermail) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'initiator_brokenlink.html'},to:usermail});
   }
   if (JSON.stringify(update) !== '{}') oab_request.update(rid,{$set:update});
 }
@@ -1538,8 +1539,7 @@ CLapi.internals.service.oab.template = function(template,refresh) {
   }
 }
 
-CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
-  // wraps the mail constructor
+CLapi.internals.service.oab.vars = function(vars) {
   if (vars && vars.user) {
     var u = CLapi.internals.accounts.retrieve(vars.user.id);
     if (u) {
@@ -1557,6 +1557,13 @@ CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
     vars.username = vars.user.username ? vars.user.username : vars.fullname;
     vars.useremail = vars.user.email
   }
+  if (!vars.profession) vars.profession = 'person';
+  if (!vars.fullname) vars.fullname = 'a user';
+  return vars;
+}
+
+CLapi.internals.service.oab.substitute = function(content,vars,markdown) {
+  vars = CLapi.internals.service.oab.vars(vars);
   if (Meteor.settings.dev) content = content.replace(/https:\/\/openaccessbutton.org/g,'https://dev.openaccessbutton.org');
   return CLapi.internals.mail.substitute(content,vars,markdown);
 }
