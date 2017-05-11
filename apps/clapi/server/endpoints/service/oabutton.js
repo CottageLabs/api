@@ -276,6 +276,14 @@ CLapi.addRoute('service/oab/request/:rid', {
             n.status = 'moderate';
           }
         }
+        if (n.status === 'received' && r.status !== 'received') {
+          CLapi.internals.mail.send({
+            from: 'requests@openaccessbutton.org',
+            to: ['natalianorori@gmail.com'],
+            subject: 'Request ' + r._id + ' received',
+            text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + r._id
+          },Meteor.settings.openaccessbutton.mail_url);
+        }
         if (JSON.stringify(n) !== '{}') oab_request.update(r._id,{$set:n});
         return oab_request.findOne(r._id); // return how it now looks? or just return success?
       } else {

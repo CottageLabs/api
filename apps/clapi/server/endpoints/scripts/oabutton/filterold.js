@@ -5,6 +5,8 @@ CLapi.addRoute('scripts/oabutton/filterold', {
     action: function() {
       
       var qp = this.queryParams;
+      qp.execute = true;
+      qp.scrape = true;
       qp.requests = true;
       qp.users = true;
       // and pass in qp scrape to run scrape for email, and qp execute to actually save changes
@@ -17,7 +19,10 @@ CLapi.addRoute('scripts/oabutton/filterold', {
           counts.requests += 1;        
           if (!req.url || CLapi.internals.service.oab.blacklist(req.url)) {
             counts.removed += 1;
-            if (qp.execute) oab_request.remove(req._id);
+            if (qp.execute) {
+              console.log('removing ' + req._id);
+              oab_request.remove(req._id);
+            }
           } else {
             var update = {};
             if (req.rating) {
@@ -63,7 +68,10 @@ CLapi.addRoute('scripts/oabutton/filterold', {
               }
             }
             if (JSON.stringify(update) !== '{}') {
-              if (qp.execute) oab_request.update(req._id,{$set:update});
+              if (qp.execute) {
+                console.log('updating ' + req._id);
+                oab_request.update(req._id,{$set:update});
+              }
               counts.updated += 1;
             }
           }
@@ -91,7 +99,10 @@ CLapi.addRoute('scripts/oabutton/filterold', {
             }
             if (JSON.stringify(uup) !== '{}') {
               counts.userupdated += 1;
-              if (qp.execute) Meteor.users.update(u._id,{$set:uup});
+              if (qp.execute) {
+                console.log('updating user ' + u._id);
+                Meteor.users.update(u._id,{$set:uup});
+              }
             }
           }
         });

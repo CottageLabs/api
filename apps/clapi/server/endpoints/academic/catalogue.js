@@ -142,14 +142,18 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
     }*/
 
     // get a title from the page if not present yet
-    if (!meta.title && content && content.indexOf('og:title') !== -1) {
+    if (!meta.title && content && content.toLowerCase().indexOf('dc.title') !== -1) {
+			meta.title = content.toLowerCase().split('dc.title')[1].replace(/'/g,'"').split('content=')[1].split('"')[1].trim();
+    } else if (!meta.title && content && content.toLowerCase().indexOf('eprints.title') !== -1) {
+			meta.title = content.toLowerCase().split('eprints.title')[1].replace(/'/g,'"').split('content=')[1].split('"')[1].trim();
+		} else if (!meta.title && content && content.indexOf('og:title') !== -1) {
       meta.title = content.split('og:title')[1].split('content')[1].split('=')[1].replace('/>','>').split('>')[0].trim().replace(/"/g,'');
       if (meta.title.startsWith("'")) meta.title = meta.title.substring(1,meta.title.length-1);
 		} else if (!meta.title && content && content.indexOf('"citation_title" ') !== -1 ) {
 			meta.title = content.split('"citation_title" ')[1].replace(/ = /,'=').split('content="')[1].split('"')[0];
     } else if (!meta.title && content && content.indexOf('<title') !== -1) {
       meta.title = content.split('<title')[1].split('>')[1].split('</title')[0].trim();
-    }
+		}
     // if title found but still no DOI could possibly do a crossref title search to get a doi...
 
     // if a doi is present then look it up in crossref for much more metadata

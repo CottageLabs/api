@@ -74,11 +74,15 @@ CLapi.internals.use.doaj.journals.search = function(qry,params) {
 CLapi.internals.use.doaj.articles.doi = function(doi) {
   var url = 'https://doaj.org/api/v1/search/articles/doi:' + doi;
   console.log(url);
-  var res = Meteor.http.call('GET',url);
-  if (res.statusCode === 200 && res.data && res.data.results && res.data.results.length > 0) {
-    return {status: 'success', data: res.data.results[0]}
-  } else {
-    return {status: 'error', data: res.data}
+  try {
+    var res = Meteor.http.call('GET',url);
+    if (res.statusCode === 200 && res.data && res.data.results && res.data.results.length > 0) {
+      return {status: 'success', data: res.data.results[0]}
+    } else {
+      return {status: 'error', data: res.data}
+    }
+  } catch(err) {
+    return {status: 'error', data: 'DOAJ error'}
   }
 }
 
@@ -90,10 +94,14 @@ CLapi.internals.use.doaj.articles.search = function(qry,params) {
     for ( var op in params ) url += op + '=' + params[op] + '&';
   }
   console.log(url);
-  var res = Meteor.http.call('GET',url);
-  if (res.statusCode === 200) {
-    return {status: 'success', data: res.data}
-  } else {
-    return {status: 'error', data: res.data}
+  try {
+    var res = Meteor.http.call('GET',url);
+    if (res.statusCode === 200) {
+      return {status: 'success', data: res.data}
+    } else {
+      return {status: 'error', data: res.data}
+    }
+  } catch(err) {
+    return {status: 'error', data: 'DOAJ error'}    
   }
 }

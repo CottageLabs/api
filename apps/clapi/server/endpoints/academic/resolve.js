@@ -634,12 +634,13 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     }
     if (!ret.url) {
       try {
-        ret.title = ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ');
         // check BASE
-        res = CLapi.internals.use.base.search('dctitle:"'+ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ')+'"');
+        var simplify = /[\u0300-\u036F]/g; 
+        ret.title = ret.title.toLowerCase().normalize('NFKD').replace(simplify,'').replace(/ß/g,'ss');
+        res = CLapi.internals.use.base.search('dctitle:"'+ret.title+'"');
         if (res && res.data && res.data.docs && res.data.docs.length > 0) {
           res = res.data.docs[0];
-          if (res.dclink && res.dctitle.toLowerCase().replace(/[^a-z0-9 ]/g,' ') === ret.title.toLowerCase().replace(/(<([^>]+)>)/g,'').replace(/[^a-z0-9 ]/g,' ') ) {
+          if (res.dclink && res.dctitle.toLowerCase().normalize('NFKD').replace(simplify,'').replace(/ß/g,'ss') === ret.title.toLowerCase() ) {
             // is it worth getting the DOI from here, if present and if not yet known?
             if (res.dclink.toLowerCase().indexOf('pmc') !== -1 && res.dclink.toLowerCase().split('/').pop() === 'pmc') {
               // add a check for BASE having wrong PMC links, sometimes possible, according to http://blog.impactstory.org/dirty-data/

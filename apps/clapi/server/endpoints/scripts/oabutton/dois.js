@@ -1,16 +1,16 @@
 
 
-CLapi.addRoute('scripts/oabutton/imperialdois', {
+CLapi.addRoute('scripts/oabutton/dois', {
   get: {
     roleRequired: 'root',
     action: function() {
       
       var fs = Meteor.npmRequire('fs');
-      var doicsv = '/home/cloo/spiral-dois-clean.csv';
+      var doicsv = '/home/cloo/oabutton_dois.csv';
       var dois = fs.readFileSync(doicsv).toString().split('\n');
       dois.splice(0,1);
       
-      var out = '/home/cloo/imperialdois.csv';
+      var out = '/home/cloo/oabutton_dois_results.csv';
       fs.writeFileSync(out,'"DOI","URL","source"\n');
 
       var start = new Date();
@@ -45,9 +45,9 @@ CLapi.addRoute('scripts/oabutton/imperialdois', {
       info.end = end.getHours() + ':' + end.getMinutes() + '.' + end.getSeconds();
       
       CLapi.internals.sendmail({
-        from: 'sysadmin@cottagelabs.com',
+        from: 'alert@cottagelabs.com',
         to: 'mark@cottagelabs.com',
-        subject: 'imperial DOIs complete',
+        subject: 'oabutton DOIs checked',
         text: JSON.stringify(info,undefined,2)
       });
       

@@ -168,6 +168,8 @@ CLapi.internals.use.europepmc.pmc = function(ident) {
 }
 
 CLapi.internals.use.europepmc.search = function(qrystr,from,size) {
+  // TODO epmc changed to using a cursormark for pagination, so change how we pass paging to them
+  // see https://github.com/CottageLabs/LanternPM/issues/124
   var url = 'http://www.ebi.ac.uk/europepmc/webservices/rest/search?query=' + qrystr + '&resulttype=core&format=json'
   if (size !== undefined) url += '&pageSize=' + size;
   if (from !== undefined) url += '&page=' + (Math.floor(from/size)+1);
@@ -278,7 +280,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
     if (pmcid) {
       var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
       //var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
-      var licsplash = CLapi.internals.limit.do(6000,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
+      var licsplash = CLapi.internals.limit.do(10000,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
       console.log(pmcid + ' licsplash HTML check on http://europepmc.org/articles/' + normalised_pmcid);
       // console.log(licsplash);
       if (licsplash.licence && licsplash.licence !== 'unknown') {
@@ -327,7 +329,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
           //var pg = Meteor.http.call('GET',url);
-          var pg = CLapi.internals.limit.do(6000,Meteor.http.call,"lantern_epmc_ui",['GET',url]);
+          var pg = CLapi.internals.limit.do(10000,Meteor.http.call,"lantern_epmc_ui",['GET',url]);
           if (pg.statusCode === 200) {
             var page = pg.content;
             var s1 = 'Author Manuscript; Accepted for publication in peer reviewed journal';
