@@ -79,8 +79,7 @@ login_services['http://dev.openaccessbutton.org/account'] = JSON.parse(JSON.stri
 login_services['http://dev.openaccessbutton.org/account'].secure = false;
 login_services['https://dev.openaccessbutton.org/account'] = login_services['http://dev.openaccessbutton.org/account'];
 
-login_services['http://lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['https://lantern.cottagelabs.com']));
-login_services['http://lantern.test.cottagelabs.com'].secure = false;
+login_services['https://lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['https://lantern.cottagelabs.com']));
 login_services['http://wellcome.test.cottagelabs.com'] = login_services['http://lantern.test.cottagelabs.com'];
 
 

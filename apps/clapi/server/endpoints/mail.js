@@ -155,7 +155,7 @@ CLapi.internals.mail.send = CLapi.internals.sendmail;
 
 CLapi.internals.mail.validate = function(email,apikey) {
   if (apikey === undefined) apikey = Meteor.settings.MAIL_PUBLIC_APIKEY; // NOTE should use public key, not private key
-  var u = 'https://api.mailgun.net/v3/address/validate?syntax_only=false&address=' + email + '&api_key=' + apikey;
+  var u = 'https://api.mailgun.net/v3/address/validate?syntax_only=false&address=' + encodeURIComponent(email) + '&api_key=' + apikey;
   try {
     var v = Meteor.http.call('GET',u);
     return v.data;

@@ -129,7 +129,7 @@ clogin.emailSubmitButtonText = 'Login / Register';
 clogin.tokenDivId = 'cloginTokenArea'; // the div of the area that shows the login token input box and the button that triggers it, and any other related info you put in it
 clogin.tokenDivText = '';
 clogin.tokenInputId = 'cloginToken'; // the ID of the box where the login token should be read from
-clogin.tokenInputPlaceholder = 'Check your email, enter your login code - or just click the link in the email';
+clogin.tokenInputPlaceholder = 'Check your email, enter your login code';
 
 clogin.logoutButtonId = 'cloginLogout';
 
@@ -540,17 +540,26 @@ clogin.login = function(e) {
   if (window.location.pathname !== '/') data.location += window.location.pathname;
   var cookie = clogin.getCookie();
   if (cookie) {
-    if ( !data.email ) data.email = cookie.email;
-    data.fingerprint = cookie.fp;
-    if (!data.token && !data.hash) {
-      data.resume = cookie.resume;
-      data.timestamp = cookie.timestamp;
-      data.location = cookie.url;
+    if ( ( cookie.url.indexOf('dev.') !== data.location.indexOf('dev.') ) || ( cookie.url.indexOf('test.') !== data.location.indexOf('test.') ) ) {
+      if (clogin.debug) console.log('Dev/live cookie mixup');
+      var lgt = confirm('You are either logging in to live but have a dev login cookie present, or vice versa. You will be logged out of both in order to proceed. OK?');
+      if (lgt) {
+        clogin.removeCookie(clogin.cookie,cookie.domain);
+        window.location = window.location.href;
+      }
+    } else {
+      if ( !data.email ) data.email = cookie.email;
+      data.fingerprint = cookie.fp;
+      if (!data.token && !data.hash) {
+        data.resume = cookie.resume;
+        data.timestamp = cookie.timestamp;
+        data.location = cookie.url;
+      }
     }
   }
   if (!data.email && progress) data.email = progress.email;
   opts.data = JSON.stringify(data);
-  if ( data.email || data.hash ) {
+  if ( data.token || data.hash || data.resume || data.fingerprint ) {
     if (clogin.loadingId) $('#'+clogin.loadingId).show();
     $.ajax(opts);
   } else {

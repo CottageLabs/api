@@ -611,6 +611,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
           username:username,
           roles:user.roles,
           timestamp:newtimestamp,
+          domain:opts.domain,
           url:loc,
           resume: newresume
         },
