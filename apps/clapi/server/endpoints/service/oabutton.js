@@ -9,6 +9,7 @@ oab_support = new Mongo.Collection("oab_support");
 oab_meta = new Mongo.Collection("oab_meta");
 oab_availability = new Mongo.Collection("oab_availability"); // records use of that endpoint
 oab_request = new Mongo.Collection("oab_request"); // records use of that endpoint
+oab_history = new Mongo.Collection("oab_history"); // records use of that endpoint
 oab_ill = new Mongo.Collection("oab_ill"); // records our forwarding of inter library loan requests
 
 var moment = Meteor.npmRequire('moment');
@@ -48,6 +49,17 @@ oab_request.before.update(function (userId, doc, fieldNames, modifier, options) 
   var d = Date.now();
   modifier.$set.updatedAt = d;
   modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
+  var upd = {}
+  upd._id = doc._id + '_' + doc.updatedAt;
+  upd.createdAt = doc.updatedAt;
+  upd.created_date = moment(upd.createdAt,"x").format("YYYY-MM-DD HHmm");
+  upd.userId = userId;
+  upd.doc = doc;
+  upd.modifier = modifier.$set;
+  for ( var m in upd.modifier ) {
+    if (doc[m] === upd.modifier[m] || m === 'updatedAt' || m === 'updated_date') delete upd.modifier[m];
+  }
+  CLapi.internals.es.insert('/oab/history/' + upd._id, upd);
 });
 oab_request.after.update(function (userId, doc, fieldNames, modifier, options) {
   CLapi.internals.es.insert('/oab/request/' + doc._id, doc);
@@ -276,14 +288,6 @@ CLapi.addRoute('service/oab/request/:rid', {
             n.status = 'moderate';
           }
         }
-        if (n.status === 'received' && r.status !== 'received') {
-          CLapi.internals.mail.send({
-            from: 'requests@openaccessbutton.org',
-            to: ['natalianorori@gmail.com'],
-            subject: 'Request ' + r._id + ' received',
-            text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + r._id
-          },Meteor.settings.openaccessbutton.mail_url);
-        }
         if (JSON.stringify(n) !== '{}') oab_request.update(r._id,{$set:n});
         return oab_request.findOne(r._id); // return how it now looks? or just return success?
       } else {
@@ -411,6 +415,17 @@ CLapi.addRoute('service/oab/requests', {
       var data;
       if ( JSON.stringify(this.bodyParams).length > 2 ) data = this.bodyParams;
       return CLapi.internals.es.query('POST','/oab/request/_search',data);
+    }
+  }
+});
+
+CLapi.addRoute('service/oab/history/:rid', {
+  get: {
+    action: function() {
+      var res = CLapi.internals.es.query('GET','/oab/history/_search?size=10000&sort=createdAt:desc&q=doc._id:'+this.urlParams.rid).hits.hits;
+      var ret = [];
+      for (var r in res) ret.push(res[r]._source);
+      return ret;
     }
   }
 });
@@ -701,15 +716,72 @@ CLapi.addRoute('service/oab/bug', {
 });
 
 CLapi.addRoute('service/oab/job', {
+  get: {
+    action: function() {
+      // get all job info
+      var jobs = job_job.find({service:'openaccessbutton'},{sort:{createdAt:-1}}).fetch();
+      for ( var j in jobs ) jobs[j].progress = CLapi.internals.job.progress(jobs[j]._id).progress;
+      return jobs;
+    }
+  },
   post: {
     roleRequired: 'openaccessbutton.admin', // later could be opened to other oab users, with some sort of quota / limit
     action: function() {
       console.log(this.request.body) // will contain list and name
-      var list = this.request.body.list ? this.request.body.list : this.request.body;
-      // should be a json list extracted from a csv, with at least one of columns named url, doi, pmid, pmcid, title - check columns?
-      // run an availability check for all in list - could be configured to other actions
-      // var jid = CLapi.internals.job.create({user:this.userId,service:'openaccessbutton',method:CLapi.internals.service.oab.availability,name:"oab_availability",list:list});
-      return this.request.body;//jid;
+      var processes = this.request.body.processes ? this.request.body.processes : this.request.body;
+      var jid = CLapi.internals.job.create({user:this.userId,service:'openaccessbutton',function:'CLapi.internals.service.oab.availability',name:(this.request.body.name ? this.request.body.name : "oab_availability"),processes:processes},this.userId);
+      return jid;
+    }
+  }
+});
+CLapi.addRoute('service/oab/job/:jid/results', {
+  get: {
+    action: function() {
+      return CLapi.internals.job.results(this.urlParams.jid);
+    }
+  }
+});
+CLapi.addRoute('service/oab/job/:jid/results.json', {
+  get: {
+    action: function() {
+      return CLapi.internals.job.results(this.urlParams.jid);
+    }
+  }
+});
+CLapi.addRoute('service/oab/job/:jid/results.csv', {
+  get: {
+    action: function() {
+      var res = CLapi.internals.job.results(this.urlParams.jid);
+      var csv = 'MATCH,AVAILABLE,REQUEST,TITLE,DOI';
+      for ( var r in res ) {
+        var row = res[r];
+        csv += '\n';
+        csv += row.match + ',';
+        var av = 'No';
+        for ( var a in row.availability ) {
+          if (row.availability[a].type === 'article') av = row.availability[a].url;
+        }
+        csv += av + ',';
+        var rq = 'None';
+        for ( var re in row.requests ) {
+          if (row.requests[re].type === 'article') rq = 'https://' + (Meteor.settings.dev ? 'dev.' : '') + 'openaccessbutton.org/request/' + row.requests[re]._id;
+        }
+        csv += rq + ',';
+        if (row.meta && row.meta.article && row.meta.article.title) csv += row.meta.article.title.replace('"','');
+        csv += ',';
+        if (row.meta && row.meta.article && row.meta.article.doi) csv += row.meta.article.doi;
+      }
+      var job = job_job.findOne(this.urlParams.jid);
+      var name = 'results';
+      if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
+      this.response.writeHead(200, {
+        'Content-disposition': "attachment; filename="+name+".csv",
+        'Content-type': 'text/csv',
+        'Content-length': csv.length
+      });
+      this.response.write(csv);
+      this.done();
+      return {}
     }
   }
 });
@@ -928,6 +1000,13 @@ CLapi.internals.service.oab.request = function(req,uid,fast) {
     req.journal = meta && meta.journal ? meta.journal : "";
     req.issn = meta && meta.issn ? meta.issn : "";
     req.publisher = meta && meta.publisher ? meta.publisher : "";
+    
+    if (req.journal) {
+      try {
+        var sherpa = CLapi.internals.use.sherpa.romeo.search({jtitle:req.journal});
+        req.sherpa = {color:sherpa.data.publishers[0].publisher[0].romeocolour[0]}
+      } catch(err) {}
+    }
   }
 
   req.status = !req.story || !req.title || !req.email || req.user === undefined ? "help" : "moderate";
@@ -1001,6 +1080,9 @@ CLapi.internals.service.oab.admin = function(rid,action) {
     if (usermail) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'initiator_testing.html'},to:usermail});
   } else if (action === 'broken_link') {
     if (usermail) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'initiator_brokenlink.html'},to:usermail});
+  } else if (action === 'remove_submitted_url') {
+    update.status = 'moderate';
+    update.received = false;
   }
   if (JSON.stringify(update) !== '{}') oab_request.update(rid,{$set:update});
 }
@@ -1171,7 +1253,7 @@ CLapi.internals.service.oab.availability = function(opts) {
     if (opts.pmid) bu = 'https://www.ncbi.nlm.nih.gov/pubmed/' + opts.pmid;
     if (opts.pmc) bu = 'http://europepmc.org/articles/PMC' + opts.pmc.toLowerCase().replace('pmc','');
     if (opts.pmcid) bu = 'http://europepmc.org/articles/PMC' + opts.pmcid.toLowerCase().replace('pmc','');
-    if (opts.doi) bu = 'https://doi.org/' + opts.doi.indexOf('doi.org/') !== -1 ? opts.doi.split('doi.org/')[1] : opts.doi;
+    if (opts.doi) bu = 'https://doi.org/' + (opts.doi.indexOf('doi.org/') !== -1 ? opts.doi.split('doi.org/')[1] : opts.doi);
     if (bu) opts.url = bu;
   }
   if (opts.url === undefined) return {} // opts.url could actually be doi, pmid, pmc, title, citation - what to do about how we store each?
@@ -1326,6 +1408,20 @@ CLapi.internals.service.oab.refuse = function(rid,reason) {
   delete r.email;
   oab_request.update(rid,{$set:{hold:undefined,email:undefined,holds:r.holds,refused:r.refused,status:r.status}});
   //CLapi.internals.sendmail(); // inform requestee that their request has been refused
+  var requestors = [];
+  oab_support.find({rid:rid}).forEach(function(s) {
+    if (s.email && requestors.indexOf(s.email) === -1) requestors.push(s.email);
+  });
+  if (requestors.length) {
+    var vars = CLapi.internals.service.oab.vars(r);
+    CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_refused.html'},to:requestors});
+  }
+  CLapi.internals.mail.send({
+    from: 'requests@openaccessbutton.org',
+    to: ['natalianorori@gmail.com'],
+    subject: 'Request ' + r._id + ' refused',
+    text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + rid
+  },Meteor.settings.openaccessbutton.mail_url);
   return {status: 'success', data: r};
 }
 
@@ -1455,6 +1551,13 @@ CLapi.internals.service.oab.receive = function(rid,content,url,title,description
     //if (tmplfn) CLapi.internals.service.oab.sendmail({template:{filename:tmplfn},bcc:whoto});
     
     oab_request.update(r._id,{$set:{hold:undefined,received:r.received,status:'received'}});
+    CLapi.internals.mail.send({
+      from: 'requests@openaccessbutton.org',
+      to: ['natalianorori@gmail.com'],
+      subject: 'Request ' + r._id + ' received',
+      text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + r._id
+    },Meteor.settings.openaccessbutton.mail_url);
+
     return {status: 'success', data: r};
   }
 }
