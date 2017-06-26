@@ -751,7 +751,7 @@ CLapi.addRoute('service/oab/job/:jid/results.csv', {
   get: {
     action: function() {
       var res = CLapi.internals.job.results(this.urlParams.jid);
-      var csv = '"MATCH","AVAILABLE","REQUEST","TITLE","DOI"';
+      var csv = '"MATCH","AVAILABLE","SOURCE","REQUEST","TITLE","DOI"';
       for ( var r in res ) {
         var row = res[r];
         csv += '\n"';
@@ -761,7 +761,9 @@ CLapi.addRoute('service/oab/job/:jid/results.csv', {
           if (row.availability[a].type === 'article') av = row.availability[a].url.replace(/"/g,'');
         }
         csv += av + '","';
-        var rq = 'None';
+        if (av !== 'No' && row.meta && row.meta.article && row.meta.article.source) csv += row.meta.article.source;
+        csv += '","';
+        var rq = '';
         for ( var re in row.requests ) {
           if (row.requests[re].type === 'article') rq = 'https://' + (Meteor.settings.dev ? 'dev.' : '') + 'openaccessbutton.org/request/' + row.requests[re]._id;
         }
