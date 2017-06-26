@@ -727,7 +727,6 @@ CLapi.addRoute('service/oab/job', {
   post: {
     roleRequired: 'openaccessbutton.admin', // later could be opened to other oab users, with some sort of quota / limit
     action: function() {
-      console.log(this.request.body) // will contain list and name
       var processes = this.request.body.processes ? this.request.body.processes : this.request.body;
       var jid = CLapi.internals.job.create({user:this.userId,service:'openaccessbutton',function:'CLapi.internals.service.oab.availability',name:(this.request.body.name ? this.request.body.name : "oab_availability"),processes:processes},this.userId);
       return jid;
@@ -752,24 +751,25 @@ CLapi.addRoute('service/oab/job/:jid/results.csv', {
   get: {
     action: function() {
       var res = CLapi.internals.job.results(this.urlParams.jid);
-      var csv = 'MATCH,AVAILABLE,REQUEST,TITLE,DOI';
+      var csv = '"MATCH","AVAILABLE","REQUEST","TITLE","DOI"';
       for ( var r in res ) {
         var row = res[r];
-        csv += '\n';
-        csv += row.match + ',';
+        csv += '\n"';
+        csv += row.match.replace('TITLE:','').replace(/"/g,'') + '","';
         var av = 'No';
         for ( var a in row.availability ) {
-          if (row.availability[a].type === 'article') av = row.availability[a].url;
+          if (row.availability[a].type === 'article') av = row.availability[a].url.replace(/"/g,'');
         }
-        csv += av + ',';
+        csv += av + '","';
         var rq = 'None';
         for ( var re in row.requests ) {
           if (row.requests[re].type === 'article') rq = 'https://' + (Meteor.settings.dev ? 'dev.' : '') + 'openaccessbutton.org/request/' + row.requests[re]._id;
         }
-        csv += rq + ',';
-        if (row.meta && row.meta.article && row.meta.article.title) csv += row.meta.article.title.replace('"','');
-        csv += ',';
+        csv += rq + '","';
+        if (row.meta && row.meta.article && row.meta.article.title) csv += row.meta.article.title.replace(/"/g,'');
+        csv += '","';
         if (row.meta && row.meta.article && row.meta.article.doi) csv += row.meta.article.doi;
+        csv += '"';
       }
       var job = job_job.findOne(this.urlParams.jid);
       var name = 'results';
