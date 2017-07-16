@@ -103,26 +103,20 @@ CLapi.addRoute('service/lantern', {
     }
   },
   post: {
-    roleRequired: 'lantern.user',
     action: function() {
-      var maxallowedlength = 3000; // this could be in config or a per user setting...
-      var checklength = this.request.body.list ? this.request.body.list.length : this.request.body.length;
-      var quota = this.request.body.email !== undefined ? {available:10000000,wellcome:true} : CLapi.internals.service.lantern.quota(this.userId);
-      // TODO should partial jobs be accepted, up to remaining quota available / max length?
-      // for now jobs that are too big are refused
-      if (checklength > maxallowedlength) {
-        return {statusCode: 413, body: {status: 'error', data: {length: checklength, max: maxallowedlength, info: checklength + ' too long, max rows allowed is ' + maxallowedlength}}}
-      } else if (checklength > quota.available) {
-        return {statusCode: 413, body: {status: 'error', data: {length: checklength, quota: quota, info: checklength + ' greater than remaining quota ' + quota.available}}}
-      } else {
-        var w = this.request.body.email ? true : false;
-        var j = w ? lantern_jobs.insert({new:true,wellcome:true,user:this.userId}) : lantern_jobs.insert({new:true,user:this.userId});
-        var b = this.request.body;
-        var u = this.userId;
-        var r = this.queryParams.refresh;
-        Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
-        return {status: 'success', data: {job:j,quota:quota, max: maxallowedlength, length: checklength}};
+      var acc;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        acc = CLapi.internals.accounts.retrieve(apikey);
       }
+      if (!acc && this.request.body.list && this.request.body.list.length > 1) return {statusCode: 401, body: {status: 'error', data: 'unauthorised'}}
+      var w = this.request.body.email ? true : false;
+      var j = w ? lantern_jobs.insert({new:true,wellcome:true,user:this.userId}) : lantern_jobs.insert({new:true,user:this.userId});
+      var b = this.request.body;
+      var u = (acc ? acc._id : undefined);
+      var r = this.queryParams.refresh;
+      Meteor.setTimeout(function() { CLapi.internals.service.lantern.job(b,u,r,w,j); }, 5);
+      return {status: 'success', data: {job:j}};
     }
   }
 });
@@ -131,8 +125,6 @@ CLapi.addRoute('service/lantern/:job', {
   get: {
     roleRequired: 'lantern.user',
     action: function() {
-      // return the info of the job - the job metadata and the progress so far
-      // TODO if user is not the job creator or is not admin, 401
       var job = lantern_jobs.findOne(this.urlParams.job);
       if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
@@ -157,11 +149,9 @@ CLapi.addRoute('service/lantern/:job/reload', {
 
 CLapi.addRoute('service/lantern/:job/progress', {
   get: {
-    roleRequired: 'lantern.user',
     action: function() {
       // return the info of the job - the job metadata and the progress so far
       var job = lantern_jobs.findOne(this.urlParams.job);
-      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var progress = CLapi.internals.service.lantern.progress(this.urlParams.job);
         return {status: 'success', data: progress}
@@ -174,11 +164,9 @@ CLapi.addRoute('service/lantern/:job/progress', {
 
 CLapi.addRoute('service/lantern/:job/todo', {
   get: {
-    roleRequired: 'lantern.user',
     action: function() {
       // return the parts of the job still to do, does not check for results found since last progress check
       var job = lantern_jobs.findOne(this.urlParams.job);
-      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var todo = CLapi.internals.service.lantern.todo(this.urlParams.job);
         return {status: 'success', data: todo}
@@ -191,129 +179,33 @@ CLapi.addRoute('service/lantern/:job/todo', {
 
 CLapi.addRoute('service/lantern/:job/results', {
   get: {
-    roleRequired: 'lantern.user',
     action: function() {
-      // return the results for this job as JSON
       var job = lantern_jobs.findOne(this.urlParams.job);
-      if ( !CLapi.internals.service.lantern.allowed(job,this.user) ) return {statusCode:401, body:{}}
-      // TODO may add restriction on how long old jobs can be returned for 
-      // could be implemented by deleting them, or by checking here for how long the user can 
-      // retrieve jobs (to be saved in a user config)
       if (!job) return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
+      var acc;
+      if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+        var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+        acc = CLapi.internals.accounts.retrieve(apikey);
+      }
+      //if ( (acc === undefined && job.list.length !== 1) || ( acc && !CLapi.internals.service.lantern.allowed(job,acc ) ) ) return {statusCode:401, body:{}}
       
       var res;
-      if ( this.queryParams.format && this.queryParams.format === 'csv' ) {
-        var format = job.wellcome ? 'wellcome' : 'lantern';
-        if (this.queryParams.wellcome) {
-          // override the format by query param if necessary
-          if (this.queryParams.wellcome === 'false') {
-            format = 'lantern';
-          } else {
-            format = 'wellcome';
-          }
-        }
-        // catch to wellcome format for anyone with a wellcome email address for now - should become a group setting
-        if (job.email && job.email.indexOf('wellcome') !== -1) format = 'wellcome';
-        res = CLapi.internals.service.lantern.results(this.urlParams.job,format);
-        var grantcount = 0;
-        for ( var k in res ) {
-          var rk = res[k];
-          var igc = 0;
-          for ( var key in rk ) {
-            if (key.indexOf('Grant ') === 0) igc += 1;
-          }
-          if (igc > grantcount) grantcount = igc;
-        }
-        var fields = [
-          'PMCID','PMID','DOI','Publisher','Journal title','ISSN',
-          'Article title','Publication Date','Electronic Publication Date',
-          'Author(s)'
-        ];
-        if (job.list && job.list.length > 0) {
-          if (job.list[0].University !== undefined) fields.unshift('University');
-          var ffields = [
-            'Title of paper (shortened)',
-            'Grant References','Total cost of Article Processing Charge (APC), in £',
-            'Amount of APC charged to Wellcome OA grant, in £ (see comment)','VAT charged',
-            'COST (£)','Wellcome grant','licence info','Notes'
-          ];
-          for ( var fld in ffields) {
-            if (job.list[0][ffields[fld]] !== undefined) fields.push(ffields[fld]);
-          }
-        }
-
-        if (format !== 'wellcome') {
-          fields.push('In CORE?');
-          fields.push('Repositories');
-          fields.push('Repository URLs');
-          fields.push('Repository fulltext URLs');
-          fields.push('Repository OAI IDs');
-        }
-
-        fields = fields.concat([
-          'Fulltext in EPMC?','XML Fulltext?','Author Manuscript?','Ahead of Print?',
-          'Open Access?'
-        ]);
-
-        if (format === 'wellcome') {
-          fields.push('EPMC Licence');
-          fields.push('EPMC Licence source');
-          fields.push('Publisher Licence');
-        } else {
-          fields.push('Licence');
-          fields.push('Licence source');
-        }
-
-        fields = fields.concat([
-          'Journal Type','Correct Article Confidence'
-        ]);
-
-        if (format === 'wellcome') {
-          fields.push('Standard Compliance?');
-          fields.push('Deluxe Compliance?');
-        } else {
-          fields.push('Preprint Embargo');
-          fields.push('Preprint Self-archiving Policy');
-          fields.push('Postprint Embargo');
-          fields.push('Postprint Self-archiving Policy');
-          fields.push('Publishers Copy Embargo');
-          fields.push('Publishers Copy Self-archiving Policy');
-        }
-
-        if (format === 'wellcome') {
-          fields.push('Compliance Processing Output');
-        }
-
-        for ( var gi=0; gi < grantcount; gi++) {
-          fields.push('Grant ' + (parseInt(gi)+1));
-          fields.push('Agency ' + (parseInt(gi)+1));
-          fields.push('PI ' + (parseInt(gi)+1));
-        }
-        if (format !== 'wellcome') {
-          fields.push('Provenance');          
-        }
-        
-        // check the current user fields options and remove any they have set to false, and/or add/remove if present in query params
+      if ( this.queryParams.format === 'csv' ) {
+        var ignorefields = [];
         if (this.user.service.lantern.profile && this.user.service.lantern.profile.fields) {
           for ( var f in this.user.service.lantern.profile.fields) {
-            var pos = fields.indexOf(f);
-            if (this.user.service.lantern.profile.fields[f] === false && pos !== -1 && ( this.queryParams[f] === undefined || this.queryParams[f] === 'false') ) fields.splice(pos,1);
+            if (this.user.service.lantern.profile.fields[f] === false && ( this.queryParams[f] === undefined || this.queryParams[f] === 'false') ) ignorefields.push(f);
           }
         }
-        for ( var q in this.queryParams) {
-          var pq = fields.indexOf(q);
-          if (pq !== -1 && this.queryParams[q] === 'false') fields.splice(pq,1);
-        }
-        
-        var ret = CLapi.internals.convert.json2csv({fields:fields},undefined,res);
+        var csv = CLapi.internals.service.lantern.csv(this.urlParams.job,ignorefields);
         var name = 'results';
         if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
         this.response.writeHead(200, {
           'Content-disposition': "attachment; filename="+name+".csv",
-          'Content-type': 'text/csv',
-          'Content-length': ret.length
+          'Content-type': 'text/csv; charset=UTF-8',
+          'Content-length': csv.length
         });
-        this.response.write(ret);
+        this.response.write(csv);
         this.done();
         return {}  
       } else {
@@ -336,29 +228,16 @@ CLapi.addRoute('service/lantern/:job/original', {
       for ( var j in job.list ) {
         var jb = job.list[j];
         if (jb.process) delete jb.process;
-        //if (jb.result) delete jb.result;
-        if (jb.doi !== undefined) jb.DOI = jb.doi;
-        delete jb.doi;
-        if (jb.pmcid !== undefined) jb.PMCID = jb.pmcid;
-        delete jb.pmcid;
-        if (jb.pmid !== undefined) jb.PMID = jb.pmid;
-        delete jb.pmid;
-        if (jb.title !== undefined) jb['Article title'] = jb.title;
-        delete jb.title;
+        // look for upper and lowercase dups of ID fields, and remove one. Look for title and "article title" too
         fl.push(jb);
       }
       //return fl;
       var ret = CLapi.internals.convert.json2csv(undefined,undefined,fl);
       var name = 'original';
       if (job.name) name = job.name.split('.')[0].replace(/ /g,'_');
-      //header('Content-Encoding: UTF-8');
-      //header('Content-type: text/csv; charset=UTF-8');
-      //header('Content-Disposition: attachment; filename=Customers_Export.csv');
-      //echo "\xEF\xBB\xBF"; // UTF-8 BOM
-      // http://answers.microsoft.com/en-us/mac/forum/macoffice2011-macexcel/mac-excel-converts-utf-8-characters-to-underlines/7c4cdaa7-bfa3-41a2-8482-554ae235227b?msgId=c8295574-a053-48a6-b419-51523ce2a247&auth=1
       this.response.writeHead(200, {
         'Content-disposition': "attachment; filename="+name+"_original.csv",
-        'Content-type': 'text/csv',
+        'Content-type': 'text/csv; charset=UTF-8',
         'Content-length': ret.length
       });
       this.response.write(ret);
@@ -419,7 +298,7 @@ CLapi.addRoute('service/lantern/jobs/todo', {
 
 CLapi.addRoute('service/lantern/jobs/reload', {
   get: {
-    roleRequired: 'root',
+    roleRequired: 'lantern.admin',
     action: function() {
       return {status: 'success', data: CLapi.internals.service.lantern.reload() }
     }
@@ -432,7 +311,7 @@ CLapi.addRoute('service/lantern/jobs/:email', {
     action: function() {
       var results = [];
       if ( !( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) ) return {statusCode:401,body:{}}
-      var jobs = lantern_jobs.find({email:this.urlParams.email});
+      var jobs = lantern_jobs.find({email:this.urlParams.email},{sort:{createdAt:-1}});
       jobs.forEach(function(job) {
         job.processes = job.list.length;
         delete job.list;
@@ -489,19 +368,6 @@ CLapi.addRoute('service/lantern/status', {
   }
 });
 
-CLapi.addRoute('service/lantern/quota/:email', {
-  get: {
-    roleRequired: 'lantern.user',
-    action: function() {
-      if ( CLapi.internals.accounts.auth('lantern.admin',this.user) || this.user.emails[0].address === this.urlParams.email ) {
-        return {status: 'success', data: CLapi.internals.service.lantern.quota(this.urlParams.email) }
-      } else {
-        return {statusCode:401, body:{}}
-      }
-    }
-  }
-});
-
 CLapi.addRoute('service/lantern/fields/:email', {
   post: {
     roleRequired: 'lantern.user',
@@ -529,58 +395,6 @@ CLapi.internals.service.lantern = {};
 
 CLapi.internals.service.lantern.allowed = function(job,uacc) {
   return job.user === uacc._id || CLapi.internals.accounts.auth('lantern.admin',uacc) || job.wellcome === true;
-}
-
-CLapi.internals.service.lantern.quota = function(uid) {
-  var acc = CLapi.internals.accounts.retrieve(uid);
-  var email = acc.emails[0].address;
-  var max = 100;
-  var admin = CLapi.internals.accounts.auth('lantern.admin',acc);
-  var premium = CLapi.internals.accounts.auth('lantern.premium',acc,false );
-  if ( admin ) {
-    max = 500000;
-  } else if ( premium ) {
-    max = 5000;
-  }
-  var backtrack = 30;
-  var additional = 0;
-  var today = Date.now();
-  var until = false;
-  var display = false;
-  if (acc && acc.service && acc.service.lantern && acc.service.lantern.additional) {
-    for ( var a in acc.service.lantern.additional ) {
-      var ad = acc.service.lantern.additional[a];
-      if ( ad.until > today ) {
-        additional = ad.quota;
-        display = ad.display;
-        until = ad.until;
-      } else if ( ((ad.until/1000)+(30*86400))*1000 > today ) {
-        // set the backtrack date, so only counts old jobs run after the last additional quota expired
-        // essentially provides a reset on job quota max after an additional quota is purchased and runs out, 
-        // even if the standard quota max was used as well as the additional quota, within the last 30 days.
-        // so a wee bit of a bonus - but then, if someone pays for an additional quota one assumes they intend to use all the standard max anyway
-        backtrack = ((30*86400) - (ad.until/1000) - (today/1000));
-      }
-    }
-  }
-  var count = 0;
-  var d = new Date();
-  var t = d.setDate(d.getDate() - backtrack);
-  var j = lantern_jobs.find({$and:[{email:email},{createdAt:{$gte:t}}]},{sort:{createdAt:-1}});
-  j.forEach(function(job) { count += job.list.length; });
-  var available = max - count + additional;
-  return {
-    admin: admin,
-    premium: premium,
-    additional: additional,
-    until: until,
-    display: display,
-    email: email,
-    count: count,
-    max: max,
-    available: available,
-    allowed: available>0
-  }
 }
 
 CLapi.internals.service.lantern.status = function() {
@@ -638,14 +452,14 @@ CLapi.internals.service.lantern.reload = function(jobid) {
 // Lantern submissions create a trackable job
 // accepts list of articles with one or some of doi,pmid,pmcid,title
 CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
-  var user = CLapi.internals.accounts.retrieve(uid);
+  var user = uid ? CLapi.internals.accounts.retrieve(uid) : undefined;
   var job = {user:uid};
   if (wellcome) {
     if (refresh === undefined) refresh = 1;
     job.wellcome = true;
     job.email = input.email;
   } else {
-    job.email = user.emails[0].address;
+    job.email = (user ? user.emails[0].address : undefined);
   }
   if (refresh === undefined) refresh = true; // a refresh of true forces always new results (0 would get anything older than today, etc into past)
   if (refresh !== undefined) job.refresh = parseInt(refresh);
@@ -659,31 +473,16 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
   job.list = list;
   for ( var i in list ) {
     var j = list[i];
-    if ( j.DOI ) {
-      list[i].doi = j.DOI;
-      delete list[i].DOI;
-    }
-    if ( j.PMID ) {
-      list[i].pmid = j.PMID;
-      delete list[i].PMID;
-    }
-    if ( j.PMCID ) {
-      list[i].pmcid = j.PMCID;
-      delete list[i].PMCID;
-    }
-    if ( j.TITLE ) {
-      list[i].title = j.TITLE;
-      delete list[i].TITLE;
-    }
-    if ( j['Article title'] ) {
-      list[i].title = j['Article title'];
-      delete list[i]['Article title'];
-    }
+    if ( j.DOI ) list[i].doi = j.DOI;
+    if ( j.PMID ) list[i].pmid = j.PMID;
+    if ( j.PMCID ) list[i].pmcid = j.PMCID;
+    if ( j.TITLE ) list[i].title = j.TITLE;
+    if ( j['Article title'] ) list[i].title = j['Article title'];
     if (j.title) j.title = j.title.replace(/\s\s+/g,' ').trim();
     if (j.pmcid) j.pmcid = j.pmcid.replace(/[^0-9]/g,'');
     if (j.pmid) j.pmid = j.pmid.replace(/[^0-9]/g,'');
     if (j.doi) j.doi = j.doi.replace(/ /g,''); // also translate from url encoding? Saw one from wellcome with a %2F in it...
-    var proc = {doi:j.doi,pmcid:j.pmcid,pmid:j.pmid,title:j.title,refresh:refresh};
+    var proc = {doi:j.doi,pmcid:j.pmcid,pmid:j.pmid,title:j.title,refresh:refresh,wellcome:job.wellcome};
     var result = lantern_results.findByIdentifier(proc,refresh);
     if (result) {
       job.list[i].process = result._id;
@@ -701,8 +500,8 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
   }
   if (job.email) {
     var jor = job.name ? job.name : jid;
-    var text = 'Hi ' + job.email + '\n\nThanks very much for submitting your processing job ' + jor + '.\n\n';
-    text += 'You can track the progress of your job at ';
+    var text = 'Dear ' + job.email + '\n\nWe\'ve just started processing a batch of identifiers for you, ';
+    text += 'and you can see the progress of the job here:\n\n';
     // TODO this bit should depend on user group permissions somehow
     // for now we assume if a signed in user then lantern, else wellcome
     if ( job.wellcome ) {
@@ -713,11 +512,15 @@ CLapi.internals.service.lantern.job = function(input,uid,refresh,wellcome,jid) {
       text += 'https://lantern.cottagelabs.com#';
     }
     text += jid;
-    text += '\n\nThe Cottage Labs team\n\n';
-    text += 'P.S This is an automated email, please do not reply to it.'
+    text += '\n\nIf you didn\'t submit this request yourself, it probably means that another service is running ';
+    text += 'it on your behalf, so this is just to keep you informed about what\'s happening with your account; ';
+    text += 'you don\'t need to do anything else.\n\n';
+    text += 'You\'ll get another email when your job has completed.\n\n';
+    text += 'The Lantern Team\n\nP.S This is an automated email, please do not reply to it.';
     CLapi.internals.sendmail({
+      from: 'Lantern <lantern@cottagelabs.com>',
       to:job.email,
-      subject:'Job ' + jor + ' submitted successfully',
+      subject:'Lantern: job ' + jor + ' submitted successfully',
       text:text
     });
   }
@@ -737,30 +540,37 @@ CLapi.internals.service.lantern.process = function(processid) {
     pmid: proc.pmid,
     doi: proc.doi,
     title: proc.title, // title of the article
-    journal: {
-      in_doaj: false,
-      title: undefined,
-      issn: undefined,
-      eissn: undefined // do we want eissn separate from issn? for now just uses issn
-    },
+    journal_title: undefined,
+    pure_oa: false, // will be set to true if found in doaj
+    issn: undefined,
+    eissn: undefined,
+    publication_date: "Unavailable",
+    electronic_publication_date: undefined,
     publisher: undefined,
-    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results, 0 if unknown article
-    in_epmc: false, // set to true if found
-    is_aam: false, // set to true if is an eupmc author manuscript
-    is_oa: false, // set to true if eupmc or other source says is oa
-    aheadofprint: undefined, // if pubmed returns a date for this, it will be a date
-    has_fulltext_xml: false, // set to true if oa and in epmc and can retrieve fulltext xml from eupmc rest API url
+    publisher_licence: undefined,
     licence: 'unknown', // what sort of licence this has - should be a string like "cc-by"
     epmc_licence: 'unknown', // the licence in EPMC, should be a string like "cc-by"
     licence_source: 'unknown', // where the licence info came from
     epmc_licence_source: 'unknown', // where the EPMC licence info came from (fulltext xml, EPMC splash page, etc.)
-    romeo_colour: undefined, // the sherpa romeo colour
-    embargo: undefined, // embargo data from romeo
-    archiving: undefined, // sherpa romeo archiving data
-    author: [], // eupmc author list if available (could look on other sources too?)
+    in_epmc: false, // set to true if found
+    epmc_xml: false, // set to true if oa and in epmc and can retrieve fulltext xml from eupmc rest API url
+    aam: false, // set to true if is an eupmc author manuscript
+    open_access: false, // set to true if eupmc or other source says is oa
+    ahead_of_print: undefined, // if pubmed returns a date for this, it will be a date
+    romeo_colour: 'unknown', // the sherpa romeo colour
+    preprint_embargo: 'unknown',
+    preprint_self_archiving: 'unknown',
+    postprint_embargo: 'unknown',
+    postprint_self_archiving: 'unknown',
+    publisher_copy_embargo: 'unknown',
+    publisher_copy_self_archiving: 'unknown',
+    authors: [], // eupmc author list if available (could look on other sources too?)
     in_core: 'unknown',
     repositories: [], // where CORE says it is. Should be list of objects
     grants:[], // a list of grants, probably from eupmc for now
+    confidence: 0, // 1 if matched on ID, 0.9 if title to 1 result, 0.7 if title to multiple results, 0 if unknown article
+    compliance: {},
+    score: 0,
     provenance: [] // list of things that were done
   };
   
@@ -879,21 +689,22 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.provenance.push('Confirmed is in EUPMC');
     }
     if (eupmc.isOpenAccess === 'Y') {
-      result.is_oa = true;
+      result.open_access = true;
       result.provenance.push('Confirmed is open access from EUPMC');
     }
     if (eupmc.journalInfo && eupmc.journalInfo.journal ) {
       if ( eupmc.journalInfo.journal.title ) {
-        result.journal.title = eupmc.journalInfo.journal.title; // completes oacwellcome issue 93
+        result.journal_title = eupmc.journalInfo.journal.title; // completes oacwellcome issue 93
         result.provenance.push('Added journal title from EUPMC');
       }
-      if ( eupmc.journalInfo.journal.essn) {
-        result.journal.eissn = eupmc.journalInfo.journal.essn;
-        result.provenance.push('Added eissn from EUPMC');
-      }
       if ( eupmc.journalInfo.journal.issn ) {
-        result.journal.issn = eupmc.journalInfo.journal.issn;
+        result.issn = eupmc.journalInfo.journal.issn;
         result.provenance.push('Added issn from EUPMC');
+      }
+      if ( eupmc.journalInfo.journal.essn) {
+        result.eissn = eupmc.journalInfo.journal.essn;
+        if (result.eissn && ( !result.issn || result.issn.indexOf(result.eissn) === -1 ) ) result.issn = (result.issn ? result.issn + ', ' : '') + result.eissn;
+        result.provenance.push('Added eissn from EUPMC');
       }
     }
     if (eupmc.grantsList && eupmc.grantsList.grant) {
@@ -901,18 +712,18 @@ CLapi.internals.service.lantern.process = function(processid) {
       result.provenance.push('Added grants data from EUPMC');
     }
     // some dates that wellcome want - dateofpublication appears to be what they prefer
-    //if (eupmc.journalInfo && eupmc.journalInfo.printPublicationDate) result.journal.printPublicationDate = eupmc.journal.printPublicationDate;
+    //if (eupmc.journalInfo && eupmc.journalInfo.printPublicationDate) result.print_publication_date = eupmc.journal.printPublicationDate;
     if (eupmc.journalInfo && eupmc.journalInfo.dateOfPublication) {
-      result.journal.dateOfPublication = _formatepmcdate(eupmc.journalInfo.dateOfPublication);
+      result.publication_date = _formatepmcdate(eupmc.journalInfo.dateOfPublication);
       result.provenance.push('Added date of publication from EUPMC');
     }
     if (eupmc.electronicPublicationDate) {
-      result.electronicPublicationDate = _formatepmcdate(eupmc.electronicPublicationDate);
+      result.electronic_publication_date = _formatepmcdate(eupmc.electronicPublicationDate);
       result.provenance.push('Added electronic publication date from EUPMC');
     }
 
     var ft_envelope;
-    if (result.is_oa && result.in_epmc) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
+    if (result.open_access && result.in_epmc) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(undefined, eupmc);
     if (ft_envelope && !ft_envelope.fulltext && result.pmcid) ft_envelope = CLapi.internals.use.europepmc.fulltextXML(result.pmcid);
 
     if (ft_envelope && ft_envelope.error) {
@@ -925,10 +736,10 @@ CLapi.internals.service.lantern.process = function(processid) {
     
     var ft = ft_envelope ? ft_envelope.fulltext : false;
     if (ft) {
-      result.has_fulltext_xml = true;
+      result.epmc_xml = true;
       result.provenance.push('Confirmed fulltext XML is available from EUPMC');
     }
-    var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc,ft);
+    var lic = CLapi.internals.use.europepmc.licence(result.pmcid,eupmc,ft,(!proc.wellcome && Meteor.settings.lantern.epmc_ui_only_wellcome));
     if (lic !== false) {
       result.licence = lic.licence;
       result.epmc_licence = lic.licence;
@@ -946,25 +757,25 @@ CLapi.internals.service.lantern.process = function(processid) {
       // EPMC information separately.
     }
     if (eupmc.authorList && eupmc.authorList.author) {
-      result.author = eupmc.authorList.author;
+      result.authors = eupmc.authorList.author;
       result.provenance.push('Added author list from EUPMC');
     }
     if (result.in_epmc) {
-      var aam = CLapi.internals.use.europepmc.authorManuscript(result.pmcid,eupmc);
+      var aam = CLapi.internals.use.europepmc.authorManuscript(result.pmcid,eupmc,undefined,(!proc.wellcome && Meteor.settings.lantern.epmc_ui_only_wellcome));
       if (aam === false) {
-        result.is_aam = false;
+        result.aam = false;
         result.provenance.push('Checked author manuscript status in EUPMC, found no evidence of being one');
       } else if (aam.startsWith('Y')) {
-        result.is_aam = true;
+        result.aam = true;
         result.provenance.push('Checked author manuscript status in EUPMC, returned ' + aam);
       } else if (aam === 'unknown-not-found-in-epmc') {
-        result.is_aam = 'unknown';
+        result.aam = 'unknown';
         result.provenance.push('Unable to locate Author Manuscript information in EUPMC - could not find the article in EUPMC.');
       } else if (aam === 'unknown-error-accessing-epmc') {
-        result.is_aam = 'unknown';
+        result.aam = 'unknown';
         result.provenance.push('Error accessing EUPMC while trying to locate Author Manuscript information. EUPMC could be temporarily unavailable.');
       } else {
-        result.is_aam = 'unknown';
+        result.aam = 'unknown';
       }
     }
   } else {
@@ -988,16 +799,16 @@ CLapi.internals.service.lantern.process = function(processid) {
       }
       result.publisher = c.publisher; // completes oacwellcome issue 90
       result.provenance.push('Added publisher name from Crossref');
-      if (!result.journal.issn && c.ISSN && c.ISSN.length > 0) {
-        result.journal.issn = c.ISSN[0];
+      if (!result.issn && c.ISSN && c.ISSN.length > 0) {
+        result.issn = c.ISSN[0];
         result.provenance.push('Added ISSN from Crossref');
       }
-      if (!result.journal.title && c['container-title'] && c['container-title'].length > 0) {
-        result.journal.title = c['container-title'][0];
+      if (!result.journal_title && c['container-title'] && c['container-title'].length > 0) {
+        result.journal_title = c['container-title'][0];
         result.provenance.push('Added journal title from Crossref');
       }
-      if (!result.author && c.author) {
-        result.author = c.author; // format like eupmc author list?
+      if (!result.authors && c.author) {
+        result.authors = c.author; // format like eupmc author list?
         result.provenance.push('Added author list from Crossref');
       }
       if (!result.title && c.title && c.title.length > 0) {
@@ -1016,8 +827,8 @@ CLapi.internals.service.lantern.process = function(processid) {
         result.in_core = true;
         result.provenance.push('Found DOI in CORE');
         var cc = core.data;
-        if (!result.author && cc.authors) {
-          result.author = cc.author; // format like eupmc author list?      
+        if (!result.authors && cc.authors) {
+          result.authors = cc.author; // format like eupmc author list?      
           result.provenance.push('Added authors from CORE');
         }
         if (cc.repositories && cc.repositories.length > 0) {
@@ -1070,7 +881,7 @@ CLapi.internals.service.lantern.process = function(processid) {
           result.provenance.push('Added title from CORE');
         }
         // anything useful from fulltextUrls key?
-        // can is_oa be inferred from being in CORE? probably not reliably... 
+        // can open_access be inferred from being in CORE? probably not reliably... 
         // maybe if has any fulltextUrls it is, but some don't have such URLs even if they clearly should exist
       } else {
         result.in_core = false;
@@ -1112,9 +923,9 @@ CLapi.internals.service.lantern.process = function(processid) {
   }
   
   if (result.pmid && !result.in_epmc) {
-    result.aheadofprint = CLapi.internals.use.pubmed.aheadofprint(result.pmid);
-    if (result.aheadofprint !== false) {
-      result.provenance.push('Checked ahead of print status on pubmed, date found ' + result.aheadofprint);      
+    result.ahead_of_print = CLapi.internals.use.pubmed.aheadofprint(result.pmid);
+    if (result.ahead_of_print !== false) {
+      result.provenance.push('Checked ahead of print status on pubmed, date found ' + result.ahead_of_print);      
     } else {
       result.provenance.push('Checked ahead of print status on pubmed, no date found');
     }
@@ -1125,20 +936,20 @@ CLapi.internals.service.lantern.process = function(processid) {
     result.provenance.push(msg);
   }
   
-  if ( result.journal.issn ) {
+  if ( result.issn ) {
     // is it in doaj
-    var doaj = CLapi.internals.use.doaj.journals.issn(result.journal.issn);
+    var doaj = CLapi.internals.use.doaj.journals.issn(result.issn);
     if (doaj.status === 'success') {
-      result.journal.in_doaj = true;
+      result.pure_oa = true;
       result.provenance.push('Confirmed journal is listed in DOAJ');
       if (!result.publisher && doaj.data.bibjson.publisher) result.publisher = doaj.data.bibjson.publisher;
-      if (!result.journal.title && doaj.data.bibjson.title) result.journal.title = doaj.data.bibjson.title;
+      if (!result.journal_title && doaj.data.bibjson.title) result.journal_title = doaj.data.bibjson.title;
     } else {
       result.provenance.push('Could not find journal in DOAJ');      
     }
     
     // what are the policies from sherpa romeo
-    var romeo = CLapi.internals.use.sherpa.romeo.search({issn:result.journal.issn});
+    var romeo = CLapi.internals.use.sherpa.romeo.search({issn:result.issn});
     if ( romeo.status === 'success') {
       var journal, publisher;
       try {
@@ -1149,9 +960,9 @@ CLapi.internals.service.lantern.process = function(processid) {
       } catch(err) {}
       // it is possible to have no publisher info, so catch the error
       // see http://www.sherpa.ac.uk/romeo/api29.php?ak=Z34hA6x7RtM&issn=1941-2789&
-      if (!result.journal.title) {
+      if (!result.journal_title) {
         if (journal && journal.jtitle && journal.jtitle.length > 0) {
-          result.journal.title = journal.jtitle[0];
+          result.journal_title = journal.jtitle[0];
           result.provenance.push('Added journal title from Sherpa Romeo');
         } else {
           result.provenance.push('Tried, but could not add journal title from Sherpa Romeo.');
@@ -1166,25 +977,24 @@ CLapi.internals.service.lantern.process = function(processid) {
         }
       }
       if (publisher) result.romeo_colour = publisher.romeocolour[0];
-      result.embargo = {preprint:false,postprint:false,pdf:false};
-      result.archiving = {preprint:false,postprint:false,pdf:false};
-      for ( var k in result.embargo ) {
-        var main = k.indexOf('pdf') !== -1 ? k + 's' : 'pdfversion';
-        var stub = k.replace('print','');
+      var keys = ['preprint','postprint','publisher_copy'];
+      for ( var k in keys ) {
+        var main = keys[k].indexOf('publisher_copy') !== -1 ? keys[k] + 's' : 'pdfversion';
+        var stub = keys[k].replace('print','').replace('publisher_copy','pdf');
         if ( publisher && publisher[main]) {
           if (publisher[main][0][stub+'restrictions']) {
             for ( var p in publisher[main][0][stub+'restrictions'] ) {
               if (publisher[main][0][stub+'restrictions'][p][stub+'restriction']) {
-                result.embargo[k] === false ? result.embargo[k] = '' : result.embargo[k] += ',';
-                result.embargo[k] += publisher[main][0][stub+'restrictions'][p][stub+'restriction'][0].replace(/<.*?>/g,'');
+                result[k+'_embargo'] === false ? result[k+'_embargo'] = '' : result[k+'_embargo'] += ',';
+                result[k+'_embargo'] += publisher[main][0][stub+'restrictions'][p][stub+'restriction'][0].replace(/<.*?>/g,'');
               }
             }
           }
-          if (publisher[main][0][stub+'archiving']) result.archiving[k] = publisher[k+'s'][0][stub+'archiving'][0];
+          if (publisher[main][0][stub+'archiving']) result[k+'_self_archiving'] = publisher[k+'s'][0][stub+'archiving'][0];
         }
       }
       result.provenance.push('Added embargo and archiving data from Sherpa Romeo');
-      // can we infer licence or is_oa from sherpa data?
+      // can we infer licence or open_access from sherpa data?
     } else {
       result.provenance.push('Unable to add any data from Sherpa Romeo.')
     }
@@ -1193,8 +1003,9 @@ CLapi.internals.service.lantern.process = function(processid) {
   }
   
   // if license could not be found yet, call academic/licence to get info from the splash page
+  var publisher_licence_check_ran = false;
   if (!result.licence || result.licence === 'unknown' || (result.licence != 'cc-by' && result.licence != 'cc-zero')) {
-    result.publisher_licence_check_ran = true;
+    publisher_licence_check_ran = true;
     console.log('Running publisher academic licence detection');
     var url;
     if (result.doi) {
@@ -1231,30 +1042,25 @@ CLapi.internals.service.lantern.process = function(processid) {
     }
   } else {
     result.provenance.push('Not attempting to retrieve licence data via article publisher splash page lookup (used to be OAG).');
-    result.publisher_licence_check_ran = false;
+    publisher_licence_check_ran = false;
   }
+  
+  if (!publisher_licence_check_ran && result.publisher_licence !== 'unknown') result.publisher_licence = "not applicable";
+  if (result.publisher_licence === undefined) result.publisher_licence = 'unknown';
+  // if the licence starts with cc-, leave it. Otherwise set to non-standard-licence. TODO should this apply even to non-wellcome ones?
+  if (result.epmc_licence !== undefined && result.epmc_licence !== 'unknown' && !result.epmc_licence.startsWith('cc-')) {
+    result.epmc_licence = 'non-standard-licence';
+  }
+  if (result.publisher_licence !== undefined && result.publisher_licence !== 'unknown' && result.publisher_licence !== "not applicable" && !result.publisher_licence.startsWith('cc-')) {
+    result.publisher_licence = 'non-standard-licence';
+  }
+  
+  result = CLapi.internals.service.lantern.compliance(result); // get the compliance figures
+  result.score = CLapi.internals.service.lantern.score(result);
   
   lantern_results.insert(result);
   lantern_processes.remove(proc._id);
   
-  // update the lantern jobs containing any of the IDs in this process
-  /*var jobs = lantern_jobs.find({"list.process":proc._id});
-  jobs.forEach(function(job) {
-    if (!job.done) {
-      var update = false;
-      var updates = {};
-      for ( var i in job.list ) {
-        if (job.list[i].process === proc._id) {
-          update = true;
-          updates["list." + i + ".result"] = proc._id;
-        }
-      }
-      if (update) {
-        lantern_jobs.update(job._id, {$set:updates});
-      }
-    }
-  });*/
-
   return result; // return result or just confirm process is done?
 }
 CLapi.internals.service.lantern.nextProcess = function() {
@@ -1293,29 +1099,34 @@ CLapi.internals.service.lantern.progress = function(jobid) {
       p = count/total * 100;      
       if ( p === 100 ) {
         lantern_jobs.update(job._id, {$set:{done:true}});
-        var jor = job.name ? job.name : job._id;
-        var text = 'Hi ' + job.email + '\n\nYour processing job ' + jor + ' is complete.\n\n';
-        text += 'You can now download the results of your job at ';
-        // TODO this bit should depend on user group permissions somehow
-        // for now we assume if a signed in user then lantern, else wellcome
-        if ( job.wellcome ) {
-          text += 'https://compliance.cottagelabs.com#';
-        } else if ( Meteor.settings.dev ) {
-          text += 'http://lantern.test.cottagelabs.com#';
-        } else {
-          text += 'https://lantern.cottagelabs.com#';
-        }
-        text += job._id;
-        text += '\n\nThe Cottage Labs team\n\n';
-        text += 'P.S This is an automated email, please do not reply to it.'
-        CLapi.internals.sendmail({
-          to:job.email,
-          subject:'Job ' + jor + ' completed successfully',
-          text:text
-        });
+        if (job.email) {
+          var jor = job.name ? job.name : job._id;
+          var text = 'Dear ' + job.email + '\n\nWe\'ve just finished processing a batch ';
+          text += 'of identifiers for you, and you can download the final results here:\n\n';
+          // TODO this bit should depend on user group permissions somehow
+          // for now we assume if a signed in user then lantern, else wellcome
+          if ( job.wellcome ) {
+            text += 'https://compliance.cottagelabs.com#';
+          } else if ( Meteor.settings.dev ) {
+            text += 'http://lantern.test.cottagelabs.com#';
+          } else {
+            text += 'https://lantern.cottagelabs.com#';
+          }
+          text += job._id;
+          text += '\n\nIf you didn\'t submit the original request yourself, it probably means ';
+          text += 'that another service was running it on your behalf, so this is just to keep you ';
+          text += 'informed about what\'s happening with your account; you don\'t need to do anything else.';
+          text += '\n\nThe Lantern Team\n\nP.S This is an automated email, please do not reply to it.';
+          CLapi.internals.sendmail({
+            from: 'Lantern <lantern@cottagelabs.com>',
+            to:job.email,
+            subject:'Lantern: job ' + jor + ' completed successfully',
+            text:text
+          });
+        }    
       }
     }
-    return {progress:p,name:job.name,email:job.email,_id:job._id,new:job.new};
+    return {progress:p,name:job.name,email:job.email,_id:job._id,new:job.new,createdAt:job.createdAt};
   } else {
     return false;
   }
@@ -1339,7 +1150,26 @@ CLapi.internals.service.lantern.todo = function(jobid) {
   }
 }
 
-CLapi.internals.service.lantern.results = function(jobid,format) {
+CLapi.internals.service.lantern.compliance = function(result) {
+  // add the wellcome compliance standards
+  result.compliance_wellcome_standard = false;
+  result.compliance_wellcome_deluxe = false;
+  var epmc_compliance_lic = result.epmc_licence ? result.epmc_licence.toLowerCase().replace(/ /g,'') : '';
+  var epmc_lics = epmc_compliance_lic === 'cc-by' || epmc_compliance_lic === 'cc0' || epmc_compliance_lic === 'cc-zero' ? true : false;
+  if (result.in_epmc && (result.aam || epmc_lics)) result.compliance_wellcome_standard = true;
+  if (result.in_epmc && result.aam) result.compliance_wellcome_deluxe = true;
+  if (result.in_epmc && epmc_lics && result.open_access) result.compliance_wellcome_deluxe = true;
+  
+  // add any new compliance standards calculations here - can call them out to separat function if desired, though they have no other use yet
+  return result;
+}
+
+CLapi.internals.service.lantern.score = function(result) {
+  // TODO calculate a lantern "open" score for this article
+  return 0;
+}
+
+CLapi.internals.service.lantern.results = function(jobid) {
   // for a job, get all the results for it and return them as an object
   var job = lantern_jobs.findOne(jobid);
   if (job) {
@@ -1351,7 +1181,6 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
         for ( var lf in ji) {
           if (!found[lf]) found[lf] = ji[lf];
         }
-        if (format !== undefined) found = CLapi.internals.service.lantern.format(found,format);
         results.push(found);
       }
     }
@@ -1361,336 +1190,102 @@ CLapi.internals.service.lantern.results = function(jobid,format) {
   }
 }
 
-CLapi.internals.service.lantern.result = function(resultid,identifier,type) {
-  var found;
-  if ( resultid !== undefined ) {
-    found = lantern_results.findOne(resultid);
-  } else if (identifier) {
-    var m = {};
-    m[type] = identifier;
-    found = lantern_results.findOne(m);
-  }
-  if ( found ) {
-    // should some users only get certain parts of results, depending on their permissions?
-    return found;
-  } else {
-    return false;
-  }
-}
-
-var _formatwellcome = function(result) {
-  var s = {
-    doi:'DOI',
-    pmcid:'PMCID',
-    pmid: 'PMID',
-    publisher: 'Publisher',
-    title: 'Article title',
-    publisher_licence: "Publisher Licence",
-    epmc_licence: 'EPMC Licence',
-    in_epmc: 'Fulltext in EPMC?',
-    has_fulltext_xml: 'XML Fulltext?',
-    is_oa: 'Open Access?',
-    confidence: 'Correct Article Confidence',
-    epmc_licence_source: 'EPMC Licence source',
-    romeo_colour: false,
-    embargo: false,
-    archiving: false,
-    in_core: false,
-    repositories: false,
-    createdAt: false,
-    process: false,
-    result: false,
-    publisher_licence_check_ran: false,
-    '_id': false // these listed to false just get removed from output
-  };
-  if (!result.publisher_licence_check_ran && result.publisher_licence !== 'unknown') {
-    // Did we look up a separate licence on the publisher website? If so, we want to display it.
-    // But if we've branched into here, then we did not do a separate look up
-    // (i.e. we were happy with EPMC results). So the "Publisher Licence" column should say "not applicable".
-
-    // There is one exception: if we did a publisher site licence lookup but got nothing, then obviously
-    // Publisher Licence is applicable, and should say "unknown". We don't want to change an "unknown" into a
-    // "not applicable".
-    result.publisher_licence = "not applicable";
-  }
-  if (result.publisher_licence === undefined) {
-    result.publisher_licence = 'unknown';
-  }
-  // if the licence starts with cc-, leave it. Otherwise set to non-standard-licence.
-  if (result.epmc_licence !== undefined && result.epmc_licence !== 'unknown' && !result.epmc_licence.startsWith('cc-')) {
-    result.epmc_licence = 'non-standard-licence';
-  }
-  if (result.publisher_licence !== undefined && result.publisher_licence !== 'unknown' && result.publisher_licence !== "not applicable" && !result.publisher_licence.startsWith('cc-')) {
-    result.publisher_licence = 'non-standard-licence';
-  }
-  if (!result.in_epmc) {
-    result['Author Manuscript?'] = "not applicable";
-  } else if (result.is_aam === true) {
-    result['Author Manuscript?'] = "TRUE";
-  } else if (result.is_aam === false) {
-    result['Author Manuscript?'] = "FALSE";
-  } else {
-    result['Author Manuscript?'] = "unknown";
-  }
-  if (result.aheadofprint === false) {
-    result['Ahead of Print?'] = 'FALSE';
-  } else if (result.aheadofprint) {
-    result['Ahead of Print?'] = 'TRUE';
-  } else if ( !result.in_epmc && !result.pmid) {
-    result['Ahead of Print?'] = 'unknown';
-  } else {
-    result['Ahead of Print?'] = 'not applicable';
-  }
-  delete result.aheadofprint;
-  result['Standard Compliance?'] = 'FALSE';
-  result['Deluxe Compliance?'] = 'FALSE';
-  var epmc_compliance_lic = result.epmc_licence ? result.epmc_licence.toLowerCase().replace(/ /g,'') : '';
-  var epmc_lics = epmc_compliance_lic === 'cc-by' || epmc_compliance_lic === 'cc0' || epmc_compliance_lic === 'cc-zero' ? true : false;
-  if (result.in_epmc && (result.is_aam || epmc_lics)) result['Standard Compliance?'] = 'TRUE';
-  if (result.in_epmc && result.is_aam) result['Deluxe Compliance?'] = 'TRUE';
-  if (result.in_epmc && epmc_lics && result.is_oa) result['Deluxe Compliance?'] = 'TRUE';
-  delete result.is_aam;
-
-  if ( result.provenance ) {
-    result['Compliance Processing Output'] = '';
-    var fst = true;
-    for ( var p in result.provenance ) {
-      if (fst) {
-        fst = false;
-      } else {
-        result['Compliance Processing Output'] += '\r\n';
-      }
-      result['Compliance Processing Output'] += result.provenance[p];
-    }
-    delete result.provenance;
-  }
-  if (result.electronicPublicationDate !== undefined) {
-    result['Electronic Publication Date'] = result.electronicPublicationDate;
-    delete result.electronicPublicationDate;
-  } else {
-    result['Electronic Publication Date'] = 'Unavailable';  
-  }
-  result['Publication Date'] = 'Unavailable';
-  if ( result.journal ) {
-    if (result.journal.dateOfPublication !== undefined) result['Publication Date'] = result.journal.dateOfPublication;
-    result['Journal title'] = result.journal.title;
-    result.ISSN = result.journal.issn;
-    if (result.journal.eissn && ( !result.ISSN || result.ISSN.indexOf(result.journal.eissn) === -1 ) ) result.ISSN += ', ' + result.journal.eissn;
-    if ( result.journal.in_doaj === true ) {
-      result['Journal Type'] = 'oa';
-    } else {
-      result['Journal Type'] = 'hybrid';
-    }
-    delete result.journal;
-  }
-  if ( result.author.length > 0) {
-    result['Author(s)'] = '';
-    var first = true;
-    for ( var r in result.author ) {
-      if (first) {
-        first = false;
-      } else {
-        result['Author(s)'] += ', ';
-      }
-      var ar = result.author[r];
-      if ( ar.fullName ) result['Author(s)'] += ar.fullName;
-      //if ( ar.affiliation) result['Author(s)'] += ' - ' + ar.affiliation; disabled by request of Cecy
-      // TODO add some more IFs here depending on author structure, unless altered above to match eupmc structure
-    }
-    delete result.author;
-  }
-  if ( result.grants ) {
-    var grants = [];
-    for ( var w in result.grants) {
-      var g = result.grants[w];
-      if (g.agency && g.agency.toLowerCase().indexOf('wellcome') !== -1) {
-        grants.unshift(g);
-      } else {
-        grants.push(g);
-      }
-    }
-    for ( var gr in grants ) {
-      if (grants[gr] !== undefined) {
-        result['Grant ' + (parseInt(gr)+1)] = grants[gr].grantId;
-        result['Agency ' + (parseInt(gr)+1)] = grants[gr].agency;
-        result['PI ' + (parseInt(gr)+1)] = grants[gr].PI ? grants[gr].PI : 'unknown';
-      }
-    }
-    delete result.grants;
-  }
-  for ( var key in result ) {
-    if ( result[key] === true ) result[key] = 'TRUE';
-    if ( result[key] === false ) result[key] = 'FALSE';
-    if ( result[key] === undefined || result[key] === null ) result[key] = 'unknown';
-    if ( s[key] !== undefined ) {
-      if (s[key] !== false) result[s[key]] = result[key];
-      delete result[key];
-    }
-  }
-  if (result.pmcid && result.pmcid.toLowerCase().indexOf('pmc') !== 0) result.pmcid = 'PMC' + result.pmcid; // wellcome expect it to start with PMC
-  return result;
-}
-
-var _formatlantern = function(result) {
-  var s = {
-    doi:'DOI',
-    pmcid:'PMCID',
-    pmid: 'PMID',
-    publisher: 'Publisher',
-    title: 'Article title',
-    licence: 'Licence',
-    in_epmc: 'Fulltext in EPMC?',
-    has_fulltext_xml: 'XML Fulltext?',
-    is_aam: 'Author Manuscript?',
-    is_oa: 'Open Access?',
-    confidence: 'Correct Article Confidence',
-    licence_source: 'Licence source',
-    romeo_colour: 'Sherpa Romeo colour',
-    in_core: 'In CORE?',
-    epmc_licence: false,
-    epmc_licence_source: false,
-    createdAt: false,
-    process: false,
-    result: false,
-    publisher_licence_check_ran: false,
-    publisher_licence: false,
-    '_id': false // these listed to false just get removed from output
-  }
-  if (result.aheadofprint === false) {
-    result['Ahead of Print?'] = 'FALSE';
-  } else if (result.aheadofprint) {
-    result['Ahead of Print?'] = 'TRUE';
-  } else if ( !result.in_epmc && !result.pmid) {
-    result['Ahead of Print?'] = 'unknown';
-  } else {
-    result['Ahead of Print?'] = 'not applicable';
-  }
-  delete result.aheadofprint;
-  if ( result.provenance ) {
-    result.Provenance = '';
-    var fst = true;
-    for ( var p in result.provenance ) {
-      if (fst) {
-        fst = false;
-      } else {
-        result.Provenance += '\r\n';
-      }
-      result.Provenance += result.provenance[p];
-    }
-    delete result.provenance;
-  }
-  if (result.electronicPublicationDate !== undefined) {
-    result['Electronic Publication Date'] = result.electronicPublicationDate;
-    delete result.electronicPublicationDate;
-  } else {
-    result['Electronic Publication Date'] = 'Unavailable';  
-  }
-  result['Publication Date'] = 'Unavailable';
-  if ( result.journal ) {
-    if (result.journal.dateOfPublication !== undefined) result['Publication Date'] = result.journal.dateOfPublication;
-    result['Journal title'] = result.journal.title;
-    result.ISSN = result.journal.issn;
-    if (result.journal.eissn && ( !result.ISSN || result.ISSN.indexOf(result.journal.eissn) === -1 ) ) result.ISSN += ', ' + result.journal.eissn;
-    if ( result.journal.in_doaj === true ) {
-      result['Journal Type'] = 'oa';
-    } else {
-      result['Journal Type'] = 'hybrid';
-    }
-    delete result.journal;
-  }
-  if ( result.author ) {
-    result['Author(s)'] = '';
-    var first = true;
-    for ( var r in result.author ) {
-      if (first) {
-        first = false;
-      } else {
-        result['Author(s)'] += ', ';
-      }
-      var ar = result.author[r];
-      if ( ar.fullName ) result['Author(s)'] += ar.fullName;
-      //if ( ar.affiliation) result['Author(s)'] += ' - ' + ar.affiliation; disabled by request of Cecy
-      // TODO add some more IFs here depending on author structure, unless altered above to match eupmc structure
-    }
-    delete result.author;
-  }
-  if ( result.grants ) {
-    var grants = [];
-    for ( var w in result.grants) {
-      var g = result.grants[w];
-      if (g.agency && g.agency.toLowerCase().indexOf('wellcome') !== -1) {
-        grants.unshift(g);
-      } else {
-        grants.push(g);
-      }
-    }
-    for ( var gr in grants ) {
-      if (grants[gr] !== undefined) {
-        result['Grant ' + (parseInt(gr)+1)] = grants[gr].grantId;
-        result['Agency ' + (parseInt(gr)+1)] = grants[gr].agency;
-        result['PI ' + (parseInt(gr)+1)] = grants[gr].PI ? grants[gr].PI : 'unknown';
-      }
-    }
-    delete result.grants;
-  }
-  if (result.embargo) {
-    if (result.embargo.preprint) result['Preprint Embargo'] = result.embargo.preprint;
-    if (result.embargo.postprint) result['Postprint Embargo'] = result.embargo.postprint;
-    if (result.embargo.pdf) result['Publishers Copy Embargo'] = result.embargo.pdf;
-    delete result.embargo;
-  }
-  if (result.archiving) {
-    if (result.archiving.preprint) result['Preprint Self-archiving Policy'] = result.archiving.preprint;
-    if (result.archiving.postprint) result['Postprint Self-archiving Policy'] = result.archiving.postprint;
-    if (result.archiving.pdf) result['Publishers Copy Self-Archiving Policy'] = result.archiving.pdf;
-    delete result.archiving;    
-  }
-  if (result.repositories) {
-    result['Repositories'] = '';
-    result['Repository URLs'] = '';
-    result['Repository fulltext URLs'] = '';
-    result['Repository OAI IDs'] = '';
-    for ( var rr in result.repositories ) {
-      if (result.repositories[rr].name) {
-        if (result.Repositories !== '') result.Repositories += '\r\n';
-        result.Repositories += result.repositories[rr].name;
-      }
-      if (result.repositories[rr].url) {
-        if (result['Repository URLs'] !== '') result['Repository URLs'] += '\r\n';
-        result['Repository URLs'] += result.repositories[rr].url;
-      }
-      if (result.repositories[rr].oai) {
-        if (result['Repository OAI IDs'] !== '') result['Repository OAI IDs'] += '\r\n';
-        result['Repository OAI IDs'] += result.repositories[rr].oai;
-      }
-      if (result.repositories[rr].fulltexts) {
-        for ( var f in result.repositories[rr].fulltexts ) {
-          if (result['Repository fulltext URLs'] !== '') result['Repository fulltext URLs'] += '\r\n';
-          result['Repository fulltext URLs'] += result.repositories[rr].fulltexts[f];
+CLapi.internals.service.lantern.csv = function(jobid,ignorefields) {
+  var job = lantern_jobs.findOne(jobid);
+  if (ignorefields === undefined) ignorefields = [];
+  var fieldnames = {};
+  try {
+    fieldnames = typeof Meteor.settings.lantern.fieldnames === 'object' ? Meteor.settings.lantern.fieldnames : JSON.parse(Meteor.http.call('GET',Meteor.settings.lantern.fields).content);
+  } catch(err) {}
+  var fields = Meteor.settings.lantern.fields; // output order of our fields, excluding compliance, grants, provenance which will be appended to end
+  var grantcount = 0;
+  var fieldconfig = [];
+  var results = [];
+  for ( var i in job.list ) {
+    var ji = job.list[i];
+    var res = lantern_results.findOne(ji.process);
+    if ( res ) {
+      var result = {};
+      if (ignorefields.indexOf('originals') === -1) {
+        for ( var lf in ji) {
+          if (ignorefields.indexOf(lf) === -1 && lf !== 'process' && lf !== 'createdAt' && lf !== '_id') {
+            result[lf] = ji[lf]; // put any original fields into the result
+            if (i === '0' && fieldconfig.indexOf(lf) === -1) fieldconfig.push(lf);
+          }
         }
       }
+      for ( var fn in fields ) {
+        if (ignorefields.indexOf(fields[fn]) === -1) {
+          var fname = fields[fn];
+          var printname = fieldnames[fname] !== undefined && fieldnames[fname].short_name ? fieldnames[fname].short_name : fname;
+          if (i === '0') fieldconfig.push(printname);
+          if (fname === 'authors') {
+            result[printname] = '';
+            for ( var r in res.authors ) {
+              result[printname] += r === '0' ? '' : ', ';
+              if ( res.authors[r].fullName ) result[printname] += res.authors[r].fullName;
+            }
+          } else if (['repositories','repository_urls','repository_fulltext_urls','repository_oai_ids'].indexOf(fname) !== -1) {
+            result[printname] = '';
+            for ( var rr in res.repositories ) {
+              if (res.repositories[rr].name) {
+                if (result[printname] !== '') result[printname] += '\r\n';
+                if (fname === 'repositories') {
+                  result[printname] += res.repositories[rr].name;
+                } else if (fname === 'repository_urls') {
+                  result[printname] += res.repositories[rr].url;
+                } else if (fname === 'repository_fulltext_urls') {
+                  result[printname] += res.repositories[rr].fulltexts.join();
+                } else if (fname === 'repository_oai_ids') {
+                  result[printname] += res.repositories[rr].oai;
+                }
+              }
+            }
+          } else if (fname === 'pmcid') { 
+            if (res.pmcid.toLowerCase().indexOf('pmc') !== 0) res.pmcid = 'PMC' + res.pmcid;
+            result[printname] = res.pmcid;
+          } else if (res[fname] === true ) {
+            result[printname] = 'TRUE';
+          } else if ( res[fname] === false ) {
+            result[printname] = 'FALSE';
+          } else if ( res[fname] === undefined || res[fname] === null || res[fname] === 'unknown' ) {
+            result[printname] = 'Unknown';
+          } else {
+            result[printname] = res[fname];
+          }
+        }
+      }
+      if (ignorefields.indexOf('grant') === -1 || ignorefields.indexOf('agency') === -1 || ignorefields.indexOf('pi') === -1) {
+        var grants = [];
+        for ( var gn in result.grants) {
+          var g = result.grants[gn];
+          g.agency && g.agency.toLowerCase().indexOf('wellcome') !== -1 ? grants.unshift(g) : grants.push(g);
+        }
+        for ( var g in grants ) {
+          grantcount += 1;
+          if (ignorefields.indexOf('grant') === -1) result[(fieldnames['grant'] !== undefined && fieldnames['grant'].short_name ? fieldnames['grant'].short_name : 'grant').split(' ')[0] + ' ' + grantcount] = grants[g].grantId;
+          if (ignorefields.indexOf('agency') === -1) result[(fieldnames['agency'] !== undefined && fieldnames['agency'].short_name ? fieldnames['agency'].short_name : 'agency').split(' ')[0] + ' ' + grantcount] = grants[g].agency;
+          if (ignorefields.indexOf('pi') === -1) result[(fieldnames['pi'] !== undefined && fieldnames['pi'].short_name ? fieldnames['pi'].short_name : 'pi').split(' ')[0] + ' ' + grantcount] = (grants[g].PI ? grants[g].PI : 'unknown');
+        }
+      }
+      if (ignorefields.indexOf('provenance') === -1) {
+        var tpn = fieldnames['provenance'] !== undefined && fieldnames['provenance'].short_name ? fieldnames['provenance'].short_name : 'provenance';
+        result[tpn] = '';
+        for ( var pr in res.provenance ) {
+          result[tpn] += pr === '0' ? '' : '\r\n';
+          result[tpn] += res.provenance[pr];
+        } 
+      }
+      results.push(result);
     }
-    delete result.repositories;    
   }
-  for ( var key in result ) {
-    if ( result[key] === true ) result[key] = 'TRUE';
-    if ( result[key] === false ) result[key] = 'FALSE';
-    if ( result[key] === undefined || result[key] === null ) result[key] = 'unknown';
-    if ( s[key] !== undefined ) {
-      if (s[key] !== false) result[s[key]] = result[key];
-      delete result[key];
-    }
+  for ( var gc = 1; gc < (grantcount+1); gc++ ) {
+    if (ignorefields.indexOf('grant') === -1) fieldconfig.push((fieldnames['grant'] !== undefined && fieldnames['grant'].short_name ? fieldnames['grant'].short_name : 'grant').split(' ')[0] + ' ' + gc);
+    if (ignorefields.indexOf('agency') === -1) fieldconfig.push((fieldnames['agency'] !== undefined && fieldnames['agency'].short_name ? fieldnames['agency'].short_name : 'agency').split(' ')[0] + ' ' + gc);
+    if (ignorefields.indexOf('pi') === -1) fieldconfig.push((fieldnames['pi'] !== undefined && fieldnames['pi'].short_name ? fieldnames['pi'].short_name : 'pi').split(' ')[0] + ' ' + gc);
   }
-  if (result.pmcid && result.pmcid.toLowerCase().indexOf('pmc') !== 0) result.pmcid = 'PMC' + result.pmcid;
-  return result;
-}
-
-CLapi.internals.service.lantern.format = function(result,format) {
-  if (format === 'wellcome') {
-    return _formatwellcome(result);
-  } else {
-    return _formatlantern(result);
-  }
+  if (ignorefields.indexOf('provenance') === -1) fieldconfig.push(fieldnames['provenance'] !== undefined && fieldnames['provenance'].short_name ? fieldnames['provenance'].short_name : 'provenance');
+  return CLapi.internals.convert.json2csv({fields:fieldconfig,defaultValue:'unknown'},undefined,results);
 }
 
 CLapi.internals.service.lantern.alertdone = function() {

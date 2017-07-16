@@ -50,12 +50,12 @@ oab_request.before.update(function (userId, doc, fieldNames, modifier, options) 
   modifier.$set.updatedAt = d;
   modifier.$set.updated_date = moment(d,"x").format("YYYY-MM-DD HHmm");
   var upd = {}
-  upd._id = doc._id + '_' + doc.updatedAt;
-  upd.createdAt = doc.updatedAt;
+  upd._id = doc._id + '_' + d;
+  upd.createdAt = d;
   upd.created_date = moment(upd.createdAt,"x").format("YYYY-MM-DD HHmm");
   upd.userId = userId;
   upd.doc = doc;
-  upd.modifier = modifier.$set;
+  upd.modifier = JSON.parse(JSON.stringify(modifier.$set));
   for ( var m in upd.modifier ) {
     if (doc[m] === upd.modifier[m] || m === 'updatedAt' || m === 'updated_date') delete upd.modifier[m];
   }
@@ -132,6 +132,10 @@ var _avail = {
       if ( this.queryParams.title ) ident = 'TITLE:' + this.queryParams.title;
       if ( this.queryParams.citation ) ident = 'CITATION:' + this.queryParams.citation;
       var opts = {url:ident,test:this.queryParams.test,library:this.queryParams.library}
+      if (this.queryParams.libraries) {
+        // should maybe put auth on the ability to pass in library and libraries...
+        opts.libraries = this.queryParams.libraries.split(',');
+      }
       if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
         // we don't require auth for availability checking, but we do want to record the user if they did have auth
         var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
@@ -269,18 +273,20 @@ CLapi.addRoute('service/oab/request/:rid', {
         // depending on whether user, creator, or admin, affects what things can be updated
         var n = {};
         if (CLapi.internals.accounts.auth('openaccessbutton.admin',this.user)) {
-          if (this.request.body.test !== undefined) n.test = this.request.body.test;
-          if (this.request.body.status !== undefined) n.status = this.request.body.status;
-          if (this.request.body.rating !== undefined) n.rating = this.request.body.rating;
-          if (this.request.body.name !== undefined) n.name = this.request.body.name;
-          if (this.request.body.email !== undefined) n.email = this.request.body.email;
-          if (this.request.body.story !== undefined) n.story = this.request.body.story;
+          if (this.request.body.test !== undefined && this.request.body.test !== r.test) n.test = this.request.body.test;
+          if (this.request.body.status !== undefined && this.request.body.status !== r.status) n.status = this.request.body.status;
+          if (this.request.body.rating !== undefined && this.request.body.rating !== r.rating) n.rating = this.request.body.rating;
+          if (this.request.body.name !== undefined && this.request.body.name !== r.name) n.name = this.request.body.name;
+          if (this.request.body.email !== undefined && this.request.body.email !== r.email) n.email = this.request.body.email;
+          if (this.request.body.story !== undefined && this.request.body.story !== r.story) n.story = this.request.body.story;
+          if (this.request.body.journal !== undefined && this.request.body.journal !== r.journal) n.journal = this.request.body.journal;
+          if (this.request.body.notes !== undefined && this.request.body.notes !== r.notes) n.notes = this.request.body.notes;
         }
-        if (this.request.body.email !== undefined && ( CLapi.internals.accounts.auth('openaccessbutton.admin',this.user) || r.status === undefined || r.status === 'help' || r.status === 'moderate' || r.status === 'refused' ) ) n.email = this.request.body.email;
-        if (r.user && this.userId === r.user.id && this.request.body.story !== undefined) n.story = this.request.body.story;
-        if (this.request.body.url !== undefined) n.url = this.request.body.url;
-        if (this.request.body.title !== undefined) n.title = this.request.body.title;
-        if (this.request.body.doi !== undefined) n.doi = this.request.body.doi;
+        if (this.request.body.email !== undefined && this.request.body.email !== r.email && ( CLapi.internals.accounts.auth('openaccessbutton.admin',this.user) || r.status === undefined || r.status === 'help' || r.status === 'moderate' || r.status === 'refused' ) ) n.email = this.request.body.email;
+        if (r.user && this.userId === r.user.id && this.request.body.story !== undefined && this.request.body.story !== r.story) n.story = this.request.body.story;
+        if (this.request.body.url !== undefined && this.request.body.url !== r.url) n.url = this.request.body.url;
+        if (this.request.body.title !== undefined && this.request.body.title !== r.title) n.title = this.request.body.title;
+        if (this.request.body.doi !== undefined && this.request.body.doi !== r.doi) n.doi = this.request.body.doi;
         if (n.status === undefined) {
           if ( (!r.title && !n.title) || (!r.email && !n.email) || (!r.story && !n.story) ) {
             n.status = 'help';
@@ -719,8 +725,12 @@ CLapi.addRoute('service/oab/job', {
   get: {
     action: function() {
       // get all job info
-      var jobs = job_job.find({service:'openaccessbutton'},{sort:{createdAt:-1}}).fetch();
-      for ( var j in jobs ) jobs[j].progress = CLapi.internals.job.progress(jobs[j]._id).progress;
+      var jobs = job_job.find({service:'openaccessbutton'}).fetch();
+      for ( var j in jobs ) {
+        jobs[j].progress = CLapi.internals.job.progress(jobs[j]._id).progress;
+        jobs[j].processes = jobs[j].processes.length;
+      }
+      jobs.sort(function(a,b) { return b.createdAt - a.createdAt; });
       return jobs;
     }
   },
@@ -728,8 +738,38 @@ CLapi.addRoute('service/oab/job', {
     roleRequired: 'openaccessbutton.admin', // later could be opened to other oab users, with some sort of quota / limit
     action: function() {
       var processes = this.request.body.processes ? this.request.body.processes : this.request.body;
+      if (this.request.body.libraries) {
+        for ( var p in processes ) processes[p].libraries = this.request.body.libraries;
+      }
       var jid = CLapi.internals.job.create({user:this.userId,service:'openaccessbutton',function:'CLapi.internals.service.oab.availability',name:(this.request.body.name ? this.request.body.name : "oab_availability"),processes:processes},this.userId);
       return jid;
+    }
+  }
+});
+CLapi.addRoute('service/oab/job/generate/:start/:end', {
+  post: {
+    roleRequired: 'openaccessbutton.admin',
+    action: function() {
+      var start = moment(this.urlParams.start, "DDMMYYYY").valueOf();
+      var end = moment(this.urlParams.end, "DDMMYYYY").endOf('day').valueOf();
+      var processes = oab_request.find({status:{$not:{$eq:'received'}},createdAt:{$gte:start,$lt:end}}).fetch();
+      if (processes.length) {
+        var procs = [];
+        for ( var p in processes ) procs.push({url:processes[p].url});
+        var name = 'sys_requests_' + this.urlParams.start + '_' + this.urlParams.end;
+        var jid = CLapi.internals.job.create({user:this.userId,service:'openaccessbutton',function:'CLapi.internals.service.oab.availability',name:name,processes:procs},this.userId);
+        return {job:jid,count:processes.length};
+      } else {
+        return {count:0}
+      }
+    }
+  }
+});
+CLapi.addRoute('service/oab/job/:jid/remove', {
+  get: {
+    roleRequired: 'openaccessbutton.admin',
+    action: function() {
+      return CLapi.internals.job.remove(this.urlParams.jid);
     }
   }
 });
@@ -752,10 +792,17 @@ CLapi.addRoute('service/oab/job/:jid/results.csv', {
     action: function() {
       var res = CLapi.internals.job.results(this.urlParams.jid);
       var csv = '"MATCH","AVAILABLE","SOURCE","REQUEST","TITLE","DOI"';
+      var liborder = [];
+      if (res[0].libraries !== undefined) {
+        for ( var l in res[0].libraries ) {
+          liborder.push(l);
+          csv += ',"' + l.toUpperCase() + '"';
+        }
+      }
       for ( var r in res ) {
         var row = res[r];
         csv += '\n"';
-        csv += row.match.replace('TITLE:','').replace(/"/g,'') + '","';
+        csv += row.match ? row.match.replace('TITLE:','').replace(/"/g,'') + '","' : '","';
         var av = 'No';
         for ( var a in row.availability ) {
           if (row.availability[a].type === 'article') av = row.availability[a].url.replace(/"/g,'');
@@ -768,17 +815,41 @@ CLapi.addRoute('service/oab/job/:jid/results.csv', {
           if (row.requests[re].type === 'article') rq = 'https://' + (Meteor.settings.dev ? 'dev.' : '') + 'openaccessbutton.org/request/' + row.requests[re]._id;
         }
         csv += rq + '","';
-        if (row.meta && row.meta.article && row.meta.article.title) csv += row.meta.article.title.replace(/"/g,'');
+        if (row.meta && row.meta.article && row.meta.article.title) csv += row.meta.article.title.replace(/"/g,'').replace(/[^\x00-\x7F]/g, "");
         csv += '","';
         if (row.meta && row.meta.article && row.meta.article.doi) csv += row.meta.article.doi;
         csv += '"';
+        if (row.libraries) {
+          for ( var lb in liborder ) {
+            var lib = row.libraries[liborder[lb]];
+            csv += ',"';
+            var js = false;
+            if ( lib.journal && lib.journal.library ) {
+              js = true;
+              csv += 'Journal subscribed';
+            }
+            var rp = false;
+            if ( lib.repository ) {
+              rp = true;
+              if (js) csv += '; '
+              csv += 'In repository';
+            }
+            if ( lib.local && lib.local.length ) {
+              if (js || rp) csv += '; ';
+              csv += 'In library';
+            }
+            csv += '"';
+          }
+        }
       }
       var job = job_job.findOne(this.urlParams.jid);
       var name = 'results';
       if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
+      console.log('writing csv');
       this.response.writeHead(200, {
         'Content-disposition': "attachment; filename="+name+".csv",
-        'Content-type': 'text/csv',
+        'Content-type': 'text/csv; charset=UTF-8',
+        'Content-Encoding': 'UTF-8',
         'Content-length': csv.length
       });
       this.response.write(csv);
@@ -1205,6 +1276,59 @@ CLapi.internals.service.oab.ill_progress = function() {
   // TODO need a function that can lookup ILL progress from the library systems some how
 }
 
+CLapi.internals.service.oab.library = function(opts) {
+  var library = {institution:opts.library,primo:{}}
+  var meta = CLapi.internals.academic.catalogue.extract(opts.url,opts.dom);
+  if (meta.title) {
+    library.title = meta.title;
+    var tqr = 'title,exact,'+meta.title.replace(/ /g,'+');
+    var lib = CLapi.internals.use.exlibris.primo(tqr,undefined,undefined,opts.library);
+    if (lib.data && lib.data.length > 0) {
+      library.primo.title = {query:tqr,result:lib.data};
+      library.local = [];
+      for ( var l in lib.data ) {
+        if (lib.data[l].library && lib.data[l].type !== 'video') {
+          library.local.push(lib.data[l]);
+        } else if ( lib.data[l].repository && lib.data[l].type !== 'video' && library.repository === undefined ) {
+          library.repository = lib.data[l];
+        }
+      }
+    }
+  }
+  if ( meta.journal ) {
+    // exlibris may only tell us they have access to the journal, not every article. So if not found 
+    // do a check for journal availability
+    library.journal = {title:meta.journal};
+    var jqr = 'rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle';
+    var jrnls = CLapi.internals.use.exlibris.primo(jqr,undefined,50,opts.library);
+    if (jrnls.data && jrnls.data.length > 0) {
+      library.primo.journal = {query:jqr,result:jrnls.data};
+      for ( var j in jrnls.data ) {
+        var jrnl = jrnls.data[j];
+        var inj = library.journal.title.toLowerCase().replace(/[^a-z]/g,'');
+        var rnj = jrnl.title.toLowerCase().replace(/[^a-z]/g,'');
+        if (rnj.indexOf(inj) === 0 && rnj.length < inj.length+3) {// && jrnl.library) {
+          if (jrnl.library) {
+            library.journal = jrnl;
+          } else {
+            library.journal.library = true;
+          }
+          break;
+        }
+      }
+    }
+  }
+  return library;
+}
+CLapi.internals.service.oab.libraries = function(opts) {
+  var libs = {};
+  for ( var l in opts.libraries ) {
+    opts.library = opts.libraries[l];
+    libs[opts.libraries[l]] = CLapi.internals.service.oab.library(opts);
+  }
+  return libs;
+}
+
 /*
 {
   availability: [
@@ -1236,7 +1360,7 @@ CLapi.internals.service.oab.ill_progress = function() {
 */
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
-  opts.refresh = true; // forcing brand new lookups every time for the moment... 
+  if (opts.refresh === undefined) opts.refresh = true; // forcing brand new lookups for the moment... 
   if (opts.url) {
     if (opts.url.indexOf('10.1') === 0) {
       opts.doi = opts.url;
@@ -1264,52 +1388,10 @@ CLapi.internals.service.oab.availability = function(opts) {
   var already = [];
   
   console.log('OAB availability checking for sources');
-  
-  var meta;
-  if (opts.library) {
-    ret.library = {institution:opts.library,primo:{}}
-    meta = CLapi.internals.academic.catalogue.extract(opts.url,opts.dom);
-    if (meta.title) {
-      ret.library.title = meta.title;
-      var tqr = 'title,exact,'+meta.title.replace(/ /g,'+');
-      var lib = CLapi.internals.use.exlibris.primo(tqr,undefined,undefined,opts.library);
-      if (lib.data && lib.data.length > 0) {
-        ret.library.primo.title = {query:tqr,result:lib.data};
-        ret.library.local = [];
-        for ( var l in lib.data ) {
-          if (lib.data[l].library) {
-            ret.library.local.push(lib.data[l]);
-          } else if ( lib.data[l].repository && ret.library.repository === undefined ) {
-            ret.library.repository = lib.data[l];
-          }
-        }
-      }
-    }
-    if ( meta.journal ) {
-      // exlibris may only tell us they have access to the journal, not every article. So if not found 
-      // do a check for journal availability
-      ret.library.journal = {title:meta.journal};
-      var jqr = 'rtype,exact,journal&query=swstitle,begins_with,'+meta.journal.replace(/ /g,'+')+'&sortField=stitle';
-      var jrnls = CLapi.internals.use.exlibris.primo(jqr,undefined,50,opts.library);
-      if (jrnls.data && jrnls.data.length > 0) {
-        ret.library.primo.journal = {query:jqr,result:jrnls.data};
-        for ( var j in jrnls.data ) {
-          var jrnl = jrnls.data[j];
-          var inj = ret.library.journal.title.toLowerCase().replace(/[^a-z]/g,'');
-          var rnj = jrnl.title.toLowerCase().replace(/[^a-z]/g,'');
-          if (rnj.indexOf(inj) === 0 && rnj.length < inj.length+3) {// && jrnl.library) {
-            if (jrnl.library) {
-              ret.library.journal = jrnl;
-            } else {
-              ret.library.journal.library = true;
-            }
-            break;
-          }
-        }
-      }
-    }
-  }
-  
+
+  if (opts.library) ret.library = CLapi.internals.service.oab.library(opts);
+  if (opts.libraries) ret.libraries = CLapi.internals.service.oab.libraries(opts);
+
   opts.discovered = {article:false,data:false};
   opts.source = {article:false,data:false};
   if ( opts.type === 'data' || opts.type === undefined ) {
@@ -1672,6 +1754,7 @@ CLapi.internals.service.oab.vars = function(vars) {
   }
   if (!vars.profession) vars.profession = 'person';
   if (!vars.fullname) vars.fullname = 'a user';
+  if (!vars.name) vars.name = 'colleague';
   return vars;
 }
 
@@ -1738,7 +1821,7 @@ CLapi.internals.service.oab.cron.availability = function() {
   // there are also various auto email checks that the oabutton team want added. add them here
   
   // check all open requests for any new availability
-  var requests = oab_request.find({status:{$ne:'success'}});
+  var requests = oab_request.find({status:{$not:{$eq:'received'}}});
   requests.forEach(function(request) {
     Meteor._sleepForMs(500);
     var availability = CLapi.internals.service.oab.availability({url:request.url,type:request.type,nosave:true});

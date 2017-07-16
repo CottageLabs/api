@@ -398,7 +398,7 @@ CLapi.internals.accounts.service = function(location) {
   // update this to accept settings object too, which should update the service settings
   // at which point perhaps service settings should be on mongo rather than in a text file
   // return the options for a given location
-  location = location.trim('/');
+  location = location.replace('http://','').replace('https://','').split('/')[0];
   if ( login_services[location] === undefined) {
     console.log('BAD TOKEN ATTEMPT FROM ' + location);
     return false;
@@ -526,15 +526,18 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
       } else {
         snd.post = false;
       }
+      console.log(snd);
       sent = CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
-      console.log(sent)
-    } catch(err) {}
+      console.log(sent);
+    } catch(err) {
+      console.log(err);
+    }
 
     var future = new Future(); // a delay here helps stop spamming of the login mechanisms
     setTimeout(function() { future.return(); }, 333);
     future.wait();
     var mid = sent && sent.data && sent.data.id ? sent.data.id : undefined;
-    return { known:known, mid: mid };
+    return { known:known, mid: mid, domain: opts.domain };
   }
 }
 
@@ -631,10 +634,8 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
 }
 
 CLapi.internals.accounts.logout = function(email,resume,timestamp,loc) {
-  if ( login_services[loc] === undefined) {
-    console.log('BAD LOGOUT ATTEMPT FROM ' + loc);
-    return {}; // should not be logging in from a page we don't set as being able to provide login functionality. Say nothing, no explanation. Worth sending a sysadmin email?
-  }
+  var opts = CLapi.internals.accounts.service(loc);
+  if (!opts) return {};
   // may want an option to logout of all sessions...
   if (email !== undefined && resume !== undefined && timestamp !== undefined) {
     var user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
@@ -735,6 +736,7 @@ CLapi.internals.accounts.create = function(data) {
 
 CLapi.internals.accounts.retrieve = function(uid) {
   // finds and returns the full user account - NOT what should be returned to a user
+  if (!uid) return undefined;
   var u = Meteor.users.findOne(uid);
   if (!u) u = Accounts.findUserByUsername(uid);
   if (!u) u = Accounts.findUserByEmail(uid);

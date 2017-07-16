@@ -238,7 +238,7 @@ CLapi.internals.use.europepmc.indexed = function(startdate,enddate,from,size,qry
   }// meteor http call get will throw error on 404
 }
 
-CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
+CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext,noui) {
   var res;
   var maybe_licence;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
@@ -276,8 +276,8 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
       }
     }
 
-    console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
-    if (pmcid) {
+    if (pmcid && !noui) {
+      console.log(pmcid + ' no fulltext XML, trying EPMC HTML');
       var normalised_pmcid = 'PMC' + pmcid.toLowerCase().replace('pmc','');
       //var licsplash = CLapi.internals.academic.licence('http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true);
       var licsplash = CLapi.internals.limit.do(10000,CLapi.internals.academic.licence,"lantern_epmc_ui",['http://europepmc.org/articles/' + normalised_pmcid,false,undefined,undefined,undefined,true]);
@@ -300,7 +300,7 @@ CLapi.internals.use.europepmc.licence = function(pmcid,rec,fulltext) {
   }
 }
 
-CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
+CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext,noui) {
   var res;
   if (pmcid && !rec) res = CLapi.internals.use.europepmc.search('PMC' + pmcid.toLowerCase().replace('pmc',''));
   var ft_arg_checked = false;
@@ -324,7 +324,7 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
       if (ft && ft.indexOf('pub-id-type=\'manuscript\'') !== -1 && fulltext.indexOf('pub-id-type="manuscript"') !== -1) {
         // console.log("Different call for AAM XML");
         return 'Y_IN_EPMC_FULLTEXT';
-      } else {
+      } else if (!noui) {
         // console.log('AAM info not found in XML, trying HTML.')
         var url = 'http://europepmc.org/articles/PMC' + pmcid.toLowerCase().replace('pmc','');
         try {
@@ -355,6 +355,8 @@ CLapi.internals.use.europepmc.authorManuscript = function(pmcid,rec,fulltext) {
             return 'unknown-error-accessing-epmc';
           }
         }
+      } else {
+        return 'unknown-and-epmc-ui-check-disabled';
       }
     } else {
       if (ft_arg_checked) return false;

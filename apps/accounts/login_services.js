@@ -29,9 +29,9 @@ login_services = {
     text: "Your {{SERVICE}} {{ACTION}} security code is:\r\n\r\n{{LOGINCODE}}\r\n\r\nor use this link:\r\n\r\n{{LOGINURL}}\r\n\r\nnote: this single-use code is only valid for {{TIMEOUT}}.",
     html: '<html><body><p>Your <b><i>{{SERVICE}}</i></b> {{ACTION}} security code is:</p><p style="margin-left:2em;"><font size="+1"><b>{{LOGINCODE}}</b></font></p><p>or click on this link</p><p style="margin-left:2em;"><font size="-1"><a href="{{LOGINURL}}">{{LOGINURL}}</a></font></p><p><font size="-1">note: this single-use code is only valid for {{TIMEOUT}}.</font></p></body></html>'
   },
-  'https://accounts.cottagelabs.com': {},
-  'https://test.cottagelabs.com': {},
-  'https://openaccessbutton.org/account': {
+  'accounts.cottagelabs.com': {},
+  'test.cottagelabs.com': {},
+  'openaccessbutton.org': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
     from: 'Open Access Button <donotreply@openaccessbutton.org>',
@@ -41,7 +41,7 @@ login_services = {
     timeout: 30,
     template: 'login.html'
   },
-  'https://lantern.cottagelabs.com': {
+  'lantern.cottagelabs.com': {
     from: 'lantern@cottagelabs.com',
     timeout: 600,
     service: 'lantern',
@@ -50,7 +50,7 @@ login_services = {
     text: "Hi!\r\n\r\nPlease go to the link below to sign in to your account:\r\n\r\n{{LOGINURL}}\r\n\r\nOr enter this code into the login page: {{LOGINCODE}}\r\n\r\nNote: this single-use login is only valid for {{TIMEOUT}}.\r\nThis is an automated email. Replies are NOT monitored.",
     html: '<html><body><p>Hi!</p><p>Please go to the link below to sign in to your account:<p><a href="{{LOGINURL}}">{{LOGINURL}}</a></p><p>Or enter this code into the login page: {{LOGINCODE}}</p><p>Note: this single-use login is only valid for {{TIMEOUT}}.<br><br>This is an automated email. Replies are NOT monitored.</p></body></html>'
   },
-  'https://weareleviathan.com': {
+  'weareleviathan.com': {
     from: 'Leviathan Industries <mark+leviathan@cottagelabs.com>',
     domain: '.weareleviathan.com',
     timeout: 60,
@@ -62,25 +62,27 @@ login_services = {
   }
 }
 
-login_services['http://levor.club'] = JSON.parse(JSON.stringify(login_services['https://weareleviathan.com']));
-login_services['http://levor.club'].domain = '.levor.club';
-login_services['http://levor.club'].name = 'Levor';
-login_services['http://levor.club'].subject = 'Please sign in to Levor';
-login_services['http://levor.club'].secure = false;
+login_services['levor.club'] = JSON.parse(JSON.stringify(login_services['weareleviathan.com']));
+login_services['levor.club'].domain = '.levor.club';
+login_services['levor.club'].name = 'Levor';
+login_services['levor.club'].subject = 'Please sign in to Levor';
+login_services['levor.club'].secure = false;
 
-login_services['https://compliance.cottagelabs.com'] = login_services['https://lantern.cottagelabs.com'];
+login_services['jing.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['weareleviathan.com']));
+login_services['jing.test.cottagelabs.com'].domain = '.cottagelabs.com';
+login_services['jing.test.cottagelabs.com'].name = 'Gozjen';
+login_services['jing.test.cottagelabs.com'].service = 'gozjen';
+login_services['jing.test.cottagelabs.com'].subject = 'Please sign in to Gozjen';
+login_services['jing.test.cottagelabs.com'].from = 'Gozjen <mark@cottagelabs.com>';
 
-login_services['http://oab.test.cottagelabs.com/account'] = JSON.parse(JSON.stringify(login_services['https://openaccessbutton.org/account']));
-login_services['http://oab.test.cottagelabs.com/account'].domain = '.cottagelabs.com';
-login_services['http://oab.test.cottagelabs.com/account'].secure = false;
-login_services['https://oab.test.cottagelabs.com/account'] = login_services['http://oab.test.cottagelabs.com/account'];
+login_services['compliance.cottagelabs.com'] = login_services['lantern.cottagelabs.com'];
 
-login_services['http://dev.openaccessbutton.org/account'] = JSON.parse(JSON.stringify(login_services['https://openaccessbutton.org/account']));
-login_services['http://dev.openaccessbutton.org/account'].secure = false;
-login_services['https://dev.openaccessbutton.org/account'] = login_services['http://dev.openaccessbutton.org/account'];
+login_services['dev.openaccessbutton.org'] = JSON.parse(JSON.stringify(login_services['openaccessbutton.org']));
+login_services['dev.openaccessbutton.org'].secure = false;
 
-login_services['https://lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['https://lantern.cottagelabs.com']));
-login_services['http://wellcome.test.cottagelabs.com'] = login_services['http://lantern.test.cottagelabs.com'];
+login_services['lantern.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['lantern.cottagelabs.com']));
+login_services['wellcome.test.cottagelabs.com'] = login_services['lantern.test.cottagelabs.com'];
+login_services['wellcome.test.cottagelabs.com'].secure = false;
 
 
 

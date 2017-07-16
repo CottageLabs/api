@@ -356,6 +356,7 @@ clogin.tokenSuccess = function(data) {
   $('#'+clogin.emailDivId).hide();
   $('#'+clogin.tokenDivId).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
+  if (data && data.domain) clogin.removeCookie(clogin.cookie,data.domain); // could be an old clogin cookie, remove it, or causes loops
   if (data && data.responseText) data = data.responseText;
   clogin.progress_interval = setInterval(clogin.tokenProgress,3000);
   if (data && data.mid) {
@@ -430,7 +431,7 @@ clogin.token = function(e) {
   } else {
     opts.url += '?email='+encodeURIComponent(clogin.user.email)+'&location='+location;
   }
-  if (clogin.fingerprint) {
+  if (clogin.fingerprint && typeof Fingerprint2 === 'function') {
     new Fingerprint2().get(function(result, components) {
       clogin.user.fingerprint = result;
       if (opts.type === 'POST') {
@@ -442,6 +443,11 @@ clogin.token = function(e) {
       $.ajax(opts);
     });
   } else {
+    if (opts.type === 'POST') {
+      opts.data = JSON.stringify(opts.data);
+    } else {
+      opts.url += '&fingerprint=' + result;      
+    }
     $.ajax(opts);
   }
   // this should really be the ajax success callback, but some browsers appear to behave oddly after the GET request
@@ -487,7 +493,7 @@ clogin.loginSuccess = function(data) {
   var cookie = data.data.cookie;
   if (clogin.user.email === undefined) clogin.user.email = cookie.email;
   var settings = data.data.settings;
-  if (clogin.fingerprint) {
+  if (clogin.fingerprint && typeof Fingerprint2 === 'function') {
     new Fingerprint2().get(function(result, components) {
       clogin.user.fingerprint = result;
       cookie.fp = result;

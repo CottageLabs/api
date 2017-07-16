@@ -130,12 +130,13 @@ CLapi.internals.sendmail = function(opts,mail_url) {
     delete opts.mail_apikey
     if (typeof opts.to === 'object') opts.to = opts.to.join(',');
     console.log('Sending mail via mailgun API on URL ' + url);
-    console.log(opts)
+    //console.log(opts)
     try {
       var posted = Meteor.http.call('POST',url,{params:opts,auth:'api:'+apik});
       console.log(posted);
       return posted;
     } catch(err) {
+      console.log(err);
       return err;
     }
   } else {
@@ -143,6 +144,8 @@ CLapi.internals.sendmail = function(opts,mail_url) {
       process.env.MAIL_URL = mail_url;
       console.log('temporarily setting mail url to ' + mail_url);
     }
+    console.log('Sending mail via mailgun Mail URL ' + mail_url);
+    console.log(opts)
     Email.send(opts);
     if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
     return {};

@@ -149,13 +149,24 @@ CLapi.addRoute('job/:job/todo', {
     action: function() {
       // return the parts of the job still to do, does not check for results found since last progress check
       var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
+      //if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var todo = CLapi.internals.job.todo(this.urlParams.job);
         return {status: 'success', data: todo}
       } else {
         return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
       }
+    }
+  }
+});
+
+CLapi.addRoute('job/:job/remove', {
+  get: {
+    //roleRequired: 'root',
+    action: function() {
+      // return the parts of the job still to do, does not check for results found since last progress check
+      //if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
+      return CLapi.internals.job.remove(this.urlParams.job);
     }
   }
 });
@@ -207,18 +218,6 @@ CLapi.addRoute('job/jobs', {
         }
       });
       return {status: 'success', data: {total:results.length, jobs: results} }
-    }
-  }
-});
-
-CLapi.addRoute('job/jobs/todo', {
-  delete: {
-    roleRequired: 'root',
-    action: function() {
-      var count = job_job.find({done:{$not:{$eq:true}}}).count();
-      job_job.remove({done:{$not:{$eq:true}}});
-      // TODO should this remove all processes associated with the jobs being deleted? - and why is deletion here?
-      return {status: 'success', total: count}
     }
   }
 });
@@ -358,12 +357,12 @@ var _findSigned = function(coll,signature,refresh) {
 job_process.findSigned = function(signature) { return _findSigned(job_process,signature); }
 job_result.findSigned = function(signature,refresh) { return _findSigned(job_result,signature,refresh); }
 
-CLapi.internals.job.create = function(input,uid,jid) {
+CLapi.internals.job.create = function(input,uid,refresh,jid) {
   var job = {user:uid};
   job.function = input.function;
   job.name = input.name;
   job.service = input.service;
-  if (job.refresh === undefined) job.refresh = true; // default to refresh?
+  job.refresh = refresh !== undefined ? refresh : true; // default to refresh?
   job.processes = [];
   for ( var i in input.processes ) {
     var proc = typeof input.processes[i] !== 'object' || input.processes[i].args === undefined ? {args:input.processes[i]} : input.processes[i];
@@ -461,6 +460,20 @@ CLapi.internals.job.todo = function(jobid) {
       }
       return todos;
     }
+  } else {
+    return false;
+  }
+}
+
+CLapi.internals.job.remove = function(jobid) {
+  var job = job_job.findOne(jobid);
+  if (job) {
+    var todos = CLapi.internals.job.todo(jobid);
+    if (todos) {
+      for ( var pd in todos) job_process.remove(pd.process);
+    }
+    job_job.remove(jobid);
+    return true;
   } else {
     return false;
   }
