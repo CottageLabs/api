@@ -1123,7 +1123,11 @@ CLapi.internals.service.oab.admin = function(rid,action) {
   oab_support.find({rid:rid}).forEach(function(s) {
     if (s.email && requestors.indexOf(s.email) === -1) requestors.push(s.email);
   });
-  if (action === 'send_to_author') {
+  if (action === 'received_thank_and_notify' && r.type === 'article') {
+    if (r.status !== 'received') update.status = 'received';
+    if (r.email) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'authors_thanks_article.html'},to:r.email});
+    if (requestors.length) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_success_article.html'},to:requestors});
+  } else if (action === 'send_to_author') {
     update.status = 'progress';
     if (r.story) update.rating = 1;
     if (requestors.length) CLapi.internals.service.oab.sendmail({vars:vars,template:{filename:'requesters_request_inprogress.html'},to:requestors});
@@ -1641,6 +1645,7 @@ CLapi.internals.service.oab.receive = function(rid,content,url,title,description
       subject: 'Request ' + r._id + ' received',
       text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + r._id
     },Meteor.settings.openaccessbutton.mail_url);
+    CLapi.internals.service.oab.admin(r._id,'received_thank_and_notify');
 
     return {status: 'success', data: r};
   }
