@@ -1645,7 +1645,7 @@ CLapi.internals.service.oab.receive = function(rid,content,url,title,description
       subject: 'Request ' + r._id + ' received',
       text: (Meteor.settings.dev ? 'https://dev.openaccessbutton.org/request/' : 'https://openaccessbutton.org/request/') + r._id
     },Meteor.settings.openaccessbutton.mail_url);
-    CLapi.internals.service.oab.admin(r._id,'received_thank_and_notify');
+    if (Meteor.settings.openaccessbutton.notifications.receive) CLapi.internals.service.oab.admin(r._id,'received_thank_and_notify');
 
     return {status: 'success', data: r};
   }

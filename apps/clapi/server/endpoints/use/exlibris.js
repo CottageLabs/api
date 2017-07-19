@@ -10,7 +10,7 @@ CLapi.addRoute('use/exlibris', {
 CLapi.addRoute('use/exlibris/primo', {
   get: {
     action: function() {
-			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size,undefined,this.queryParams.raw);
+			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size,this.queryParams.institution,this.queryParams.raw);
     }
   }
 });
@@ -58,7 +58,8 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
 	var index = from + 1;
 	if (size === undefined) size = 10;
   if (institution === undefined) institution = '44IMP';
-  if (institution === 'imperial') institution = '44IMP';
+  if (institution.toLowerCase() === 'imperial') institution = '44IMP';
+  if (institution.toLowerCase() === 'york') institution = '44YORK';
 	// TODO add mappings of institutions we want to search on
 	var query;
 	if ( qry.indexOf(',contains,') !== -1 || qry.indexOf(',exact,') !== -1 || qry.indexOf(',begins_with,') !== -1 || qry.indexOf('&') !== -1 ) {
@@ -74,6 +75,7 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
   console.log(url);
   //try {
     var res = Meteor.http.call('GET', url);
+    console.log(res);
 		var data;
     if ( res.statusCode === 200 ) {
 			if (raw) {
