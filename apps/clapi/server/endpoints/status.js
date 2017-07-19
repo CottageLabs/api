@@ -33,16 +33,16 @@ CLapi.internals.status = function() {
     db: 'TODO',
     cron: 'TODO'
   }
-  try { Meteor.http.call('GET','https://api.cottagelabs.com'); } catch(err) { ret.up.live = false; }
-  try { Meteor.http.call('GET','https://lapi.cottagelabs.com'); } catch(err) { ret.up.local = false; }
-  try { Meteor.http.call('GET','https://dev.api.cottagelabs.com'); } catch(err) { ret.up.dev = false; }
+  try { Meteor.http.call('HEAD','https://api.cottagelabs.com', {timeout:1000}); } catch(err) { ret.up.live = false; }
+  try { Meteor.http.call('HEAD','https://lapi.cottagelabs.com', {timeout:1000}); } catch(err) { ret.up.local = false; }
+  try { Meteor.http.call('HEAD','https://dev.api.cottagelabs.com', {timeout:1000}); } catch(err) { ret.up.dev = false; }
   try { 
-    Meteor.http.call('GET','https://capi.cottagelabs.com');
+    Meteor.http.call('HEAD','https://capi.cottagelabs.com', {timeout:1000});
     if (Meteor.settings.cluster && Meteor.settings.cluster.machines) {
       var cm = 0;
       for ( var m in Meteor.settings.cluster.machines) {
         try {
-          Meteor.http.call('GET','http://' + Meteor.settings.cluster.machines[m] + '/api');
+          Meteor.http.call('HEAD','http://' + Meteor.settings.cluster.machines[m] + '/api', {timeout:1000});
           cm += 1;
         } catch(err) {}
       }
