@@ -10,7 +10,7 @@ CLapi.addRoute('use/exlibris', {
 CLapi.addRoute('use/exlibris/primo', {
   get: {
     action: function() {
-			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size,this.queryParams.institution,this.queryParams.raw);
+			return CLapi.internals.use.exlibris.primo(this.queryParams.q,this.queryParams.from,this.queryParams.size,this.queryParams.institution,this.queryParams.url,this.queryParams.raw);
     }
   }
 });
@@ -53,13 +53,18 @@ CLapi.internals.use.exlibris.parse = function(rec) {
 	//return rec;
 }
 
-CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
+CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,tgt,raw) {
 	if (from === undefined) from = 0;
 	var index = from + 1;
 	if (size === undefined) size = 10;
-  if (institution === undefined) institution = '44IMP';
-  if (institution.toLowerCase() === 'imperial') institution = '44IMP';
-  if (institution.toLowerCase() === 'york') institution = '44YORK';
+	var tgt = 'http://imp-primo.hosted.exlibrisgroup.com';
+  if (institution === undefined || institution.toLowerCase() === 'imperial') {
+  	institution = '44IMP';
+  }
+  if (['york','44york'].indexOf(institution.toLowerCase()) !== -1) {
+  	institution = '44YORK';
+  	tgt = 'https://yorsearch.york.ac.uk';
+  }
 	// TODO add mappings of institutions we want to search on
 	var query;
 	if ( qry.indexOf(',contains,') !== -1 || qry.indexOf(',exact,') !== -1 || qry.indexOf(',begins_with,') !== -1 || qry.indexOf('&') !== -1 ) {
@@ -71,7 +76,7 @@ CLapi.internals.use.exlibris.primo = function(qry,from,size,institution,raw) {
 	} else {
 		query = 'any,contains,' + qry;
 	}
-  var url = 'http://imp-primo.hosted.exlibrisgroup.com/PrimoWebServices/xservice/search/brief?json=true&institution=' + institution + '&indx=' + index + '&bulkSize=' + size + '&query=' + query;
+  var url = tgt + '/PrimoWebServices/xservice/search/brief?json=true&institution=' + institution + '&indx=' + index + '&bulkSize=' + size + '&query=' + query;
   console.log(url);
   //try {
     var res = Meteor.http.call('GET', url);

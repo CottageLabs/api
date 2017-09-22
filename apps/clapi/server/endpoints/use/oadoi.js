@@ -31,16 +31,15 @@ CLapi.addRoute('use/oadoi/search', {
 
 CLapi.internals.use.oadoi = {};
 
-// https://api.oadoi.org/v1/publication/doi/10.1038/nature12373
 CLapi.internals.use.oadoi.doi = function(doi) {
-  var url = 'https://api.oadoi.org/v1/publication/doi/' + doi;
+  var url = 'https://api.oadoi.org/v2/' + doi + '?email=mark@cottagelabs.com';
   console.log(url);
   try {
     var res = Meteor.http.call('GET', url);
-    if ( res.statusCode === 200 && res.data.results && res.data.results.length > 0) {
-      return { status: 'success', data: res.data.results[0]}
+    if ( res.statusCode === 200 ) {
+      return { status: 'success', data: res.data} // best oa location is null when nothing found
     } else {
-      return { status: 'error', data: res}
+      return { status: 'error', data: res.data}
     }
   } catch(err) {
     return { status: 'error', data: '404 not found'}    

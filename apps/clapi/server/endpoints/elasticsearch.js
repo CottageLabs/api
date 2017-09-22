@@ -156,11 +156,13 @@ CLapi.internals.es.map = function(route,map,url) {
   return Meteor.http.call('PUT',maproute,{data:map});
 }
 
-CLapi.internals.es.facet = function(index,type,key,url) {
+CLapi.internals.es.facet = function(index,type,key,qry,q,size,url) {
   //console.log('Performing elasticsearch facet on ' + index + ' ' + type + ' ' + key);
-  var size = 100;
+  if (size === undefined) size = 100;
   var esurl = url ? url : Meteor.settings.es.url;
   var opts = {data:{query:{"match_all":{}},size:0,facets:{}}};
+  if (qry) opts.data = qry;
+  if (q) opts.data.query = {query_string:{query:q}}
   opts.data.facets[key] = {terms:{field:key,size:size}}; // TODO need some way to decide if should check on .exact?
   try {
     if (Meteor.settings.dev_index) index = 'dev' + index;

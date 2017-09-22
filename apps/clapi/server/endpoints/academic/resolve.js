@@ -167,6 +167,9 @@ CLapi.internals.academic.redirect = function(ident,refresh) {
 }
 
 CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
+  // TODO consider parallelising - we now want to prioritise speed over minimal resource usage, 
+  // and want to convert oabutton and this to take a configurable list of sources and ways to check
+  
   // Resolve a URL or an ID to the best guess open alternative. Could be DOI, PMID, PMC... for now
   console.log('starting academic resolve for ' + ident);
   var ret = {url:false,original:ident};
@@ -447,12 +450,11 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
     if (!ret.url) {
       try { // check oadoi
         res = CLapi.internals.use.oadoi.doi(ident);
-        if (res.data && res.data.evidence !== "closed") {
-          ret.url = res.data.free_fulltext_url ? res.data.free_fulltext_url : res.data.url;
-          ret.title = res.data.dctitle;
+        if (res.data.best_oa_location) {
+          ret.url = res.data.best_oa_location.url;
+          ret.title = res.data.title;
           ret.source = 'oadoi';
-          ret.licence = res.data.license; // are these two useful, to save use looking up?
-          ret.color = res.data.oa_color;
+          ret.licence = res.data.best_oa_location.license;
         }
         if (ret.url) {
           var bl = CLapi.internals.service.oab.blacklist(ret.url,true);
@@ -766,6 +768,15 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
   
   // TODO is it worth adding Sherpa and Lantern data in here, for what we return on resolves?
   // It does not actually help with the resolve, but may be useful to people for other reasons...
+  
+  if (ret.url) {
+    // check it resolves
+    var resolves = Meteor.http.call('HEAD',ret.url);
+    if (resolves.statusCode === 404) {
+      ret['broken'] = ret.url;
+      ret.url = undefined;
+    }
+  }
   
   if (exists) {
     console.log('updating resolvers data');

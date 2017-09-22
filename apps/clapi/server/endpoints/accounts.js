@@ -435,16 +435,16 @@ CLapi.internals.accounts.register = function(opts) {
   // fingerprint cannot be mandatory because it can not be used easily on APIs
   var user = CLapi.internals.accounts.retrieve(opts.email);
   if ( !user ) {
-    var set = { email: opts.email };
+    var sets = { email: opts.email };
     if (opts.fingerprint) {
       //set.devices = {};
       //set.devices[opts.fingerprint] = {};
-      set.security = {fingerprint:opts.fingerprint};
+      sets.security = {fingerprint:opts.fingerprint};
       // TODO should have a devices area with mutliple fingerprints and device info possible
     }
-    set.service = {};
-    if ( opts.service ) set.service[opts.service.service] = {profile:{}}; // TODO this should save service info if necessary
-    var creds = CLapi.internals.accounts.create( set );
+    sets.service = {};
+    if ( opts.service ) sets.service[opts.service.service] = {profile:{}}; // TODO this should save service info if necessary
+    var creds = CLapi.internals.accounts.create( sets );
     user = CLapi.internals.accounts.retrieve(creds._id);
   } else if (opts.fingerprint) {
     CLapi.internals.accounts.fingerprint(user._id,opts.fingerprint);
@@ -544,21 +544,92 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
 CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resume,timestamp,request) {
   var opts = CLapi.internals.accounts.service(loc);
   if (!opts) return {};
-  // given an email address or token or hash, plus a fingerprint, login the user
-  console.log("API login for email address: " + email + " at location " + loc + " - with token: " + token + " or hash: " + hash + " or fingerprint: " + fingerprint + " or resume " + resume + " and timestamp " + timestamp);
-  loginCodes.remove({ timeout: { $lt: (new Date()).valueOf() } }); // remove old logincodes
   var loginCode;
   var user;
-  if (token !== undefined && email !== undefined) loginCode = loginCodes.findOne({email:email,code:token});
-  if (!loginCode && fingerprint !== undefined && email !== undefined) loginCode = loginCodes.findOne( { $and: [ { email:email, fp:fingerprint } ] } );
-  if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { hash:hash, fp:fingerprint } ] } );
-  if (!loginCode && hash !== undefined) loginCode = loginCodes.findOne({hash:hash});
-  if (!loginCode && email !== undefined && resume !== undefined && timestamp !== undefined) {
-    console.log('searching for login for user email via timestamped resume token');
-    user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
+  if (request && request.body && request.body.oauth) {
+    // https://developers.google.com/identity/protocols/OAuth2UserAgent#validatetoken
+    console.log("API login for oauth");
+    var creds = request.body.oauth;
+    if (creds.service === 'google') {
+      var validate = Meteor.http.call('POST','https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + creds.access_token);
+      var cid = opts && opts.service && Meteor.settings[opts.service] && Meteor.settings[opts.service].GOOGLE_OAUTH_CLIENT_ID ? Meteor.settings[opts.service].GOOGLE_OAUTH_CLIENT_ID : Meteor.settings.GOOGLE_OAUTH_CLIENT_ID;
+      if (validate.data && validate.data.aud === cid) {
+        var ret = Meteor.http.call('GET','https://www.googleapis.com/oauth2/v2/userinfo?access_token=' + creds.access_token);
+        var info = ret.data;
+        user = Meteor.users.findOne({'emails.address':info.email});
+        if (!user) {
+          CLapi.internals.accounts.register({email:info.email}); // TODO need to add service data properly too...
+          user = CLapi.internals.accounts.retrieve(info.email);
+        }
+        var sets = {};
+        if (user.google === undefined) sets.google = {id:info.id}
+        if (user.profile === undefined) {
+          sets.profile = {
+            name: info.name,
+            firstname: info.given_name,
+            lastname: info.family_name,
+            avatar: info.picture
+          }
+        } else {
+          if (!user.profile.name && info.name) sets['profile.name'] = info.name;
+          if (!user.profile.firstname && info.given_name) sets['profile.firstname'] = info.given_name;
+          if (!user.profile.lastname && info.family_name) sets['profile.lastname'] = info.family_name;
+          if (!user.profile.avatar && info.picture) sets['profile.avatar'] = info.picture;
+        }
+        if (JSON.stringify(sets) !== '{}') {
+          Meteor.users.update(user._id,{$set:sets});
+          user = CLapi.internals.accounts.retrieve(info.email);
+        }
+      }
+    } else if (creds.service === 'facebook') {
+      var fappid = opts && opts.service && Meteor.settings[opts.service] && Meteor.settings[opts.service].FACEBOOK_APP_ID ? Meteor.settings[opts.service].FACEBOOK_APP_ID : Meteor.settings.FACEBOOK_APP_ID;
+      var fappsec = opts && opts.service && Meteor.settings[opts.service] && Meteor.settings[opts.service].FACEBOOK_APP_SECRET ? Meteor.settings[opts.service].FACEBOOK_APP_SECRET : Meteor.settings.FACEBOOK_APP_SECRET
+      var adr = 'https://graph.facebook.com/debug_token?input_token=' + creds.access_token + '&access_token=' + fappid + '|' + fappsec;
+      var validate = Meteor.http.call('GET',adr);
+      if (validate.data && validate.data.data && validate.data.data.app_id === fappid) {
+        var ret = Meteor.http.call('GET','https://graph.facebook.com/v2.10/' + validate.data.data.user_id + '?access_token=' + creds.access_token + '&fields=email,name,first_name,last_name,picture.width(400).height(400)');
+        var info = ret.data;
+        user = Meteor.users.findOne({'emails.address':info.email});
+        if (!user) {
+          CLapi.internals.accounts.register({email:info.email}); // TODO need to add service data properly too...
+          user = CLapi.internals.accounts.retrieve(info.email);
+        }
+        var sets = {};
+        if (user.facebook === undefined) sets.facebook = {id:validate.data.data.user_id}
+        if (user.profile === undefined) {
+          sets.profile = {
+            name: info.name,
+            firstname: info.first_name,
+            lastname: info.last_name
+          }
+          if (info.picture && info.picture.data && info.picture.data.url) sets.profile.avatar = info.picture.data.url;
+        } else {
+          if (!user.profile.name && info.name) sets['profile.name'] = info.name;
+          if (!user.profile.firstname && info.first_name) sets['profile.firstname'] = info.first_name;
+          if (!user.profile.lastname && info.last_name) sets['profile.lastname'] = info.last_name;
+          if (!user.profile.avatar && info.picture && info.picture.data && info.picture.data.url) sets['profile.avatar'] = info.picture.data.url;
+        }
+        if (JSON.stringify(sets) !== '{}') {
+          Meteor.users.update(user._id,{$set:sets});
+          user = CLapi.internals.accounts.retrieve(info.email);
+        }
+      }
+    }
+  } else {
+    // given an email address or token or hash, plus a fingerprint, login the user
+    console.log("API login for email address: " + email + " at location " + loc + " - with token: " + token + " or hash: " + hash + " or fingerprint: " + fingerprint + " or resume " + resume + " and timestamp " + timestamp);
+    loginCodes.remove({ timeout: { $lt: (new Date()).valueOf() } }); // remove old logincodes
+    if (token !== undefined && email !== undefined) loginCode = loginCodes.findOne({email:email,code:token});
+    if (!loginCode && fingerprint !== undefined && email !== undefined) loginCode = loginCodes.findOne( { $and: [ { email:email, fp:fingerprint } ] } );
+    if (!loginCode && hash !== undefined && fingerprint !== undefined) loginCode = loginCodes.findOne( { $and: [ { hash:hash, fp:fingerprint } ] } );
+    if (!loginCode && hash !== undefined) loginCode = loginCodes.findOne({hash:hash});
+    if (!loginCode && email !== undefined && resume !== undefined && timestamp !== undefined) {
+      console.log('searching for login for user email via timestamped resume token');
+      user = Meteor.users.findOne({'emails.address':email,'security.resume.token':resume,'security.resume.timestamp':timestamp});
+    }
+    // TODO could also check by email and fingerprint if both present - but fingerprint on its own is far too weak
+    // any site can generate the fingerprint and then guess the email address
   }
-  // TODO could also check by email and fingerprint if both present - but fingerprint on its own is far too weak
-  // any site can generate the fingerprint and then guess the email address
   var future = new Future(); // a delay here helps stop spamming of the login mechanisms
   setTimeout(function() { future.return(); }, 333);
   future.wait();
@@ -609,7 +680,7 @@ CLapi.internals.accounts.login = function(email,loc,token,hash,fingerprint,resum
           service:service
         },
         cookie: {
-          email:email,
+          email:user.emails[0].address,
           userId:user._id,
           username:username,
           roles:user.roles,

@@ -109,7 +109,7 @@ CLapi.addRoute('service/lantern', {
         var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
         acc = CLapi.internals.accounts.retrieve(apikey);
       }
-      if (!acc && this.request.body.list && this.request.body.list.length > 1) return {statusCode: 401, body: {status: 'error', data: 'unauthorised'}}
+      if (!acc && this.request.body.list && this.request.body.list.length > 1 && !this.request.body.email) return {statusCode: 401, body: {status: 'error', data: 'unauthorised'}}
       var w = this.request.body.email ? true : false;
       var j = w ? lantern_jobs.insert({new:true,wellcome:true,user:this.userId}) : lantern_jobs.insert({new:true,user:this.userId});
       var b = this.request.body;
@@ -177,6 +177,29 @@ CLapi.addRoute('service/lantern/:job/todo', {
   }
 });
 
+CLapi.addRoute('service/lantern/:job/rename/:name', {
+  get: {
+    action: function() {
+      var job = lantern_jobs.findOne(this.urlParams.job);
+      if (job) {
+        var acc;
+        if ( this.request.headers['x-apikey'] || this.queryParams.apikey ) {
+          var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+          acc = CLapi.internals.accounts.retrieve(apikey);
+        }
+        if (acc && acc.emails[0].address === job.email) {
+          lantern_jobs.update(job._id,{$set:{report:this.urlParams.name}});
+          return {status: 'success'}
+        } else {
+          return {statusCode: 401, body: {status: 'error', data: '401 unauthorised'}}
+        }
+      } else {
+        return {statusCode: 404, body: {status: 'error', data: '404 not found'}}
+      }
+    }
+  }
+});
+
 CLapi.addRoute('service/lantern/:job/results', {
   get: {
     action: function() {
@@ -192,9 +215,9 @@ CLapi.addRoute('service/lantern/:job/results', {
       var res;
       if ( this.queryParams.format === 'csv' ) {
         var ignorefields = [];
-        if (this.user.service.lantern.profile && this.user.service.lantern.profile.fields) {
-          for ( var f in this.user.service.lantern.profile.fields) {
-            if (this.user.service.lantern.profile.fields[f] === false && ( this.queryParams[f] === undefined || this.queryParams[f] === 'false') ) ignorefields.push(f);
+        if (acc && acc.service.lantern.profile && acc.service.lantern.profile.fields) {
+          for ( var f in acc.service.lantern.profile.fields) {
+            if (acc.service.lantern.profile.fields[f] === false && ( this.queryParams[f] === undefined || this.queryParams[f] === 'false') ) ignorefields.push(f);
           }
         }
         var csv = CLapi.internals.service.lantern.csv(this.urlParams.job,ignorefields);
@@ -203,11 +226,10 @@ CLapi.addRoute('service/lantern/:job/results', {
         this.response.writeHead(200, {
           'Content-disposition': "attachment; filename="+name+".csv",
           'Content-type': 'text/csv; charset=UTF-8',
-          'Content-length': csv.length
+          'Content-Encoding': 'UTF-8'
         });
-        this.response.write(csv);
-        this.done();
-        return {}  
+        this.response.end(csv);
+        return {}
       } else {
         res = CLapi.internals.service.lantern.results(this.urlParams.job);
         return {status: 'success', data: res}
@@ -238,10 +260,9 @@ CLapi.addRoute('service/lantern/:job/original', {
       this.response.writeHead(200, {
         'Content-disposition': "attachment; filename="+name+"_original.csv",
         'Content-type': 'text/csv; charset=UTF-8',
-        'Content-length': ret.length
+        'Content-Encoding': 'UTF-8'
       });
-      this.response.write(ret);
-      this.done();
+      this.response.end(ret);
       return {}
     }
   }
@@ -1125,7 +1146,7 @@ CLapi.internals.service.lantern.progress = function(jobid) {
         }    
       }
     }
-    return {progress:p,name:job.name,email:job.email,_id:job._id,new:job.new,createdAt:job.createdAt};
+    return {progress:p,report:job.report,name:job.name,email:job.email,_id:job._id,new:job.new,createdAt:job.createdAt};
   } else {
     return false;
   }
@@ -1194,8 +1215,9 @@ CLapi.internals.service.lantern.csv = function(jobid,ignorefields) {
   if (ignorefields === undefined) ignorefields = [];
   var fieldnames = {};
   try {
-    fieldnames = typeof Meteor.settings.lantern.fieldnames === 'object' ? Meteor.settings.lantern.fieldnames : JSON.parse(Meteor.http.call('GET',Meteor.settings.lantern.fields).content);
-  } catch(err) {}
+    fieldnames = typeof Meteor.settings.lantern.fieldnames === 'object' ? Meteor.settings.lantern.fieldnames : JSON.parse(Meteor.http.call('GET',Meteor.settings.lantern.fieldnames).content);
+  } catch(err) { console.log(err); }
+  console.log(fieldnames);
   var fields = Meteor.settings.lantern.fields; // output order of our fields, excluding compliance, grants, provenance which will be appended to end
   var grantcount = 0;
   var fieldconfig = [];
@@ -1240,7 +1262,7 @@ CLapi.internals.service.lantern.csv = function(jobid,ignorefields) {
                 }
               }
             }
-          } else if (fname === 'pmcid') { 
+          } else if (fname === 'pmcid' && res.pmcid) { 
             if (res.pmcid.toLowerCase().indexOf('pmc') !== 0) res.pmcid = 'PMC' + res.pmcid;
             result[printname] = res.pmcid;
           } else if (res[fname] === true ) {

@@ -142,7 +142,10 @@ CLapi.internals.academic.catalogue.extract = function(url,content,refresh,doi) {
     }*/
 
     // get a title from the page if not present yet
-    if (!meta.title && content && content.toLowerCase().indexOf('dc.title') !== -1) {
+    if (!meta.title && content && content.toLowerCase().indexOf('requestdisplaytitle') !== -1) {
+      // specific case for ALMA pages
+      meta.title = content.toLowerCase().split('requestdisplaytitle').pop().split('>')[1].split('<')[0];
+    } else if (!meta.title && content && content.toLowerCase().indexOf('dc.title') !== -1) {
 			meta.title = content.toLowerCase().split('dc.title')[1].replace(/'/g,'"').split('content=')[1].split('"')[1].trim();
     } else if (!meta.title && content && content.toLowerCase().indexOf('eprints.title') !== -1) {
 			meta.title = content.toLowerCase().split('eprints.title')[1].replace(/'/g,'"').split('content=')[1].split('"')[1].trim();

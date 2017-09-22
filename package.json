@@ -4,6 +4,7 @@
   "version": "0.9.0",
   "author": "Mark MacGillivray",
   "dependencies": {
+    "babel-runtime": "^6.23.0",
     "bcrypt": "^0.8.7"
   },
   "devDependencies": {}

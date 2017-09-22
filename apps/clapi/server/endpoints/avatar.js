@@ -11,6 +11,19 @@ CLapi.addRoute('avatar', {
   }
 });
 
+CLapi.addRoute('avatar/upload', {
+  post: {
+    action: function() {
+      var fs = Meteor.npmRequire('fs');
+      for ( var f in this.request.files ) {
+        // TODO should receive or create a uuid
+        fs.writeFileSync('/home/cloo/clapi/uploads/avatar/' + this.request.files[f].filename, this.request.files[f].data);
+      }
+      return {status: 'success'};
+    }
+  }
+});
+
 CLapi.internals.avatar = function(email,size,def) {
   if (size === undefined) size = 100;
   if (def === undefined) def = 'https://static.cottagelabs.com/avatar.jpg';

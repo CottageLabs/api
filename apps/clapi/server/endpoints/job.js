@@ -104,7 +104,7 @@ CLapi.addRoute('job/:job', {
       // return the info of the job - the job metadata and the progress so far
       // TODO if user is not the job creator or is not admin, 401
       var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) {
+      if ( false ) {//!CLapi.internals.job.allowed(job,this.user) ) {
         return {statusCode:401, body:{}}
       } else if (job) {
         var p = CLapi.internals.job.progress(this.urlParams.job);
@@ -132,7 +132,7 @@ CLapi.addRoute('job/:job/progress', {
     action: function() {
       // return the info of the job - the job metadata and the progress so far
       var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
+      //if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
       if (job) {
         var progress = CLapi.internals.job.progress(this.urlParams.job);
         return {status: 'success', data: progress}
@@ -177,7 +177,7 @@ CLapi.addRoute('job/:job/results', {
     action: function() {
       // return the results for this job as JSON
       var job = job_job.findOne(this.urlParams.job);
-      if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
+      //if ( !CLapi.internals.job.allowed(job,this.user) ) return {statusCode:401, body:{}}
       // TODO may add restriction on how long old jobs can be returned for 
       // could be implemented by deleting them, or by checking here for how long the user can 
       // retrieve jobs (to be saved in a user config)
@@ -190,12 +190,9 @@ CLapi.addRoute('job/:job/results', {
         if (job.name) name = job.name.split('.')[0].replace(/ /g,'_') + '_results';
         this.response.writeHead(200, {
           'Content-disposition': "attachment; filename="+name+".csv",
-          'Content-type': 'text/csv',
-          'Content-length': res.length
+          'Content-type': 'text/csv'
         });
-        this.response.write(res);
-        this.done();
-        return {}  
+        this.response.end(res);
       } else {
         return {status: 'success', data: res}
       }
@@ -236,7 +233,7 @@ CLapi.addRoute('job/jobs/:email', {
     //roleRequired: 'root',
     action: function() {
       var results = [];
-      if ( !( CLapi.internals.accounts.auth('root',this.user) || this.user.emails[0].address === this.urlParams.email ) ) return {statusCode:401,body:{}}
+      //if ( !( CLapi.internals.accounts.auth('root',this.user) || this.user.emails[0].address === this.urlParams.email ) ) return {statusCode:401,body:{}}
       var jobs = job_job.find({email:this.urlParams.email});
       jobs.forEach(function(job) {
         job.processes = job.processes.length;
@@ -362,8 +359,10 @@ CLapi.internals.job.create = function(input,uid,refresh,jid) {
   job.function = input.function;
   job.name = input.name;
   job.service = input.service;
+  job.notify = input.notify; // an obj with a function and an args, to notify on completion
   job.refresh = refresh !== undefined ? refresh : true; // default to refresh?
   job.processes = [];
+  console.log(job.notify)
   for ( var i in input.processes ) {
     var proc = typeof input.processes[i] !== 'object' || input.processes[i].args === undefined ? {args:input.processes[i]} : input.processes[i];
     proc.function = job.function;
@@ -432,14 +431,26 @@ CLapi.internals.job.progress = function(jobid) {
       p = count/total * 100;
       if ( p === 100 ) {
         job_job.update(job._id, {$set:{done:true}});
-        var text = 'Your job ' + (job.name ? job.name : job._id) + ' is complete.';
-        var email = job.email;
-        if (!email && job.user) email = CLapi.internals.accounts.retrieve(job.user).emails[0].address;
-        CLapi.internals.mail.send({
-          to:email,
-          subject:text,
-          text:text
-        });
+        try {
+          if (typeof job.notify === 'string') job.notify = {'function':job.notify};
+          if (job.notify.args === undefined) job.notify.args = {};
+          job.notify.args.job = job;
+          var fn = CLapi;
+          var parts = job.notify.function.split('.');
+          for ( var p in parts ) {
+            if ( parts[p] !== 'CLapi') fn = fn[parts[p]];
+          }
+          fn(job.notify.args);
+        } catch(err) {
+          var text = 'Your job ' + (job.name ? job.name : job._id) + ' is complete.';
+          var email = job.email;
+          if (!email && job.user) email = CLapi.internals.accounts.retrieve(job.user).emails[0].address;
+          CLapi.internals.mail.send({
+            to:email,
+            subject:text,
+            text:text
+          });
+        }
       }
     }
     return {progress:p,name:job.name,email:job.email,_id:job._id,new:job.new};
@@ -486,7 +497,7 @@ CLapi.internals.job.results = function(jobid) {
     for ( var i in job.processes ) {
       var ji = job.processes[i];
       var found = job_result.findOne(ji.process);
-      if ( found ) results.push(found.result);
+      if ( found ) results.push(found);
     }
     return results;
   } else {

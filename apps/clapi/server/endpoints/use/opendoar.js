@@ -57,11 +57,11 @@ CLapi.internals.use.opendoar.parse = function(rec) {
   if (rec.paFax && rec.paFax.length > 0 && rec.paFax[0].length > 0) ret.fax = rec.paFax[0];
   if (rec.rDescription && rec.rDescription.length > 0 && rec.rDescription[0].length > 0) ret.description = rec.rDescription[0];
   if (rec.rRemarks && rec.rRemarks.length > 0 && rec.rRemarks[0].length > 0) ret.remarks = rec.rRemarks[0];
-  if (rec.rYearEstablished && rec.rYearEstablished.length > 0 && rec.rYearEstablished[0].length > 0) ret.established = rec.rYearEstablished[0];
+  if (rec.rYearEstablished && rec.rYearEstablished.length > 0 && rec.rYearEstablished[0].length > 0 && parseInt(rec.rYearEstablished[0])) ret.established = rec.rYearEstablished[0];
   if (rec.repositoryType && rec.repositoryType.length > 0 && rec.repositoryType[0].length > 0) ret.type = rec.repositoryType[0];
   if (rec.operationalStatus && rec.operationalStatus.length > 0 && rec.operationalStatus[0].length > 0) ret.operational = rec.operationalStatus[0];
-  if (rec.rSoftwareName && rec.rSoftwareName.length > 0 && rec.rSoftwareName[0].length > 0) ret.software = rec.rSoftwareName[0];
-  if (rec.rSoftwareVersion && rec.rSoftwareVersion.length > 0 && rec.rSoftwareVersion[0].length > 0) ret.version = rec.rSoftwareVersion[0];
+  if (rec.rSoftWareName && rec.rSoftWareName.length > 0 && rec.rSoftWareName[0].length > 0) ret.software = rec.rSoftWareName[0];
+  if (rec.rSoftWareVersion && rec.rSoftWareVersion.length > 0 && rec.rSoftWareVersion[0].length > 0) ret.version = rec.rSoftWareVersion[0];
   if (rec.paLatitude && rec.paLongitude) ret.location = {geo:{lat:rec.paLatitude[0],lon:rec.paLongitude[0]}}
   if (rec.country && rec.country.length > 0 && rec.country[0].cCountry) {
     ret.country = rec.country[0].cCountry[0];

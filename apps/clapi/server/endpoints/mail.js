@@ -56,6 +56,29 @@ CLapi.addRoute('mail/error', {
   }
 });
 
+CLapi.addRoute('mail/feedback/:token', {
+  get: {
+    action: function() {
+      var from, to, mail_url, subject;
+      try {
+        from = this.queryParams.from ? this.queryParams.from : (Meteor.settings.mail.feedback[this.urlParams.token].from ? Meteor.settings.mail.feedback[this.urlParams.token].from : "sysadmin@cottagelabs.com");
+        to = Meteor.settings.mail.feedback[this.urlParams.token].to;
+        mail_url = Meteor.settings.mail.feedback[this.urlParams.token].mail_url ? Meteor.settings.mail.feedback[this.urlParams.token].mail_url : Meteor.settings.MAIL_URL;
+        subject = Meteor.settings.mail.feedback[this.urlParams.token].subject ? Meteor.settings.mail.feedback[this.urlParams.token].subject : "Feedback";
+      } catch(err) {}
+      if (to !== undefined) {
+        CLapi.internals.mail.send({
+          from: from,
+          to: to,
+          subject: subject,
+          text: this.queryParams.content
+        },mail_url);
+      }
+      return {};
+    }
+  }
+});
+
 CLapi.addRoute('mail/progress', {
   get: {
     action: function() {
@@ -267,12 +290,12 @@ CLapi.internals.mail.substitute = function(content,vars,markdown) {
   var ret = {};
   // read variables IN to content
   for ( var v in vars ) {
-    if (content.toLowerCase().indexOf('{{'+v+'}}') !== -1) {
+    if (content && content.toLowerCase().indexOf('{{'+v+'}}') !== -1) {
       var rg = new RegExp('{{'+v+'}}','gi');
       content = content.replace(rg,vars[v]);
     }
   }
-  if (content.indexOf('{{') !== -1) {
+  if (content && content.indexOf('{{') !== -1) {
     var vs = ['subject','from','to','cc','bcc'];
     for ( var k in vs ) {
       var key = content.toLowerCase().indexOf('{{'+vs[k]) !== -1 ? vs[k] : undefined;
@@ -299,7 +322,7 @@ CLapi.internals.mail.construct = function(tmpl,vars) {
   // if filename is .txt or .html look for the alternative too.
   // if .md try to generate a text and html option out of it
   var template = CLapi.internals.mail.template(tmpl);
-  var md = template.filename.endsWith('.md');
+  var md = template.filename && template.filename.endsWith('.md');
   var ret = vars ? CLapi.internals.mail.substitute(template.content,vars,md) : {content: template.content};
   if (!md) {
     // look for the alternative too

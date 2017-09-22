@@ -19,7 +19,7 @@ CLapi.addRoute('use/google', {
 CLapi.addRoute('use/google/places/autocomplete', {
   get: {
     action: function() {
-      return CLapi.internals.use.google.places.autocomplete(this.queryParams.q);
+      return CLapi.internals.use.google.places.autocomplete(this.queryParams.q,this.queryParams.location,this.queryParams.radius);
     }
   }
 });
@@ -27,7 +27,23 @@ CLapi.addRoute('use/google/places/autocomplete', {
 CLapi.addRoute('use/google/places/place', {
   get: {
     action: function() {
-      return CLapi.internals.use.google.places.place(this.queryParams.id,this.queryParams.q);
+      return CLapi.internals.use.google.places.place(this.queryParams.id,this.queryParams.q,this.queryParams.location,this.queryParams.radius);
+    }
+  }
+});
+
+CLapi.addRoute('use/google/places/nearby', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.google.places.nearby(this.queryParams);
+    }
+  }
+});
+
+CLapi.addRoute('use/google/places/search', {
+  get: {
+    action: function() {
+      return CLapi.internals.use.google.places.search(this.queryParams);
     }
   }
 });
@@ -155,9 +171,10 @@ CLapi.internals.use.google.cloud.language = function(content,actions,auth) {
   return res;
 }
 
-CLapi.internals.use.google.places.autocomplete = function(qry) {
+CLapi.internals.use.google.places.autocomplete = function(qry,location,radius) {
   console.log('Using google places autocomplete to query ' + qry);
   var url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=' + qry + '&key=' + Meteor.settings.GOOGLE_SERVER_KEY;
+  if (location) url += '&location=' + location + '&radius=' + (radius ? radius : '10000');
   try {
     return Meteor.http.call('GET',url).data;
   } catch(err) {
@@ -165,11 +182,11 @@ CLapi.internals.use.google.places.autocomplete = function(qry) {
   }// meteor http call get will throw error on 404
 }
 
-CLapi.internals.use.google.places.place = function(id,qry) {
+CLapi.internals.use.google.places.place = function(id,qry,location,radius) {
   console.log('Using google places place lookup on ' + id + ' ' + qry);
   if ( id === undefined ) {
     try {
-      var results = CLapi.internals.use.google.places.autocomplete(qry);
+      var results = CLapi.internals.use.google.places.autocomplete(qry,location,radius);
       id = results.predictions[0].place_id;
     } catch(err) {
       return {status:'error'}
@@ -188,6 +205,30 @@ CLapi.internals.use.google.places.url = function(qry) {
   try {
     var results = CLapi.internals.use.google.places.place(undefined,qry);
     return {status:'success',data: {url:results.result.website.replace('://','______').split('/')[0].replace('______','://')}}
+  } catch (err) {
+    return {status:'error'}
+  }
+}
+
+CLapi.internals.use.google.places.nearby = function(params) {
+  console.log('Using google places nearby search');
+  var url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json?';
+  if (params.key === undefined) params.key = Meteor.settings.GOOGLE_SERVER_KEY;
+  for ( var p in params ) url += (p === 'q' ? 'input' : p) + '=' + params[p] + '&';
+  try {
+    return Meteor.http.call('GET',url).data;
+  } catch (err) {
+    return {status:'error'}
+  }
+}
+
+CLapi.internals.use.google.places.search = function(params) {
+  console.log('Using google places text search');
+  var url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?';
+  if (params.key === undefined) params.key = Meteor.settings.GOOGLE_SERVER_KEY;
+  for ( var p in params ) url += (p === 'q' ? 'input' : p) + '=' + params[p] + '&';
+  try {
+    return Meteor.http.call('GET',url).data;
   } catch (err) {
     return {status:'error'}
   }

@@ -264,6 +264,7 @@ CLapi.internals.convert.xml2json = Async.wrap(function(url, content, callback) {
 });
 
 CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callback) {
+  if (content) console.log(content.length) // KEEP THIS HERE - oddly, having this here stops endpoints throwing a write before end error and crashing the app when they try to serve out the csv, so just keep this here
   if ( url !== undefined ) {
     var res = Meteor.http.call('GET', url);
     content = JSON.parse(res.content);
@@ -285,7 +286,23 @@ CLapi.internals.convert.json2csv = Async.wrap(function(opts, url, content, callb
   for ( var l in content ) {
     for ( var k in content[l] ) {
       if ( Array.isArray(content[l][k]) ) {
-        content[l][k] = content[l][k].join(',');
+        if ( content[l][k].length > 0 && typeof(content[l][k][0]) === 'object' && opts.fields ) {
+          for ( var fn in opts.fields ) {
+            if (fn.indexOf(k+'.') === 0) {
+              var nst = fn.replace(k+'.','');
+              var vals = '';
+              for ( var kn in content[l][k] ) {
+                if (vals !== '') vals += ',';
+                var ival = content[l][k][kn][nst];
+                if (Array.isArray(ival)) ival = ival.join(',');
+                vals += ival;
+              }
+              content[l][k] = vals;
+            }
+          }
+        } else {
+          content[l][k] = content[l][k].join(',');
+        }
       }
     }
   }

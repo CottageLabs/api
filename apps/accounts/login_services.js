@@ -34,7 +34,7 @@ login_services = {
   'openaccessbutton.org': {
     profile: ['profession','confirm_public','confirm_terms','orcid','affiliation'],
     domain: '.openaccessbutton.org',
-    from: 'Open Access Button <donotreply@openaccessbutton.org>',
+    from: 'Open Access Button <donotreply@mg.openaccessbutton.org>',
     service: 'openaccessbutton',
     name: 'Open Access Button',
     subject: 'Please Authenticate your Account (+ some other details)',
@@ -70,10 +70,10 @@ login_services['levor.club'].secure = false;
 
 login_services['jing.test.cottagelabs.com'] = JSON.parse(JSON.stringify(login_services['weareleviathan.com']));
 login_services['jing.test.cottagelabs.com'].domain = '.cottagelabs.com';
-login_services['jing.test.cottagelabs.com'].name = 'Gozjen';
-login_services['jing.test.cottagelabs.com'].service = 'gozjen';
-login_services['jing.test.cottagelabs.com'].subject = 'Please sign in to Gozjen';
-login_services['jing.test.cottagelabs.com'].from = 'Gozjen <mark@cottagelabs.com>';
+login_services['jing.test.cottagelabs.com'].name = 'Bebejam';
+login_services['jing.test.cottagelabs.com'].service = 'bebejam';
+login_services['jing.test.cottagelabs.com'].subject = 'Please sign in to Bebejam';
+login_services['jing.test.cottagelabs.com'].from = 'Bebejam <mark@cottagelabs.com>';
 
 login_services['compliance.cottagelabs.com'] = login_services['lantern.cottagelabs.com'];
 

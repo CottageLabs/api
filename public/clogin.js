@@ -129,7 +129,7 @@ clogin.emailSubmitButtonText = 'Login / Register';
 clogin.tokenDivId = 'cloginTokenArea'; // the div of the area that shows the login token input box and the button that triggers it, and any other related info you put in it
 clogin.tokenDivText = '';
 clogin.tokenInputId = 'cloginToken'; // the ID of the box where the login token should be read from
-clogin.tokenInputPlaceholder = 'Check your email, enter your login code';
+clogin.tokenInputPlaceholder = 'Enter login code delivered to your email';
 
 clogin.logoutButtonId = 'cloginLogout';
 
@@ -139,6 +139,14 @@ clogin.saveClass = 'cloginSave'; // add this class to any item that should have 
 clogin.saveButtonId = 'cloginSave';
 clogin.saveSuccessDivId = 'cloginSaved';
 clogin.saveMessagesDivId = 'cloginSaveMessages'; // a div where messages will get put into if they are about save actions
+
+// oauth configs
+clogin.oauthRedirectUri = undefined; // this can be set, but if not, current page will be used (whatever is used has to be authorised as a redirect URI with the oauth provider)
+clogin.oauthGoogleButtonId = 'cloginOauthGoogle';
+clogin.oauthGoogleClientId = '360291218230-r9lteuqaah0veseihnk7nc6obialug84.apps.googleusercontent.com';
+clogin.oauthFacebookButtonId = 'cloginOauthFacebook';
+clogin.oauthFacebookAppId = '161023221115840';
+
 
 //useful info is put in here 
 clogin.user = {
@@ -159,10 +167,13 @@ clogin.user = {
 clogin.afterFailure = function(data,action) {} // a function to customise to do something after failure
 clogin.failureCallback = function(data,action) {
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
+  $('#'+clogin.tokenDivID).show();
+  $('#'+clogin.emailDivId).show();
   if ( action === 'login' && $('#'+clogin.tokenInputId).length && $('#'+clogin.tokenInputId).val().length === clogin.tokenlength ) {
     // token login error seems to be occurring, so say token must be invalid
     $('#'+clogin.messagesDivId).html('<p>Sorry, your login token appears to be invalid. Please refresh the page and try logging in again.</p>');
   }
+  if ( action === 'oauth' ) $('#'+clogin.messagesDivId).html('<p>Sorry, we could not sign you in. Please try another method.</p>');
   data.page = window.location.href;
   data.action = action;
   data.user = clogin.user;
@@ -185,7 +196,7 @@ clogin.failureCallback = function(data,action) {
     data:JSON.stringify(data)
   });
   if (clogin.debug) console.log('Clogin failure callback sent error msg to remote');
-  if (typeof clogin.afterFailure === 'function') clogin.afterFailure();
+  if (typeof clogin.afterFailure === 'function') clogin.afterFailure(data,action);
 }
 
 clogin.afterSave = function() {} // a function to customise to do something after save
@@ -206,6 +217,7 @@ clogin.saveValidate = function() {
 }
 clogin.save = function(event,data) {
   if (clogin.debug) console.log('Clogin saving');
+  if (event) event.preventDefault();
   if ($('#'+clogin.saveMessagesDivId).length) $('#'+clogin.saveMessagesDivId).html('');
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   if (data === undefined) {
@@ -281,6 +293,8 @@ clogin.form = function(matcher) {
     form += clogin.emailDivText;
     form += '<p><input type="email" class="form-control" id="' + clogin.emailInputId + '" placeholder="' + clogin.emailInputPlaceholder + '"></p>';
     form += '<p><button id="' + clogin.emailSubmitButtonId + '" type="submit" class="btn btn-primary btn-block">' + clogin.emailSubmitButtonText + '</button></p>';
+    form += '<p><a id="' + clogin.oauthGoogleButtonId + '" class="btn btn-primary btn-block" href="#">Sign in with Google</a></p>';
+    form += '<p><a id="' + clogin.oauthFacebookButtonId + '" class="btn btn-primary" href="#">Sign in with Facebook</a></p>';
     form += '</div>';
     form += '<div id="' + clogin.tokenDivId + '" style="display:none;">';
     form += clogin.tokenDivText;
@@ -303,6 +317,26 @@ clogin.form = function(matcher) {
   $('#'+clogin.tokenInputId).bind('keyup',clogin.loginWithToken);
   $('#'+clogin.logoutButtonId).bind('click',clogin.logout);
   $('#'+clogin.saveButtonId).bind('click',clogin.save);
+  
+  var state = Math.random().toString(36).substring(2,8);
+  if (clogin.oauthRedirectUri === undefined) clogin.oauthRedirectUri = window.location.href.split('#')[0].split('?')[0];
+  if ( $('#'+clogin.oauthGoogleButtonId).length && clogin.oauthGoogleClientId ) {
+    if (clogin.debug) console.log('Clogin prepping google oauth button');
+    var grl = 'https://accounts.google.com/o/oauth2/v2/auth?response_type=token&include_granted_scopes=true';
+    grl += '&scope=https://www.googleapis.com/auth/userinfo.email+https://www.googleapis.com/auth/userinfo.profile';
+    grl += '&state=' + state;
+    grl += '&redirect_uri=' + clogin.oauthRedirectUri;
+    grl += '&client_id=' + clogin.oauthGoogleClientId;
+    $('#'+clogin.oauthGoogleButtonId).attr('href',grl).bind('click',function() { clogin.setCookie('cloauth',{state:state,service:'google'},{expires:1}); });
+  }
+  if ( $('#'+clogin.oauthFacebookButtonId).length && clogin.oauthFacebookAppId ) {
+    if (clogin.debug) console.log('Clogin prepping facebook oauth button');
+    var frl = 'https://www.facebook.com/v2.10/dialog/oauth?state=' + state;
+    frl += '&response_type=token&scope=public_profile,email,user_friends';//,user_location';
+    frl += '&redirect_uri=' + clogin.oauthRedirectUri;
+    frl += '&client_id=' + clogin.oauthFacebookAppId;
+    $('#'+clogin.oauthFacebookButtonId).attr('href',frl).bind('click',function() { clogin.setCookie('cloauth',{state:state,service:'facebook'},{expires:1}); });
+  }
 }
 
 clogin.retrieve = function(email,callback) {
@@ -366,23 +400,32 @@ clogin.tokenSuccess = function(data) {
   }
 }
 clogin.tokenProgress = function() {
-  if (clogin.getCookie(clogin.cookie)) window.location = window.location.href;
+  if (clogin.debug) console.log('Clogin token progress checking');
+  //if (clogin.getCookie(clogin.cookie)) window.location = window.location.href;
   var progress = clogin.getCookie('clprogress');
   var timeout = (new Date()).valueOf() - 180000;
-  if (progress && progress.createdAt > timeout) {
+  if (clogin.hash()) {
+    // pasting a url with hash into a firefox nav bar and hitting enter does not refresh the page
+    // so if a user did that after receiving the login email, nothing happens. So, check for a hash
+    if (clogin.debug) console.log('Clogin token progress found a new URL hash');
+    clearInterval(progress.interval);
+    clogin.login();
+  } else if (progress && progress.createdAt > timeout) {
     var opts = {
       type:'GET',
       url: clogin.api.replace('/accounts','/mail') + '/progress?q=Message-Id.exact:"' + progress.mid + '"',
       success: function(data) {
+        if (clogin.debug) console.log('Clogin token progress found progress');
         try {
           var event = data.hits.hits[0]._source.event;
           clogin.user.token = event; // check the state of clogin.user if user refreshes page
           // on delivered update the screen msg if it does not already say delivered
           // on dropped update the screen msg, remove the token cookie, and configure to start login again
           if (event === 'delivered') $('#'+clogin.tokenInputId).attr('placeholder','Email delivered to ' + progress.email).css('border-color','orange');
-          //if (event === 'opened') $('#'+clogin.tokenInputId).attr('placeholder','Email opened by ' + progress.email).css('border-color','green');
+          if (event === 'opened') $('#'+clogin.tokenInputId).attr('placeholder','Enter login code delivered to ' + progress.email).css('border-color','green');
           if (event === 'dropped') {
-            $('#'+clogin.tokenInputId).attr('placeholder','Please refresh - failed to deliver to ' + progress.email).css('border-color','red');
+            if (clogin.debug) console.log('Clogin token progress found dropped event, clearing progress checks and resetting login');
+            $('#'+clogin.tokenInputId).attr('placeholder','Failed to deliver to ' + progress.email + '. Please reload the page and try again').css('border-color','red');
             clearInterval(progress.interval);
             clogin.removeCookie('clprogress');
           }          
@@ -406,9 +449,11 @@ clogin.token = function(e) {
   if (clogin.loadingId) $('#'+clogin.loadingId).show();
   $('#'+clogin.messagesDivId).html('');
   if (clogin.user.email === undefined) clogin.user.email = $('#'+clogin.emailInputId).val();
-  if (!clogin.user.email) {
+  if (!clogin.user.email || clogin.user.email.indexOf('@') === -1 || clogin.user.email.indexOf('.') === -1) {
     // TODO add a mailgun email verification step - if not verified, bounce back to the user to fix and try again
-    $('#'+clogin.emailInputId).css('border-color','#f04717').focus();
+    $('#'+clogin.emailInputId).val('').attr('placeholder','Please enter an Email Address').css('border-color','#f04717').focus();
+    clogin.user.email = undefined;
+    $('#'+clogin.loadingId).hide();
     return;
   }
   $('#' + clogin.tokenInputId ).attr('placeholder','Delivering to ' + clogin.user.email);
@@ -515,7 +560,7 @@ clogin.login = function(e) {
   if (e) e.preventDefault();
   $('#'+clogin.messagesDivId).html('');
   var progress = clogin.getCookie('clprogress');
-  if (progress && !$('#'+clogin.tokenInputId).val()) {
+  if (progress && !$('#'+clogin.tokenInputId).val() && !clogin.hash()) {
     clogin.tokenSuccess();
   } else {
     clogin.removeCookie('clprogress');
@@ -532,6 +577,7 @@ clogin.login = function(e) {
     dataType: 'json',
     success: clogin.loginSuccess,
     error: function(data) {
+      if (clogin.notLoggedinClass) $('.'+clogin.notLoggedinClass).show();
       clogin.user.login = 'error';
       clogin.failureCallback(data,'login');
     }
@@ -539,7 +585,7 @@ clogin.login = function(e) {
   var data = {
     email: clogin.user.email,
     token: $('#'+clogin.tokenInputId).val(),
-    hash: clogin.hash(),
+    hash: (clogin.user && clogin.user.hash ? clogin.user.hash : clogin.hash()),
     location: window.location.protocol + '//' + window.location.hostname
   }
   clogin.user.token = data.token;
@@ -551,7 +597,7 @@ clogin.login = function(e) {
       var lgt = confirm('You are either logging in to live but have a dev login cookie present, or vice versa. You will be logged out of both in order to proceed. OK?');
       if (lgt) {
         clogin.removeCookie(clogin.cookie,cookie.domain);
-        window.location = window.location.href;
+        //window.location = window.location.href;
       }
     } else {
       if ( !data.email ) data.email = cookie.email;
@@ -565,10 +611,12 @@ clogin.login = function(e) {
   }
   if (!data.email && progress) data.email = progress.email;
   opts.data = JSON.stringify(data);
+  if (clogin.debug) console.log(opts.data);
   if ( data.token || data.hash || data.resume || data.fingerprint ) {
     if (clogin.loadingId) $('#'+clogin.loadingId).show();
     $.ajax(opts);
   } else {
+    if (clogin.notLoggedinClass) $('.'+clogin.notLoggedinClass).show();
     clogin.nologin();
   }
 }
@@ -615,6 +663,37 @@ clogin.logout = function(e) {
   if ( data.email ) $.ajax(opts);
 }
 
+clogin.afteroauth = function() {}
+clogin.oauthlogin = function() {
+  if (clogin.debug) console.log('Clogin has valid oauth creds, passing to backend to login user');
+  if (clogin.debug) console.log(clogin.oauth);
+  var opts = {
+    type:'POST',
+    url: clogin.api + '/login',
+    cache:false,
+    processData:false,
+    contentType: 'application/json',
+    dataType: 'json',
+    success: function(data) {
+      clogin.afteroauth();
+      clogin.loginSuccess(data);
+    },
+    error: function(data) {
+      clogin.oauth = undefined;
+      clogin.user.login = 'error';
+      clogin.failureCallback(data,'oauth');
+    }
+  }
+  var data = {
+    oauth: clogin.oauth,
+    location: window.location.protocol + '//' + window.location.hostname
+  }
+  if (window.location.pathname !== '/') data.location += window.location.pathname;
+  opts.data = JSON.stringify(data);
+  if (clogin.loadingId) $('#'+clogin.loadingId).show();
+  $.ajax(opts);
+}
+
 clogin.ping = function() {
   // TODO init (or successful login) should set up a recurring ping, so that the backend can keep track of the user being active
   // but this would only be a track of when the logged in user is on the login page, not when on other pages of the site
@@ -635,7 +714,50 @@ clogin.init = function(opts) {
   // build the form even if it turns out to be unnecessary, because a login error could result in it being needed for a retry - unless specifically set not to
   if ( clogin.form && typeof clogin.form === 'function' ) clogin.form();
   if (clogin.loggedinClass) $('.'+clogin.loggedinClass).hide();
-  if (clogin.notLoggedinClass) $('.'+clogin.notLoggedinClass).show();
   if (clogin.loadingId) $('#'+clogin.loadingId).hide();
-  clogin.login();
+  if ( window.location.hash.indexOf('access_token=') !== -1 ) {
+    if (clogin.debug) console.log('Clogin init validating creds found in url hash');
+    $('#'+clogin.emailDivId).hide();
+    $('#'+clogin.loadingId).show();
+    var pts = window.location.hash.replace('#','').split('&');
+    clogin.oauth = {};
+    for ( var p in pts ) clogin.oauth[pts[p].split('=')[0]] = pts[p].split('=')[1];
+    var oauthcookie = clogin.getCookie('cloauth');
+    if (clogin.debug) console.log(oauthcookie);
+    clogin.oauth.service = oauthcookie.service;
+    if (clogin.debug) console.log(clogin.oauth.state === oauthcookie.state)
+    if (clogin.oauth.state === oauthcookie.state) {
+      if (clogin.notLoggedinClass) $('.'+clogin.notLoggedinClass).show();
+      clogin.oauthlogin();
+      /*if ( oauthcookie.service === 'google' ) {
+        // can pre-check the token for google, though not necessary if backend checks anyway
+        $.ajax({
+          method: 'POST',
+          url: 'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + clogin.oauth.access_token,
+          success: function(data) {
+            if (clogin.debug) console.log('Clogin validated oauth creds');
+            if (clogin.debug) console.log(data)
+            if (data.aud === clogin.oauthGoogleClientId) {
+              clogin.oauthlogin();
+            } else {
+              clogin.oauth = undefined;
+            }
+          },
+          error: function() {
+            if (clogin.debug) console.log('Clogin oauth failed to validate google token');
+            clogin.oauth = undefined;
+          }
+        });
+      } else if ( oauthcookie.service === 'facebook' ) {
+        if (clogin.debug) console.log('Clogin initiating oauth login for facebook')
+        clogin.oauthlogin();
+      }*/
+    }
+    try {
+      if (!clogin.debug && 'pushState' in window.history) window.history.pushState("", "oauth", window.location.pathname + window.location.search);
+    } catch(err) {}
+    if (!clogin.debug) clogin.removeCookie('cloauth');
+  } else {
+    clogin.login();
+  }
 }
