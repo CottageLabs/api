@@ -619,12 +619,26 @@ CLapi.addRoute('service/oab/receive/:rid', {
     action: function() {
       var r = oab_request.findOne({receiver:this.urlParams.rid});
       if (r) {
-        // TODO this could receive content directly some how
         var admin;
         if (this.bodyParams.admin && ( this.request.headers['x-apikey'] || this.queryParams.apikey ) ) {
           var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
           var acc = CLapi.internals.accounts.retrieve(apikey);
           if (acc && CLapi.internals.accounts.auth('openaccessbutton.admin',acc)) admin = true;
+        }
+        if (this.request.files) {
+          // TODO this should send file to wherever I run a filestore, to ensure 
+          // files don't end up spread across cluster machines - or the overall 
+          // API code that catches files could do that in the first place...
+          var fs = Meteor.npmRequire('fs');
+          var fl = this.request.files[0]; // we only expect one file per submission now
+          var dr = Meteor.settings.uploadServer.uploadDir + 'openaccessbutton';
+          if (!fs.existsSync(dr)) try { fs.mkdirSync(dr) } catch(err) {}
+          dr += '/' + this.urlParams.rid;
+          if (dr.indexOf('../') !== -1) return {}
+          if (!fs.existsSync(dr)) try { fs.mkdirSync(dr) } catch(err) {}
+          dr += '/' + fl.filename;
+          if (dr.indexOf('../') !== -1) return {}
+          fs.writeFileSync(dr,fl.data);
         }
         return CLapi.internals.service.oab.receive(this.urlParams.rid,this.bodyParams.content,this.bodyParams.url,this.bodyParams.title,this.bodyParams.description,this.bodyParams.firstname,this.bodyParams.lastname,undefined,admin,this.bodyParams.notfromauthor);
       } else {
