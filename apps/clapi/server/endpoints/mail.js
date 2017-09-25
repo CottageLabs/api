@@ -98,7 +98,7 @@ CLapi.addRoute('mail/progress', {
       //var headers = []
       //for ( var h in this.request ) headers.push(h)
       //console.log(headers)
-      console.log(this.request.files)
+      //console.log(this.request.files)
       CLapi.internals.mail.progress(this.request.body,this.queryParams.token);
       return {};      
     }
@@ -156,7 +156,7 @@ CLapi.internals.sendmail = function(opts,mail_url) {
     //console.log(opts)
     try {
       var posted = Meteor.http.call('POST',url,{params:opts,auth:'api:'+apik});
-      console.log(posted);
+      //console.log(posted);
       return posted;
     } catch(err) {
       console.log(err);
@@ -168,7 +168,7 @@ CLapi.internals.sendmail = function(opts,mail_url) {
       console.log('temporarily setting mail url to ' + mail_url);
     }
     console.log('Sending mail via mailgun Mail URL ' + mail_url);
-    console.log(opts)
+    //console.log(opts)
     Email.send(opts);
     if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
     return {};

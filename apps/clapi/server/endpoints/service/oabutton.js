@@ -1587,6 +1587,7 @@ CLapi.internals.service.oab.libraries = function(opts) {
 */
 CLapi.internals.service.oab.availability = function(opts) {
   if (opts === undefined) opts = {url:undefined,type:undefined}
+  try { opts.refresh = parseInt(opts.refresh) } catch(err) {}
   if (opts.refresh === undefined) opts.refresh = 7;
   if (opts.url) {
     if (opts.url.indexOf('10.1') === 0) {
@@ -1644,7 +1645,12 @@ CLapi.internals.service.oab.availability = function(opts) {
       if (avail && !CLapi.internals.service.oab.blacklist(avail.discovered.article)) {
         console.log('found in previous availabilities ' + opts.url + ' ' + avail.url + ' ' + avail.discovered.article);
         url = avail.discovered.article;
-        if (avail.source && avail.source.article) ret.meta.article.source = avail.source.article;
+        if (avail.source && avail.source.article) {
+          ret.meta.article.source = avail.source.article;
+          opts.source.article = avail.source.article;
+        }
+        ret.found_in_cache = true;
+        opts.found_in_cache = true;
       }
     }
     if (checked) {
@@ -1662,11 +1668,11 @@ CLapi.internals.service.oab.availability = function(opts) {
         url = res.url ? res.url : undefined;
         if (url !== undefined && !res.journal_url) opts.source.article = res.source;
       }
-      if (url !== undefined && !ret.meta.article.journal_url) {
-        ret.availability.push({type:'article',url:url});
-        already.push('article');
-        opts.discovered.article = url;
-      }
+    }
+    if (url !== undefined && !ret.meta.article.journal_url) {
+      ret.availability.push({type:'article',url:url});
+      already.push('article');
+      opts.discovered.article = url;
     }
   }
   // TODO add availability checkers for any new types that are added to the accepts list  

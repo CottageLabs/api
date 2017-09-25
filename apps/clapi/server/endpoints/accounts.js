@@ -476,7 +476,7 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
   opts.timeout = opts.timeout >= 60 ? (opts.timeout/60) + ' hour(s)' : opts.timeout + ' minute(s)';
   var user = CLapi.internals.accounts.retrieve(email);
   opts.action = user && CLapi.internals.accounts.auth(opts.service+'.'+opts.role,user) ? "login" : "registration";
-  console.log(opts);
+  console.log(opts.logincode);
 
   if (opts.action === "registration" && !opts.registration) {
     // TODO could register a registration request somehow, and then email whoever should be in charge of those for this service
@@ -526,9 +526,9 @@ CLapi.internals.accounts.token = function(email,loc,fingerprint) {
       } else {
         snd.post = false;
       }
-      console.log(snd);
+      //console.log(snd);
       sent = CLapi.internals.mail.send(snd,Meteor.settings.service_mail_urls[opts.service]);
-      console.log(sent);
+      //console.log(sent);
     } catch(err) {
       console.log(err);
     }
