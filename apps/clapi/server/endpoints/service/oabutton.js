@@ -680,7 +680,15 @@ CLapi.addRoute('service/oab/receive/:rid/:holdrefuse', {
 CLapi.addRoute('service/oab/dnr', {
   get: {
     action: function() {
-      if (!this.queryParams.email) return {status:'error',info:'you need to provide an email'};
+      if (!this.queryParams.email) {
+        var admin = false;
+        if (this.request.headers['x-apikey'] || this.queryParams.apikey) {
+          var apikey = this.queryParams.apikey ? this.queryParams.apikey : this.request.headers['x-apikey'];
+          var acc = CLapi.internals.accounts.retrieve(apikey);
+          admin = acc && CLapi.internals.accounts.auth('openaccessbutton.admin',acc);
+        }
+        if (!admin) return {status:'error',info:'you need to provide an email'};
+      }
       var d = {};
       d.dnr = CLapi.internals.service.oab.dnr(this.queryParams.email);
       if (!d.dnr && this.queryParams.user) {
@@ -715,6 +723,12 @@ CLapi.addRoute('service/oab/dnr', {
         return {status:'error',info:'you need to provide an email'}
       }
     }    
+  },
+  delete: {
+    action: function() {
+      if (this.queryParams.email && oab_dnr.findOne({email:this.queryParams.email})) oab_dnr.remove({email:this.queryParams.email});
+      return {}
+    }
   }
 });
 

@@ -577,6 +577,7 @@ clogin.login = function(e) {
     dataType: 'json',
     success: clogin.loginSuccess,
     error: function(data) {
+      clogin.removeCookie(clogin.cookie,data.data.domain);
       if (clogin.notLoggedinClass) $('.'+clogin.notLoggedinClass).show();
       clogin.user.login = 'error';
       clogin.failureCallback(data,'login');

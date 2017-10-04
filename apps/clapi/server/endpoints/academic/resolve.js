@@ -771,10 +771,14 @@ CLapi.internals.academic.resolve = function(ident,content,meta,refresh) {
   
   if (ret.url) {
     // check it resolves
-    var resolves = Meteor.http.call('HEAD',ret.url);
-    if (resolves.statusCode === 404) {
-      ret['broken'] = ret.url;
-      ret.url = undefined;
+    try {
+      var resolves = Meteor.http.call('HEAD',ret.url);
+    } catch(err) {
+      console.log(err.response.statusCode);
+      if (err.response.statusCode === 404) {
+        ret['broken'] = ret.url;
+        ret.url = undefined;
+      }
     }
   }
   

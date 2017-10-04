@@ -46,7 +46,7 @@ CLapi.addRoute('mail/send', {
 });
 
 // leaving this one in as deprecated, in use elsewhere
-CLapi.addRoute('sendmail/error', { post: { action: function() { CLapi.internals.mail.error(this.request.body); return {}; } } });
+CLapi.addRoute('sendmail/error', { post: { action: function() { CLapi.internals.mail.error(this.request.body,this.queryParams.token); return {}; } } });
 CLapi.addRoute('mail/error', {
   post: {
     action: function() {
@@ -169,7 +169,12 @@ CLapi.internals.sendmail = function(opts,mail_url) {
     }
     console.log('Sending mail via mailgun Mail URL ' + mail_url);
     //console.log(opts)
-    Email.send(opts);
+    try {
+      Email.send(opts);
+    } catch(err) {
+      console.log('Mail sending error');
+      console.log(opts);
+    }
     if (mail_url) process.env.MAIL_URL = Meteor.settings.MAIL_URL;
     return {};
   }
@@ -248,6 +253,10 @@ CLapi.internals.mail.error = function(content,token) {
   var mail_url;
   var subject = 'error dump';
   if (token) {
+    if (token === "3948fjfjf093j0g384f0284jf0293jf08j093jf1") {
+      console.log('NOT sending robin error email');
+      return; // disable robin errors
+    }
     try {
       // for robin this could check tokens against actual user tokens on the live service
       // but then would only work if the live service is up - so don't bother for now
