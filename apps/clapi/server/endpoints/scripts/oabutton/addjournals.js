@@ -46,8 +46,9 @@ CLapi.addRoute('scripts/oabutton/addjournals', {
             counts.sherpa += 1;
           } catch(err) {}
         }
-        if (JSON.stringify(update) !== '{}') oab_request.update(ress.id,{$set:update});
+        if (JSON.stringify(update) !== '{}') oab_request.update(ress._id,{$set:update});
         counts.count += 1;
+        console.log(counts.count);
       }
 
       CLapi.internals.sendmail({
